@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --game-bg: #0f0f1a;
+  --game-card: #1a1a2e;
+  --game-border: #2a2a4a;
+}
+
+body {
+  background-color: var(--game-bg);
+  color: #e2e8f0;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--game-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--game-border);
+  border-radius: 3px;
+}
+
+/* Bingo cell styles */
+.bingo-cell {
+  @apply flex items-center justify-center rounded-lg font-bold text-lg
+    transition-all duration-200 cursor-pointer select-none;
+  aspect-ratio: 1;
+}
+.bingo-cell.unmarked {
+  @apply bg-game-card border border-game-border hover:border-primary;
+}
+.bingo-cell.marked {
+  @apply bg-primary/30 border-2 border-primary text-primary-light;
+}
+.bingo-cell.free {
+  @apply bg-accent/20 border-2 border-accent text-accent;
+}
+.bingo-cell.called {
+  @apply ring-2 ring-yellow-400 ring-offset-1 ring-offset-game-bg;
+}
+
+/* Glow button */
+.glow-button {
+  @apply relative overflow-hidden;
+}
+.glow-button::before {
+  content: '';
+  @apply absolute inset-0 bg-gradient-to-r from-primary to-accent opacity-0
+    transition-opacity duration-300;
+}
+.glow-button:hover::before {
+  opacity: 0.2;
+}
