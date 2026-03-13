@@ -15,11 +15,14 @@ COPY apps/backend/ ./apps/backend/
 WORKDIR /app/apps/backend
 RUN npm run build
 
-# Production image
+# Production image — preserve workspace layout for shared package symlink
 FROM node:20-alpine
 WORKDIR /app
-COPY --from=base /app/apps/backend/dist ./dist
-COPY --from=base /app/apps/backend/package.json ./
+COPY --from=base /app/package.json ./package.json
 COPY --from=base /app/node_modules ./node_modules
+COPY --from=base /app/packages/shared ./packages/shared
+COPY --from=base /app/apps/backend/dist ./apps/backend/dist
+COPY --from=base /app/apps/backend/package.json ./apps/backend/
+WORKDIR /app/apps/backend
 EXPOSE 3001
 CMD ["node", "dist/main"]

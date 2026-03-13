@@ -15,12 +15,15 @@ COPY apps/frontend/ ./apps/frontend/
 WORKDIR /app/apps/frontend
 RUN npm run build
 
-# Production image
+# Production image — preserve workspace layout for shared package symlink
 FROM node:20-alpine
 WORKDIR /app
-COPY --from=base /app/apps/frontend/.next ./.next
-COPY --from=base /app/apps/frontend/public ./public
-COPY --from=base /app/apps/frontend/package.json ./
+COPY --from=base /app/package.json ./package.json
 COPY --from=base /app/node_modules ./node_modules
+COPY --from=base /app/packages/shared ./packages/shared
+COPY --from=base /app/apps/frontend/.next ./apps/frontend/.next
+COPY --from=base /app/apps/frontend/public ./apps/frontend/public
+COPY --from=base /app/apps/frontend/package.json ./apps/frontend/
+WORKDIR /app/apps/frontend
 EXPOSE 3000
 CMD ["npm", "start"]
