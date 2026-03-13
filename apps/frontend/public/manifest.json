@@ -1,0 +1,9 @@
+{
+  "name": "GameVerse",
+  "short_name": "GameVerse",
+  "icons": [],
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0f1a",
+  "theme_color": "#6366f1"
+}
