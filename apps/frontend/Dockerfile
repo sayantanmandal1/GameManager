@@ -11,7 +11,9 @@ RUN npm install --workspace=apps/frontend --workspace=packages/shared
 COPY packages/shared/ ./packages/shared/
 COPY apps/frontend/ ./apps/frontend/
 
-# Build
+# Build shared package first, then frontend
+WORKDIR /app/packages/shared
+RUN npm run build
 WORKDIR /app/apps/frontend
 RUN npm run build
 
@@ -20,7 +22,8 @@ FROM node:20-alpine
 WORKDIR /app
 COPY --from=base /app/package.json ./package.json
 COPY --from=base /app/node_modules ./node_modules
-COPY --from=base /app/packages/shared ./packages/shared
+COPY --from=base /app/packages/shared/dist ./packages/shared/dist
+COPY --from=base /app/packages/shared/package.json ./packages/shared/
 COPY --from=base /app/apps/frontend/.next ./apps/frontend/.next
 COPY --from=base /app/apps/frontend/public ./apps/frontend/public
 COPY --from=base /app/apps/frontend/package.json ./apps/frontend/
