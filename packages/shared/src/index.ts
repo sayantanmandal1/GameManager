@@ -15,17 +15,13 @@ export type {
   BingoWinResult,
   BingoGameState,
   BingoPlayerView,
-  BingoMarkMove,
-  BingoClaimPayload,
+  BingoPlaceMove,
+  BingoChooseMove,
 } from './types/bingo';
 export {
-  BingoWinPattern,
-  BINGO_COLUMNS,
-  BINGO_COLUMN_RANGES,
+  BingoGamePhase,
   BINGO_BOARD_SIZE,
   BINGO_TOTAL_NUMBERS,
-  BINGO_FREE_ROW,
-  BINGO_FREE_COL,
 } from './types/bingo';
 
 // Events

@@ -1,115 +1,117 @@
 import { BingoEngine } from './bingo.engine';
 import {
-  generateBoard,
-  generateDrawPool,
-  checkBoardWin,
+  createEmptyBoard,
+  countCompletedLines,
   markNumberOnBoard,
+  isBoardFilled,
+  isNumberOnBoard,
 } from './bingo.utils';
 import {
   BINGO_BOARD_SIZE,
-  BINGO_TOTAL_NUMBERS,
-  BingoWinPattern,
+  BingoGamePhase,
 } from '@multiplayer-games/shared';
 
 describe('BingoUtils', () => {
-  describe('generateBoard', () => {
-    it('should create a 5x5 board', () => {
-      const board = generateBoard();
+  describe('createEmptyBoard', () => {
+    it('should create a 5x5 board of zeros', () => {
+      const board = createEmptyBoard();
       expect(board).toHaveLength(BINGO_BOARD_SIZE);
-      board.forEach((row) => expect(row).toHaveLength(BINGO_BOARD_SIZE));
-    });
-
-    it('should have FREE in center', () => {
-      const board = generateBoard();
-      expect(board[2][2].value).toBe('FREE');
-      expect(board[2][2].marked).toBe(true);
-    });
-
-    it('should have correct column ranges', () => {
-      const board = generateBoard();
-      const ranges: [number, number][] = [
-        [1, 15],
-        [16, 30],
-        [31, 45],
-        [46, 60],
-        [61, 75],
-      ];
-      for (let col = 0; col < 5; col++) {
-        for (let row = 0; row < 5; row++) {
-          if (row === 2 && col === 2) continue; // FREE cell
-          const val = board[row][col].value as number;
-          expect(val).toBeGreaterThanOrEqual(ranges[col][0]);
-          expect(val).toBeLessThanOrEqual(ranges[col][1]);
-        }
-      }
-    });
-
-    it('should have unique numbers in each column', () => {
-      const board = generateBoard();
-      for (let col = 0; col < 5; col++) {
-        const values = [];
-        for (let row = 0; row < 5; row++) {
-          if (row === 2 && col === 2) continue;
-          values.push(board[row][col].value);
-        }
-        expect(new Set(values).size).toBe(values.length);
-      }
-    });
-  });
-
-  describe('generateDrawPool', () => {
-    it('should contain all numbers 1-75', () => {
-      const pool = generateDrawPool();
-      expect(pool).toHaveLength(BINGO_TOTAL_NUMBERS);
-      const sorted = [...pool].sort((a, b) => a - b);
-      sorted.forEach((val, i) => expect(val).toBe(i + 1));
-    });
-  });
-
-  describe('checkBoardWin', () => {
-    it('should detect a row win', () => {
-      const board = generateBoard();
-      // Mark entire first row
-      for (let col = 0; col < 5; col++) {
-        board[0][col] = { ...board[0][col], marked: true };
-      }
-      const result = checkBoardWin(board);
-      expect(result).not.toBeNull();
-      expect(result!.pattern).toBe(BingoWinPattern.ROW);
-    });
-
-    it('should detect a column win', () => {
-      const board = generateBoard();
-      for (let row = 0; row < 5; row++) {
-        board[row][0] = { ...board[row][0], marked: true };
-      }
-      const result = checkBoardWin(board);
-      expect(result).not.toBeNull();
-      expect(result!.pattern).toBe(BingoWinPattern.COLUMN);
-    });
-
-    it('should detect a diagonal win', () => {
-      const board = generateBoard();
-      for (let i = 0; i < 5; i++) {
-        board[i][i] = { ...board[i][i], marked: true };
-      }
-      const result = checkBoardWin(board);
-      expect(result).not.toBeNull();
-      expect(result!.pattern).toBe(BingoWinPattern.DIAGONAL);
-    });
-
-    it('should return null when no win', () => {
-      const board = generateBoard();
-      expect(checkBoardWin(board)).toBeNull();
+      board.forEach((row) => {
+        expect(row).toHaveLength(BINGO_BOARD_SIZE);
+        row.forEach((cell) => {
+          expect(cell.value).toBe(0);
+          expect(cell.marked).toBe(false);
+        });
+      });
     });
   });
 
   describe('markNumberOnBoard', () => {
     it('should mark the correct cell', () => {
-      const board = generateBoard();
-      const target = board[0][0].value as number;
-      const marked = markNumberOnBoard(board, target);
-      expect(marked[0][0].marked).toBe(true);
+      const board = createEmptyBoard();
+      board[0][0] = { value: 7, marked: false };
+      markNumberOnBoard(board, 7);
+      expect(board[0][0].marked).toBe(true);
+    });
+
+    it('should not mark cells with different values', () => {
+      const board = createEmptyBoard();
+      board[0][0] = { value: 7, marked: false };
+      board[0][1] = { value: 8, marked: false };
+      markNumberOnBoard(board, 7);
+      expect(board[0][1].marked).toBe(false);
+    });
+  });
+
+  describe('countCompletedLines', () => {
+    it('should return 0 for empty board', () => {
+      const board = createEmptyBoard();
+      expect(countCompletedLines(board)).toBe(0);
+    });
+
+    it('should detect a completed row', () => {
+      const board = createEmptyBoard();
+      for (let col = 0; col < 5; col++) {
+        board[0][col] = { value: col + 1, marked: true };
+      }
+      expect(countCompletedLines(board)).toBe(1);
+    });
+
+    it('should detect a completed column', () => {
+      const board = createEmptyBoard();
+      for (let row = 0; row < 5; row++) {
+        board[row][0] = { value: row + 1, marked: true };
+      }
+      expect(countCompletedLines(board)).toBe(1);
+    });
+
+    it('should detect a diagonal', () => {
+      const board = createEmptyBoard();
+      for (let i = 0; i < 5; i++) {
+        board[i][i] = { value: i + 1, marked: true };
+      }
+      expect(countCompletedLines(board)).toBe(1);
+    });
+
+    it('should count multiple lines', () => {
+      const board = createEmptyBoard();
+      // Fill entire board marked → 5 rows + 5 cols + 2 diags = 12
+      for (let r = 0; r < 5; r++) {
+        for (let c = 0; c < 5; c++) {
+          board[r][c] = { value: r * 5 + c + 1, marked: true };
+        }
+      }
+      expect(countCompletedLines(board)).toBe(12);
+    });
+  });
+
+  describe('isBoardFilled', () => {
+    it('should return false for empty board', () => {
+      expect(isBoardFilled(createEmptyBoard())).toBe(false);
+    });
+
+    it('should return true when all cells have values', () => {
+      const board = createEmptyBoard();
+      let n = 1;
+      for (let r = 0; r < 5; r++) {
+        for (let c = 0; c < 5; c++) {
+          board[r][c] = { value: n++, marked: false };
+        }
+      }
+      expect(isBoardFilled(board)).toBe(true);
+    });
+  });
+
+  describe('isNumberOnBoard', () => {
+    it('should find a placed number', () => {
+      const board = createEmptyBoard();
+      board[2][3] = { value: 15, marked: false };
+      expect(isNumberOnBoard(board, 15)).toBe(true);
+    });
+
+    it('should not find an unplaced number', () => {
+      const board = createEmptyBoard();
+      expect(isNumberOnBoard(board, 15)).toBe(false);
     });
   });
 });
@@ -123,74 +125,159 @@ describe('BingoEngine', () => {
   });
 
   describe('initGame', () => {
-    it('should create unique boards for each player', () => {
+    it('should create empty boards for each player in setup phase', () => {
       const state = engine.initGame(players);
       expect(Object.keys(state.boards)).toHaveLength(2);
-      expect(state.boards['player1']).toBeDefined();
-      expect(state.boards['player2']).toBeDefined();
-      expect(state.remainingNumbers).toHaveLength(BINGO_TOTAL_NUMBERS);
+      expect(state.phase).toBe(BingoGamePhase.SETUP);
+      expect(state.setupDone).toEqual([]);
+      expect(state.playerIds).toEqual(players);
     });
   });
 
-  describe('validateMove', () => {
-    it('should reject uncalled numbers', () => {
+  describe('placeNumber', () => {
+    it('should place a number on an empty cell', () => {
       const state = engine.initGame(players);
-      const result = engine.validateMove(state, 'player1', { number: 99 });
+      const result = engine.placeNumber(state, 'player1', 0, 0, 1);
+      expect(result.valid).toBe(true);
+      expect(state.boards['player1'][0][0].value).toBe(1);
+    });
+
+    it('should reject placing on an occupied cell', () => {
+      const state = engine.initGame(players);
+      engine.placeNumber(state, 'player1', 0, 0, 1);
+      const result = engine.placeNumber(state, 'player1', 0, 0, 2);
       expect(result.valid).toBe(false);
     });
 
-    it('should accept valid marks', () => {
+    it('should reject placing a duplicate number', () => {
       const state = engine.initGame(players);
-      // Manually call a number that exists on player1's board
-      const board = state.boards['player1'];
-      const num = board[0][0].value as number;
-      state.calledNumbers.push(num);
+      engine.placeNumber(state, 'player1', 0, 0, 5);
+      const result = engine.placeNumber(state, 'player1', 0, 1, 5);
+      expect(result.valid).toBe(false);
+    });
 
-      const result = engine.validateMove(state, 'player1', { number: num });
+    it('should transition to PLAYING when both boards are full', () => {
+      const state = engine.initGame(players);
+      let n = 1;
+      for (let r = 0; r < 5; r++) {
+        for (let c = 0; c < 5; c++) {
+          engine.placeNumber(state, 'player1', r, c, n++);
+        }
+      }
+      expect(state.setupDone).toContain('player1');
+      expect(state.phase).toBe(BingoGamePhase.SETUP);
+
+      n = 1;
+      for (let r = 0; r < 5; r++) {
+        for (let c = 0; c < 5; c++) {
+          engine.placeNumber(state, 'player2', r, c, n++);
+        }
+      }
+      expect(state.phase).toBe(BingoGamePhase.PLAYING);
+      expect(state.currentTurn).toBe('player1');
+    });
+  });
+
+  describe('chooseNumber', () => {
+    function setupFullBoards(state: ReturnType<typeof engine.initGame>) {
+      // Player 1: sequential 1-25
+      let n = 1;
+      for (let r = 0; r < 5; r++) {
+        for (let c = 0; c < 5; c++) {
+          engine.placeNumber(state, 'player1', r, c, n++);
+        }
+      }
+      // Player 2: sequential 1-25
+      n = 1;
+      for (let r = 0; r < 5; r++) {
+        for (let c = 0; c < 5; c++) {
+          engine.placeNumber(state, 'player2', r, c, n++);
+        }
+      }
+    }
+
+    it('should reject moves when not your turn', () => {
+      const state = engine.initGame(players);
+      setupFullBoards(state);
+      const result = engine.chooseNumber(state, 'player2', 1);
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain('Not your turn');
+    });
+
+    it('should mark the number on both boards and advance turn', () => {
+      const state = engine.initGame(players);
+      setupFullBoards(state);
+      const result = engine.chooseNumber(state, 'player1', 1);
       expect(result.valid).toBe(true);
+      expect(state.boards['player1'][0][0].marked).toBe(true);
+      expect(state.boards['player2'][0][0].marked).toBe(true);
+      expect(state.currentTurn).toBe('player2');
+    });
+
+    it('should reject already-chosen numbers', () => {
+      const state = engine.initGame(players);
+      setupFullBoards(state);
+      engine.chooseNumber(state, 'player1', 1);
+      engine.chooseNumber(state, 'player2', 2);
+      const result = engine.chooseNumber(state, 'player1', 1);
+      expect(result.valid).toBe(false);
+    });
+
+    it('should detect a winner when 5 lines are completed', () => {
+      const state = engine.initGame(players);
+      setupFullBoards(state);
+
+      // Both players have the same board layout (1-25 sequentially).
+      // Rows are: [1,2,3,4,5], [6,7,8,9,10], [11,12,13,14,15], [16,17,18,19,20], [21,22,23,24,25]
+      // Choose all 25 numbers alternating turns, which completes all lines.
+      // Choosing 1,2,3,4,5 completes row 1 (line 1).
+      // Then 6,7,8,… etc.
+      const turnOrder = [
+        1, 6, 2, 7, 3, 8, 4, 9, 5, // after 5 chosen by p1: row 1 done (1 line for p1)
+        10, // p2 chooses 10
+        11, 16, 12, 17, 13, 18, 14, 19, 15, // p1 completes rows
+        20, 21, 22, 23, 24, 25,
+      ];
+
+      let lastResult;
+      for (const num of turnOrder) {
+        lastResult = engine.chooseNumber(state, state.currentTurn!, num);
+        if (lastResult.winner) break;
+      }
+
+      expect(state.phase).toBe(BingoGamePhase.FINISHED);
+      expect(state.winnerId).toBeDefined();
     });
   });
 
   describe('getPlayerView', () => {
-    it('should only show the requesting player board', () => {
+    it('should hide opponent board during setup', () => {
       const state = engine.initGame(players);
       const view = engine.getPlayerView(state, 'player1');
       expect(view.board).toBeDefined();
-      expect(view.players).toEqual(players);
-      // Should not contain other players' boards
-      expect((view as any).boards).toBeUndefined();
-    });
-  });
-
-  describe('drawNumber', () => {
-    it('should draw from the pool', () => {
-      const state = engine.initGame(players);
-      const initial = state.remainingNumbers.length;
-      const { state: newState, number } = engine.drawNumber(state);
-      expect(number).toBeGreaterThanOrEqual(1);
-      expect(number).toBeLessThanOrEqual(75);
-      expect(newState.remainingNumbers).toHaveLength(initial - 1);
-      expect(newState.calledNumbers).toContain(number);
-    });
-  });
-
-  describe('validateClaim', () => {
-    it('should reject invalid claims', () => {
-      const state = engine.initGame(players);
-      const result = engine.validateClaim(state, 'player1');
-      expect(result).toBeNull();
+      expect(view.opponentBoard).toBeNull();
+      expect(view.phase).toBe(BingoGamePhase.SETUP);
     });
 
-    it('should accept valid claims', () => {
+    it('should show opponent board during playing', () => {
       const state = engine.initGame(players);
-      // Force a row win on player1's board
-      const board = state.boards['player1'];
-      for (let col = 0; col < 5; col++) {
-        board[0][col] = { ...board[0][col], marked: true };
+      // Fill both boards
+      let n = 1;
+      for (let r = 0; r < 5; r++) {
+        for (let c = 0; c < 5; c++) {
+          engine.placeNumber(state, 'player1', r, c, n++);
+        }
       }
-      const result = engine.validateClaim(state, 'player1');
-      expect(result).not.toBeNull();
-      expect(result!.winnerId).toBe('player1');
+      n = 1;
+      for (let r = 0; r < 5; r++) {
+        for (let c = 0; c < 5; c++) {
+          engine.placeNumber(state, 'player2', r, c, n++);
+        }
+      }
+
+      const view = engine.getPlayerView(state, 'player1');
+      expect(view.opponentBoard).not.toBeNull();
+      expect(view.phase).toBe(BingoGamePhase.PLAYING);
     });
   });
 });

@@ -11,6 +11,7 @@ export const LOBBY_EVENTS = {
   HOST_CHANGED: 'lobby:host_changed',
   START_GAME: 'lobby:start_game',
   GAME_STARTING: 'lobby:game_starting',
+  BACK_TO_LOBBY: 'lobby:back_to_lobby',
   CHAT_MESSAGE: 'lobby:chat_message',
 } as const;
 
@@ -24,11 +25,10 @@ export const GAME_EVENTS = {
 
 // ─── Bingo-Specific Events ───
 export const BINGO_EVENTS = {
-  NUMBER_CALLED: 'bingo:number_called',
-  MARK_NUMBER: 'bingo:mark_number',
-  CLAIM: 'bingo:claim',
-  CLAIM_REJECTED: 'bingo:claim_rejected',
-  CLAIM_ACCEPTED: 'bingo:claim_accepted',
+  /** Setup phase: player places a number on their board */
+  PLACE_NUMBER: 'bingo:place_number',
+  /** Play phase: player chooses a number on their turn */
+  CHOOSE_NUMBER: 'bingo:choose_number',
 } as const;
 
 // ─── Voice Chat Events (WebRTC Signaling) ───

@@ -1,160 +1,157 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { BingoBoard } from '@/components/bingo/BingoBoard';
-import { NumberDisplay } from '@/components/bingo/NumberDisplay';
 import { Button } from '@/components/ui/Button';
 import type { BingoBoard as BingoBoardType, BingoCell } from '@multiplayer-games/shared';
-import {
-  BINGO_BOARD_SIZE,
-  BINGO_TOTAL_NUMBERS,
-  BINGO_COLUMNS,
-  BINGO_COLUMN_RANGES,
-  BINGO_FREE_ROW,
-  BINGO_FREE_COL,
-  BingoWinPattern,
-} from '@multiplayer-games/shared';
+import { BINGO_BOARD_SIZE, BINGO_TOTAL_NUMBERS } from '@multiplayer-games/shared';
 
-// ─── Offline engine helpers ───
+// ─── Offline helpers ───
 
-function rangeArray(start: number, end: number): number[] {
-  const arr: number[] = [];
-  for (let i = start; i <= end; i++) arr.push(i);
-  return arr;
-}
-
-function shuffleArray<T>(arr: T[]): T[] {
-  const shuffled = [...arr];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-}
-
-function generateBoard(): BingoBoardType {
+function createEmptyBoard(): BingoBoardType {
   const board: BingoBoardType = [];
-  for (let row = 0; row < BINGO_BOARD_SIZE; row++) {
-    const cells: BingoCell[] = [];
-    for (let col = 0; col < BINGO_BOARD_SIZE; col++) {
-      if (row === BINGO_FREE_ROW && col === BINGO_FREE_COL) {
-        cells.push({ value: 'FREE', marked: true });
-      } else {
-        cells.push({ value: 0, marked: false });
-      }
+  for (let r = 0; r < BINGO_BOARD_SIZE; r++) {
+    const row: BingoCell[] = [];
+    for (let c = 0; c < BINGO_BOARD_SIZE; c++) {
+      row.push({ value: 0, marked: false });
     }
-    board.push(cells);
-  }
-
-  for (let col = 0; col < BINGO_BOARD_SIZE; col++) {
-    const column = BINGO_COLUMNS[col];
-    const [min, max] = BINGO_COLUMN_RANGES[column];
-    const pool = shuffleArray(rangeArray(min, max));
-    let idx = 0;
-    for (let row = 0; row < BINGO_BOARD_SIZE; row++) {
-      if (row === BINGO_FREE_ROW && col === BINGO_FREE_COL) continue;
-      board[row][col] = { value: pool[idx++], marked: false };
-    }
+    board.push(row);
   }
   return board;
 }
 
-function checkWin(board: BingoBoardType): BingoWinPattern | null {
-  for (let r = 0; r < BINGO_BOARD_SIZE; r++) {
-    if (board[r].every((c) => c.marked)) return BingoWinPattern.ROW;
+function countCompletedLines(board: BingoBoardType): number {
+  let count = 0;
+  for (let r = 0; r < 5; r++) {
+    if (board[r].every((c) => c.marked)) count++;
   }
-  for (let c = 0; c < BINGO_BOARD_SIZE; c++) {
-    if (Array.from({ length: BINGO_BOARD_SIZE }, (_, r) => board[r][c].marked).every(Boolean))
-      return BingoWinPattern.COLUMN;
+  for (let c = 0; c < 5; c++) {
+    let all = true;
+    for (let r = 0; r < 5; r++) if (!board[r][c].marked) { all = false; break; }
+    if (all) count++;
   }
-  if (Array.from({ length: BINGO_BOARD_SIZE }, (_, i) => board[i][i].marked).every(Boolean))
-    return BingoWinPattern.DIAGONAL;
-  if (
-    Array.from({ length: BINGO_BOARD_SIZE }, (_, i) =>
-      board[i][BINGO_BOARD_SIZE - 1 - i].marked,
-    ).every(Boolean)
-  )
-    return BingoWinPattern.DIAGONAL;
-  if (board.every((row) => row.every((c) => c.marked)))
-    return BingoWinPattern.FULL_HOUSE;
-  return null;
+  let d1 = true, d2 = true;
+  for (let i = 0; i < 5; i++) {
+    if (!board[i][i].marked) d1 = false;
+    if (!board[i][4 - i].marked) d2 = false;
+  }
+  if (d1) count++;
+  if (d2) count++;
+  return count;
 }
 
 // ─── Component ───
 
+type Phase = 'setup' | 'playing' | 'finished';
+
 export default function OfflineBingoPage() {
   const router = useRouter();
-  const [board, setBoard] = useState<BingoBoardType>(() => generateBoard());
-  const [drawPool, setDrawPool] = useState<number[]>(() =>
-    shuffleArray(rangeArray(1, BINGO_TOTAL_NUMBERS)),
-  );
-  const [calledNumbers, setCalledNumbers] = useState<number[]>([]);
-  const [currentNumber, setCurrentNumber] = useState<number | null>(null);
-  const [winner, setWinner] = useState<BingoWinPattern | null>(null);
-  const [isPaused, setIsPaused] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const drawNumber = useCallback(() => {
-    setDrawPool((pool) => {
-      if (pool.length === 0) return pool;
-      const newPool = [...pool];
-      const num = newPool.pop()!;
-      setCurrentNumber(num);
-      setCalledNumbers((prev) => [...prev, num]);
-      return newPool;
-    });
-  }, []);
-
-  // Auto-draw timer
-  useEffect(() => {
-    if (winner || isPaused) {
-      if (timerRef.current) clearInterval(timerRef.current);
-      return;
+  const [myBoard, setMyBoard] = useState<BingoBoardType>(() => createEmptyBoard());
+  const [botBoard] = useState<BingoBoardType>(() => {
+    // Bot fills its board randomly
+    const b = createEmptyBoard();
+    const nums = Array.from({ length: BINGO_TOTAL_NUMBERS }, (_, i) => i + 1);
+    // shuffle
+    for (let i = nums.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [nums[i], nums[j]] = [nums[j], nums[i]];
     }
-    timerRef.current = setInterval(drawNumber, 3000);
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [drawNumber, winner, isPaused]);
-
-  const handleMark = (number: number) => {
-    setBoard((prev) => {
-      const newBoard = prev.map((row) =>
-        row.map((cell) =>
-          cell.value === number ? { ...cell, marked: true } : cell,
-        ),
-      );
-      // Check win
-      const win = checkWin(newBoard);
-      if (win) {
-        setWinner(win);
-        confetti({
-          particleCount: 200,
-          spread: 120,
-          origin: { y: 0.6 },
-          colors: ['#6366f1', '#ec4899', '#fbbf24', '#34d399'],
-        });
+    let idx = 0;
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 5; c++) {
+        b[r][c] = { value: nums[idx++], marked: false };
       }
-      return newBoard;
-    });
-  };
+    }
+    return b;
+  });
+  const [phase, setPhase] = useState<Phase>('setup');
+  const [nextPlaceNumber, setNextPlaceNumber] = useState(1);
+  const [chosenNumbers, setChosenNumbers] = useState<number[]>([]);
+  const [isMyTurn, setIsMyTurn] = useState(true);
+  const [myLines, setMyLines] = useState(0);
+  const [botLines, setBotLines] = useState(0);
+  const [winner, setWinner] = useState<'you' | 'bot' | null>(null);
+
+  const handleSetupClick = useCallback(
+    (row: number, col: number) => {
+      if (myBoard[row][col].value !== 0 || nextPlaceNumber > BINGO_TOTAL_NUMBERS) return;
+      const newBoard = myBoard.map((r) => r.map((c) => ({ ...c })));
+      newBoard[row][col] = { value: nextPlaceNumber, marked: false };
+      setMyBoard(newBoard);
+      const next = nextPlaceNumber + 1;
+      setNextPlaceNumber(next);
+      if (next > BINGO_TOTAL_NUMBERS) {
+        setPhase('playing');
+      }
+    },
+    [myBoard, nextPlaceNumber],
+  );
+
+  const markNumber = useCallback(
+    (num: number) => {
+      // Mark on both boards
+      const newMy = myBoard.map((r) =>
+        r.map((c) => (c.value === num ? { ...c, marked: true } : c)),
+      );
+      setMyBoard(newMy);
+      for (let r = 0; r < 5; r++) {
+        for (let c = 0; c < 5; c++) {
+          if (botBoard[r][c].value === num) botBoard[r][c].marked = true;
+        }
+      }
+      setChosenNumbers((prev) => [...prev, num]);
+
+      const ml = countCompletedLines(newMy);
+      const bl = countCompletedLines(botBoard);
+      setMyLines(ml);
+      setBotLines(bl);
+
+      if (ml >= 5) {
+        setWinner('you');
+        setPhase('finished');
+        confetti({ particleCount: 200, spread: 120, origin: { y: 0.6 } });
+      } else if (bl >= 5) {
+        setWinner('bot');
+        setPhase('finished');
+      }
+    },
+    [myBoard, botBoard],
+  );
+
+  const handleChoose = useCallback(
+    (num: number) => {
+      if (!isMyTurn || chosenNumbers.includes(num) || phase !== 'playing') return;
+      markNumber(num);
+      setIsMyTurn(false);
+
+      // Bot's turn: pick a random unchosen number after delay
+      setTimeout(() => {
+        const allNums = Array.from({ length: BINGO_TOTAL_NUMBERS }, (_, i) => i + 1);
+        const available = allNums.filter(
+          (n) => !chosenNumbers.includes(n) && n !== num,
+        );
+        if (available.length > 0) {
+          const botPick = available[Math.floor(Math.random() * available.length)];
+          markNumber(botPick);
+        }
+        setIsMyTurn(true);
+      }, 600);
+    },
+    [isMyTurn, chosenNumbers, phase, markNumber],
+  );
 
   const handleNewGame = () => {
-    setBoard(generateBoard());
-    setDrawPool(shuffleArray(rangeArray(1, BINGO_TOTAL_NUMBERS)));
-    setCalledNumbers([]);
-    setCurrentNumber(null);
-    setWinner(null);
-    setIsPaused(false);
+    window.location.reload();
   };
+
+  const allNumbers = Array.from({ length: BINGO_TOTAL_NUMBERS }, (_, i) => i + 1);
 
   return (
     <main className="min-h-screen p-4 md:p-8">
       <div className="max-w-5xl mx-auto">
-        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <button
             onClick={() => router.push('/games/bingo')}
@@ -162,34 +159,101 @@ export default function OfflineBingoPage() {
           >
             ← Back
           </button>
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setIsPaused(!isPaused)}
-              disabled={!!winner}
-            >
-              {isPaused ? '▶ Resume' : '⏸ Pause'}
-            </Button>
-            <Button variant="secondary" size="sm" onClick={handleNewGame}>
-              New Game
-            </Button>
+          <Button variant="secondary" size="sm" onClick={handleNewGame}>
+            New Game
+          </Button>
+        </div>
+
+        {/* SETUP */}
+        {phase === 'setup' && (
+          <div className="text-center">
+            <h1 className="text-2xl font-black text-white mb-2">Set Up Your Board</h1>
+            <p className="text-game-muted mb-4">
+              Click an empty cell to place{' '}
+              <span className="text-primary font-bold">{nextPlaceNumber}</span>
+            </p>
+            <BingoBoard
+              board={myBoard}
+              onCellClick={handleSetupClick}
+              nextPlaceNumber={nextPlaceNumber <= BINGO_TOTAL_NUMBERS ? nextPlaceNumber : undefined}
+              label="Your Board"
+            />
           </div>
-        </div>
+        )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8">
-          <BingoBoard
-            board={board}
-            currentNumber={currentNumber}
-            onMarkNumber={handleMark}
-            disabled={!!winner}
-          />
+        {/* PLAYING */}
+        {phase === 'playing' && (
+          <div>
+            <div className="text-center mb-4">
+              <span
+                className={`inline-block px-4 py-2 rounded-full text-sm font-bold ${
+                  isMyTurn
+                    ? 'bg-primary/20 text-primary border border-primary/50'
+                    : 'bg-game-card text-game-muted border border-game-border'
+                }`}
+              >
+                {isMyTurn ? '🎯 Your Turn — Pick a number!' : "⏳ Bot's Turn…"}
+              </span>
+            </div>
 
-          <NumberDisplay
-            currentNumber={currentNumber}
-            calledNumbers={calledNumbers}
-          />
-        </div>
+            {/* BINGO progress */}
+            <div className="flex justify-center gap-8 mb-4">
+              {[
+                { label: 'You', lines: myLines },
+                { label: 'Bot', lines: botLines },
+              ].map(({ label, lines }) => (
+                <div key={label} className="flex items-center gap-2">
+                  <span className="text-sm text-game-muted">{label}:</span>
+                  {'BINGO'.split('').map((l, i) => (
+                    <span
+                      key={i}
+                      className={`w-6 h-6 rounded text-xs font-black flex items-center justify-center ${
+                        i < lines ? 'bg-primary text-white' : 'bg-game-bg text-game-muted/40 border border-game-border'
+                      }`}
+                    >
+                      {l}
+                    </span>
+                  ))}
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <BingoBoard board={myBoard} disabled label="Your Board" />
+
+              {/* Number picker */}
+              <div className="bg-game-card border border-game-border rounded-xl p-4">
+                <h3 className="text-xs text-game-muted uppercase tracking-wider mb-3 text-center">
+                  Choose a Number
+                </h3>
+                <div className="grid grid-cols-5 gap-2">
+                  {allNumbers.map((num) => {
+                    const used = chosenNumbers.includes(num);
+                    const canPick = isMyTurn && !used;
+                    return (
+                      <button
+                        key={num}
+                        onClick={() => canPick && handleChoose(num)}
+                        disabled={!canPick}
+                        className={`aspect-square rounded-lg text-sm font-bold transition-all ${
+                          used
+                            ? 'bg-game-bg text-game-muted/30 line-through'
+                            : canPick
+                              ? 'bg-primary/20 text-primary border border-primary/50 hover:bg-primary/40 cursor-pointer'
+                              : 'bg-game-bg text-game-muted/60 border border-game-border'
+                        }`}
+                      >
+                        {num}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <BingoBoard board={botBoard} disabled label="Bot's Board" compact />
+            </div>
+          </div>
+        )}
 
         {/* Winner overlay */}
         {winner && (
@@ -199,17 +263,13 @@ export default function OfflineBingoPage() {
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
           >
             <div className="text-center p-8 bg-game-card border border-game-border rounded-2xl max-w-sm">
-              <div className="text-6xl mb-4">🏆</div>
-              <h2 className="text-3xl font-black text-white mb-2">BINGO!</h2>
-              <p className="text-game-muted mb-4">
-                You won with a {winner} pattern!
-              </p>
-              <div className="flex gap-3 justify-center">
+              <div className="text-6xl mb-4">{winner === 'you' ? '🏆' : '🤖'}</div>
+              <h2 className="text-3xl font-black text-white mb-2">
+                {winner === 'you' ? 'YOU WON!' : 'Bot Wins!'}
+              </h2>
+              <div className="flex gap-3 justify-center mt-6">
                 <Button onClick={handleNewGame}>Play Again</Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => router.push('/games/bingo')}
-                >
+                <Button variant="secondary" onClick={() => router.push('/games/bingo')}>
                   Back
                 </Button>
               </div>

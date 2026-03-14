@@ -1,12 +1,10 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { REDIS_CLIENT } from '../redis/redis.module';
 import { GameEntity } from './game.entity';
 import { LobbyService } from '../lobby/lobby.service';
-import { GameRegistry } from './game-registry';
 import { BingoEngine } from './engines/bingo/bingo.engine';
 import {
   GameType,
@@ -15,34 +13,35 @@ import {
   BingoGameState,
   BingoPlayerView,
   BingoWinResult,
-  BINGO_CONSTANTS,
 } from '@multiplayer-games/shared';
 
 @Injectable()
 export class GameService {
-  private drawTimers = new Map<string, ReturnType<typeof setInterval>>();
   private gameStates = new Map<string, BingoGameState>();
+  /** lobbyCode → gameId lookup */
+  private lobbyGameMap = new Map<string, string>();
+  private engine = new BingoEngine();
 
   /** Callbacks set by the gateway to broadcast state */
-  onNumberCalled: ((gameId: string, lobbyCode: string) => void) | null = null;
-  onGameFinished: ((gameId: string, lobbyCode: string, result: BingoWinResult) => void) | null = null;
+  onStateChanged: ((gameId: string, lobbyCode: string) => void) | null = null;
+  onGameFinished: ((gameId: string, lobbyCode: string, result: BingoWinResult) => void) | null =
+    null;
 
   constructor(
     @InjectRepository(GameEntity)
     private readonly gameRepo: Repository<GameEntity>,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly lobbyService: LobbyService,
-    private readonly gameRegistry: GameRegistry,
-    private readonly config: ConfigService,
   ) {}
 
-  async startBingoGame(lobbyCode: string): Promise<{ gameId: string; state: BingoGameState }> {
+  async startBingoGame(
+    lobbyCode: string,
+  ): Promise<{ gameId: string; state: BingoGameState }> {
     const lobby = await this.lobbyService.getLobby(lobbyCode);
     if (!lobby) throw new Error('Lobby not found');
 
-    const engine = this.gameRegistry.getEngine<BingoEngine>(GameType.BINGO);
     const playerIds = lobby.players.map((p) => p.id);
-    const state = engine.initGame(playerIds);
+    const state = this.engine.initGame(playerIds);
 
     // Persist game record
     const entity = this.gameRepo.create({
@@ -54,22 +53,15 @@ export class GameService {
     const saved = await this.gameRepo.save(entity);
     const gameId = saved.id;
 
-    // Store state in memory
+    // Store state in memory & map
     this.gameStates.set(gameId, state);
+    this.lobbyGameMap.set(lobbyCode, gameId);
 
     // Cache in Redis for resilience
-    await this.redis.set(
-      `game:${gameId}`,
-      JSON.stringify(state),
-      'EX',
-      3600,
-    );
+    await this.redis.set(`game:${gameId}`, JSON.stringify(state), 'EX', 3600);
 
     // Update lobby status
     await this.lobbyService.setStatus(lobbyCode, LobbyStatus.IN_PROGRESS);
-
-    // Start auto-draw timer
-    this.startDrawTimer(gameId, lobbyCode);
 
     return { gameId, state };
   }
@@ -77,108 +69,71 @@ export class GameService {
   getPlayerView(gameId: string, playerId: string): BingoPlayerView | null {
     const state = this.gameStates.get(gameId);
     if (!state) return null;
-
-    const engine = this.gameRegistry.getEngine<BingoEngine>(GameType.BINGO);
-    return engine.getPlayerView(state, playerId);
+    return this.engine.getPlayerView(state, playerId);
   }
 
-  async markNumber(
+  placeNumber(
+    gameId: string,
+    playerId: string,
+    row: number,
+    col: number,
+    number: number,
+    lobbyCode: string,
+  ): { ok: boolean; error?: string } {
+    const state = this.gameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+
+    const result = this.engine.placeNumber(state, playerId, row, col, number);
+    if (!result.valid) return { ok: false, error: result.reason };
+
+    this.gameStates.set(gameId, state);
+
+    // Broadcast updated state to all players
+    if (this.onStateChanged) {
+      this.onStateChanged(gameId, lobbyCode);
+    }
+
+    return { ok: true };
+  }
+
+  async chooseNumber(
     gameId: string,
     playerId: string,
     number: number,
-  ): Promise<{ view: BingoPlayerView } | { error: string }> {
-    const state = this.gameStates.get(gameId);
-    if (!state) return { error: 'Game not found' };
-
-    const engine = this.gameRegistry.getEngine<BingoEngine>(GameType.BINGO);
-    const validation = engine.validateMove(state, playerId, { number });
-    if (!validation.valid) return { error: validation.reason || 'Invalid move' };
-
-    engine.processMove(state, playerId, { number });
-    this.gameStates.set(gameId, state);
-
-    return { view: engine.getPlayerView(state, playerId) };
-  }
-
-  async claimBingo(
-    gameId: string,
-    playerId: string,
     lobbyCode: string,
-  ): Promise<BingoWinResult | { error: string }> {
+  ): Promise<{ ok: boolean; error?: string }> {
     const state = this.gameStates.get(gameId);
-    if (!state) return { error: 'Game not found' };
-    if (state.winnerId) return { error: 'Game already has a winner' };
+    if (!state) return { ok: false, error: 'Game not found' };
 
-    const engine = this.gameRegistry.getEngine<BingoEngine>(GameType.BINGO);
-    const result = engine.validateClaim(state, playerId);
+    const result = this.engine.chooseNumber(state, playerId, number);
+    if (!result.valid) return { ok: false, error: result.reason };
 
-    if (!result) return { error: 'No winning pattern found — claim rejected' };
-
-    // Valid win!
-    state.winnerId = playerId;
-    state.winPattern = result.pattern;
     this.gameStates.set(gameId, state);
 
-    // Stop the draw timer
-    this.stopDrawTimer(gameId);
+    if (result.winner) {
+      // Game over
+      await this.gameRepo.update(gameId, {
+        winnerId: result.winner.winnerId,
+        status: GameStatus.FINISHED,
+        finishedAt: new Date(),
+      });
+      await this.lobbyService.setStatus(lobbyCode, LobbyStatus.WAITING);
 
-    // Persist
-    await this.gameRepo.update(gameId, {
-      winnerId: playerId,
-      status: GameStatus.FINISHED,
-      finishedAt: new Date(),
-    });
-    await this.lobbyService.setStatus(lobbyCode, LobbyStatus.FINISHED);
-
-    // Notify via callback
-    if (this.onGameFinished) {
-      this.onGameFinished(gameId, lobbyCode, result);
+      if (this.onGameFinished) {
+        this.onGameFinished(gameId, lobbyCode, result.winner);
+      }
+    } else {
+      // Broadcast updated state
+      if (this.onStateChanged) {
+        this.onStateChanged(gameId, lobbyCode);
+      }
     }
 
-    return result;
+    return { ok: true };
   }
 
-  private startDrawTimer(gameId: string, lobbyCode: string): void {
-    const interval = this.config.get<number>(
-      'BINGO_DRAW_INTERVAL_MS',
-      BINGO_CONSTANTS.DEFAULT_DRAW_INTERVAL_MS,
-    );
-
-    const timer = setInterval(() => {
-      this.drawNextNumber(gameId, lobbyCode);
-    }, interval);
-
-    this.drawTimers.set(gameId, timer);
-  }
-
-  stopDrawTimer(gameId: string): void {
-    const timer = this.drawTimers.get(gameId);
-    if (timer) {
-      clearInterval(timer);
-      this.drawTimers.delete(gameId);
-    }
-  }
-
-  private drawNextNumber(gameId: string, lobbyCode: string): void {
-    const state = this.gameStates.get(gameId);
-    if (!state || state.winnerId) {
-      this.stopDrawTimer(gameId);
-      return;
-    }
-
-    const engine = this.gameRegistry.getEngine<BingoEngine>(GameType.BINGO);
-    const { state: newState, number } = engine.drawNumber(state);
-
-    if (number === null) {
-      this.stopDrawTimer(gameId);
-      return;
-    }
-
-    this.gameStates.set(gameId, newState);
-
-    if (this.onNumberCalled) {
-      this.onNumberCalled(gameId, lobbyCode);
-    }
+  getGameIdForLobby(lobbyCode: string): string | undefined {
+    return this.lobbyGameMap.get(lobbyCode);
   }
 
   getState(gameId: string): BingoGameState | undefined {

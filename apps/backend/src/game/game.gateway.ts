@@ -10,14 +10,7 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { GameService } from './game.service';
 import { getSocketUser } from '../auth/ws-jwt.guard';
-import {
-  GAME_EVENTS,
-  BINGO_EVENTS,
-  BingoWinResult,
-} from '@multiplayer-games/shared';
-
-/** Maps lobbyCode → gameId for quick lookups */
-const lobbyGameMap = new Map<string, string>();
+import { GAME_EVENTS, BINGO_EVENTS } from '@multiplayer-games/shared';
 
 @WebSocketGateway({ cors: { origin: '*' } })
 export class GameGateway implements OnGatewayInit {
@@ -31,59 +24,64 @@ export class GameGateway implements OnGatewayInit {
 
   afterInit(): void {
     // Wire callbacks so GameService can broadcast state changes
-    this.gameService.onNumberCalled = (gameId, lobbyCode) => {
+    this.gameService.onStateChanged = (gameId, lobbyCode) => {
       this.broadcastPlayerViews(gameId, lobbyCode);
     };
 
     this.gameService.onGameFinished = (gameId, lobbyCode, result) => {
+      // Send the final state (with winner) to all players, plus the result event
+      this.broadcastPlayerViews(gameId, lobbyCode);
       this.server.to(`game:${lobbyCode}`).emit(GAME_EVENTS.RESULT, {
         gameId,
         winnerId: result.winnerId,
-        pattern: result.pattern,
-        winningCells: result.winningCells,
+        completedLines: result.completedLines,
       });
     };
   }
 
-  @SubscribeMessage(BINGO_EVENTS.MARK_NUMBER)
-  async handleMarkNumber(
+  /** Setup phase: player places a number on their board */
+  @SubscribeMessage(BINGO_EVENTS.PLACE_NUMBER)
+  handlePlaceNumber(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { gameId: string; number: number },
-  ): Promise<void> {
+    @MessageBody()
+    data: { gameId: string; lobbyCode: string; row: number; col: number; number: number },
+  ): void {
     const user = getSocketUser(client, this.jwtService);
     if (!user) return;
 
-    const result = await this.gameService.markNumber(
+    const result = this.gameService.placeNumber(
       data.gameId,
       user.sub,
+      data.row,
+      data.col,
       data.number,
-    );
-
-    if ('error' in result) {
-      client.emit(GAME_EVENTS.ERROR, { message: result.error });
-    } else {
-      client.emit(GAME_EVENTS.STATE, { gameId: data.gameId, view: result.view });
-    }
-  }
-
-  @SubscribeMessage(BINGO_EVENTS.CLAIM)
-  async handleBingoClaim(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { gameId: string; lobbyCode: string },
-  ): Promise<void> {
-    const user = getSocketUser(client, this.jwtService);
-    if (!user) return;
-
-    const result = await this.gameService.claimBingo(
-      data.gameId,
-      user.sub,
       data.lobbyCode,
     );
 
-    if ('error' in result) {
-      client.emit(BINGO_EVENTS.CLAIM_REJECTED, { message: result.error });
+    if (!result.ok) {
+      client.emit(GAME_EVENTS.ERROR, { message: result.error });
     }
-    // If valid, onGameFinished callback handles broadcasting
+  }
+
+  /** Play phase: player chooses a number to cross off all boards */
+  @SubscribeMessage(BINGO_EVENTS.CHOOSE_NUMBER)
+  async handleChooseNumber(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { gameId: string; lobbyCode: string; number: number },
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+
+    const result = await this.gameService.chooseNumber(
+      data.gameId,
+      user.sub,
+      data.number,
+      data.lobbyCode,
+    );
+
+    if (!result.ok) {
+      client.emit(GAME_EVENTS.ERROR, { message: result.error });
+    }
   }
 
   private async broadcastPlayerViews(

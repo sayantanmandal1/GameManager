@@ -1,83 +1,114 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { BINGO_COLUMNS, BINGO_COLUMN_RANGES } from '@multiplayer-games/shared';
-
-function getColumnLetter(num: number): string {
-  for (let i = 0; i < BINGO_COLUMNS.length; i++) {
-    const col = BINGO_COLUMNS[i];
-    const [min, max] = BINGO_COLUMN_RANGES[col];
-    if (num >= min && num <= max) return col;
-  }
-  return '';
-}
-
-const LETTER_COLORS: Record<string, string> = {
-  B: 'from-blue-500 to-blue-700',
-  I: 'from-red-500 to-red-700',
-  N: 'from-green-500 to-green-700',
-  G: 'from-yellow-500 to-yellow-700',
-  O: 'from-purple-500 to-purple-700',
-};
 
 interface NumberDisplayProps {
-  currentNumber: number | null;
-  calledNumbers: number[];
+  /** Numbers 1-25 that the current player can choose on their turn */
+  chosenNumbers: number[];
+  /** Is it this player's turn? */
+  isMyTurn: boolean;
+  /** Callback when a number is chosen */
+  onChooseNumber: (num: number) => void;
+  /** Completed line counts */
+  completedLines: Record<string, number>;
+  /** Current user ID */
+  userId: string;
+  /** All player IDs */
+  players: string[];
+  disabled?: boolean;
 }
 
 export function NumberDisplay({
-  currentNumber,
-  calledNumbers,
+  chosenNumbers,
+  isMyTurn,
+  onChooseNumber,
+  completedLines,
+  userId,
+  players,
+  disabled = false,
 }: NumberDisplayProps) {
-  const letter = currentNumber ? getColumnLetter(currentNumber) : '';
-  const gradient = letter ? LETTER_COLORS[letter] : 'from-gray-500 to-gray-700';
+  const allNumbers = Array.from({ length: 25 }, (_, i) => i + 1);
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      {/* Current number */}
+    <div className="flex flex-col gap-4">
+      {/* Turn indicator */}
       <div className="text-center">
-        <p className="text-sm text-game-muted mb-2 uppercase tracking-wider">
-          Current Number
-        </p>
         <AnimatePresence mode="wait">
-          {currentNumber ? (
-            <motion.div
-              key={currentNumber}
-              initial={{ scale: 0, rotate: -180 }}
-              animate={{ scale: 1, rotate: 0 }}
-              exit={{ scale: 0, rotate: 180 }}
-              className={`w-24 h-24 rounded-full bg-gradient-to-br ${gradient}
-                flex flex-col items-center justify-center shadow-2xl`}
-            >
-              <span className="text-sm font-bold text-white/80">{letter}</span>
-              <span className="text-3xl font-black text-white">
-                {currentNumber}
-              </span>
-            </motion.div>
-          ) : (
-            <div className="w-24 h-24 rounded-full bg-game-card border border-game-border flex items-center justify-center">
-              <span className="text-game-muted">—</span>
-            </div>
-          )}
+          <motion.div
+            key={isMyTurn ? 'your-turn' : 'opponent-turn'}
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            className={`inline-block px-4 py-2 rounded-full text-sm font-bold ${
+              isMyTurn
+                ? 'bg-primary/20 text-primary border border-primary/50'
+                : 'bg-game-card text-game-muted border border-game-border'
+            }`}
+          >
+            {isMyTurn ? '🎯 Your Turn — Pick a number!' : "⏳ Opponent's Turn…"}
+          </motion.div>
         </AnimatePresence>
       </div>
 
-      {/* Called numbers history */}
-      <div className="w-full">
-        <p className="text-xs text-game-muted mb-2 uppercase tracking-wider">
-          Called ({calledNumbers.length}/75)
-        </p>
-        <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-          {[...calledNumbers].reverse().map((num) => {
-            const l = getColumnLetter(num);
+      {/* BINGO progress */}
+      <div className="bg-game-card border border-game-border rounded-xl p-4">
+        <h3 className="text-xs text-game-muted uppercase tracking-wider mb-3">
+          BINGO Progress
+        </h3>
+        {players.map((pid) => {
+          const lines = completedLines[pid] || 0;
+          const letters = 'BINGO';
+          const isMe = pid === userId;
+          return (
+            <div key={pid} className="flex items-center gap-2 mb-2 last:mb-0">
+              <span className={`text-xs min-w-[60px] ${isMe ? 'text-primary font-bold' : 'text-game-muted'}`}>
+                {isMe ? 'You' : 'Opponent'}
+              </span>
+              <div className="flex gap-1">
+                {letters.split('').map((letter, i) => (
+                  <span
+                    key={i}
+                    className={`w-7 h-7 rounded flex items-center justify-center text-sm font-black ${
+                      i < lines
+                        ? 'bg-primary text-white'
+                        : 'bg-game-bg text-game-muted/40 border border-game-border'
+                    }`}
+                  >
+                    {letter}
+                  </span>
+                ))}
+              </div>
+              <span className="text-xs text-game-muted ml-auto">{lines}/5</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Number picker grid */}
+      <div className="bg-game-card border border-game-border rounded-xl p-4">
+        <h3 className="text-xs text-game-muted uppercase tracking-wider mb-3">
+          Choose a Number ({chosenNumbers.length}/25 used)
+        </h3>
+        <div className="grid grid-cols-5 gap-2">
+          {allNumbers.map((num) => {
+            const isChosen = chosenNumbers.includes(num);
+            const canPick = isMyTurn && !isChosen && !disabled;
             return (
-              <span
+              <motion.button
                 key={num}
-                className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold
-                  bg-gradient-to-br ${LETTER_COLORS[l] || 'from-gray-500 to-gray-700'} text-white/90`}
+                whileTap={canPick ? { scale: 0.85 } : undefined}
+                onClick={() => canPick && onChooseNumber(num)}
+                disabled={!canPick}
+                className={`w-full aspect-square rounded-lg text-sm font-bold transition-all ${
+                  isChosen
+                    ? 'bg-game-bg text-game-muted/30 line-through cursor-default'
+                    : canPick
+                      ? 'bg-primary/20 text-primary border border-primary/50 hover:bg-primary/40 cursor-pointer'
+                      : 'bg-game-bg text-game-muted/60 border border-game-border cursor-not-allowed'
+                }`}
               >
                 {num}
-              </span>
+              </motion.button>
             );
           })}
         </div>

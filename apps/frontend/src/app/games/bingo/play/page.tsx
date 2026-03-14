@@ -7,9 +7,11 @@ import confetti from 'canvas-confetti';
 import { BingoBoard } from '@/components/bingo/BingoBoard';
 import { NumberDisplay } from '@/components/bingo/NumberDisplay';
 import { Button } from '@/components/ui/Button';
+import { VoiceChat } from '@/components/voice/VoiceChat';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { useSocket } from '@/hooks/useSocket';
+import { BingoGamePhase } from '@multiplayer-games/shared';
 
 function BingoPlayContent() {
   const router = useRouter();
@@ -17,8 +19,18 @@ function BingoPlayContent() {
   const lobbyCode = searchParams.get('lobby') || '';
 
   const { isAuthenticated, user } = useAuthStore();
-  const { gameId, view, result, claimRejected, markNumber, claimBingo, initListeners, reset } =
-    useGameStore();
+  const {
+    gameId,
+    view,
+    result,
+    nextPlaceNumber,
+    placeNumber,
+    chooseNumber,
+    backToLobby,
+    setLobbyCode,
+    initListeners,
+    reset,
+  } = useGameStore();
   useSocket();
 
   useEffect(() => {
@@ -26,11 +38,12 @@ function BingoPlayContent() {
       router.push('/');
       return;
     }
+    setLobbyCode(lobbyCode);
     const cleanup = initListeners();
     return () => {
       cleanup();
     };
-  }, [isAuthenticated, router, initListeners]);
+  }, [isAuthenticated, router, lobbyCode, initListeners, setLobbyCode]);
 
   // Confetti on game result
   useEffect(() => {
@@ -47,6 +60,12 @@ function BingoPlayContent() {
     }
   }, [result, user?.id]);
 
+  const handleBackToLobby = () => {
+    backToLobby();
+    reset();
+    router.push(`/lobby/${lobbyCode}`);
+  };
+
   if (!view) {
     return (
       <main className="min-h-screen flex items-center justify-center">
@@ -58,71 +77,85 @@ function BingoPlayContent() {
     );
   }
 
+  const isSetupPhase = view.phase === BingoGamePhase.SETUP;
+  const isPlayPhase = view.phase === BingoGamePhase.PLAYING;
+  const isFinished = view.phase === BingoGamePhase.FINISHED;
+  const isMyTurn = view.currentTurn === user?.id;
+
   return (
     <main className="min-h-screen p-4 md:p-8">
-      <div className="max-w-5xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8">
-          {/* Left: Board */}
-          <div>
+      <div className="max-w-6xl mx-auto">
+
+        {/* ──────── SETUP PHASE ──────── */}
+        {isSetupPhase && (
+          <div className="text-center">
+            <motion.h1
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-3xl font-black text-white mb-2"
+            >
+              Set Up Your Board
+            </motion.h1>
+            <p className="text-game-muted mb-1">
+              Place numbers 1–25 on your board. Click any empty cell to place{' '}
+              <span className="text-primary font-bold">{nextPlaceNumber > 25 ? '✓' : nextPlaceNumber}</span>
+            </p>
+            <p className="text-xs text-game-muted mb-6">
+              {view.isSetupDone
+                ? 'Waiting for opponent to finish…'
+                : view.opponentSetupDone
+                  ? 'Opponent is ready! Finish placing your numbers.'
+                  : 'Both players are setting up…'}
+            </p>
+
             <BingoBoard
               board={view.board}
-              currentNumber={view.currentNumber}
-              onMarkNumber={(num) => markNumber(num)}
-              disabled={!!result}
+              onCellClick={!view.isSetupDone ? (r, c) => placeNumber(r, c) : undefined}
+              nextPlaceNumber={nextPlaceNumber <= 25 ? nextPlaceNumber : undefined}
+              disabled={view.isSetupDone}
+              label="Your Board"
+            />
+          </div>
+        )}
+
+        {/* ──────── PLAY PHASE & FINISHED ──────── */}
+        {(isPlayPhase || isFinished) && (
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px_1fr] gap-6">
+            {/* Left: My board */}
+            <BingoBoard
+              board={view.board}
+              disabled
+              label="Your Board"
             />
 
-            {/* Claim BINGO button */}
-            {!result && (
-              <div className="mt-6 text-center">
-                <Button
-                  size="lg"
-                  className="text-xl px-10"
-                  onClick={() => claimBingo(lobbyCode)}
-                >
-                  🎉 BINGO!
-                </Button>
-                {claimRejected && (
-                  <motion.p
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mt-2 text-sm text-red-400"
-                  >
-                    {claimRejected}
-                  </motion.p>
-                )}
-              </div>
+            {/* Center: Number picker & info */}
+            <div className="space-y-4">
+              <NumberDisplay
+                chosenNumbers={view.chosenNumbers}
+                isMyTurn={isMyTurn}
+                onChooseNumber={(num) => chooseNumber(num)}
+                completedLines={view.completedLines}
+                userId={user?.id || ''}
+                players={view.players}
+                disabled={isFinished}
+              />
+
+              {/* Voice chat */}
+              <VoiceChat roomId={lobbyCode} />
+            </div>
+
+            {/* Right: Opponent board */}
+            {view.opponentBoard && (
+              <BingoBoard
+                board={view.opponentBoard}
+                disabled
+                label="Opponent's Board"
+              />
             )}
           </div>
+        )}
 
-          {/* Right: Number display & info */}
-          <div className="space-y-6">
-            <NumberDisplay
-              currentNumber={view.currentNumber}
-              calledNumbers={view.calledNumbers}
-            />
-
-            {/* Players */}
-            <div className="bg-game-card border border-game-border rounded-xl p-4">
-              <h3 className="text-xs text-game-muted uppercase tracking-wider mb-2">
-                Players
-              </h3>
-              <div className="space-y-1">
-                {view.players.map((pid) => (
-                  <div
-                    key={pid}
-                    className={`text-sm px-2 py-1 rounded ${
-                      pid === user?.id ? 'text-primary font-bold' : 'text-game-muted'
-                    }`}
-                  >
-                    {pid === user?.id ? `${user.username} (you)` : pid.slice(0, 8)}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Winner overlay */}
+        {/* ──────── WINNER OVERLAY ──────── */}
         {result && (
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
@@ -136,17 +169,14 @@ function BingoPlayContent() {
               <h2 className="text-3xl font-black text-white mb-2">
                 {result.winnerId === user?.id ? 'YOU WON!' : 'Game Over'}
               </h2>
-              <p className="text-game-muted mb-1">
+              <p className="text-game-muted mb-4">
                 {result.winnerId === user?.id
-                  ? `Pattern: ${result.pattern}`
-                  : `${result.winnerId.slice(0, 8)}… won with ${result.pattern}`}
+                  ? 'You completed BINGO first!'
+                  : 'Your opponent completed BINGO first.'}
               </p>
-              <div className="mt-6 flex gap-3 justify-center">
-                <Button onClick={() => router.push('/games/bingo')}>
-                  New Game
-                </Button>
-                <Button variant="secondary" onClick={() => router.push('/games')}>
-                  Games
+              <div className="mt-4 flex gap-3 justify-center">
+                <Button onClick={handleBackToLobby}>
+                  🔄 Back to Lobby
                 </Button>
               </div>
             </div>

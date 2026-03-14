@@ -205,6 +205,25 @@ export class LobbyGateway
     }
   }
 
+  @SubscribeMessage(LOBBY_EVENTS.BACK_TO_LOBBY)
+  async handleBackToLobby(@ConnectedSocket() client: Socket): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+
+    const code = this.socketLobbyMap.get(client.id);
+    if (!code) return;
+
+    try {
+      const lobby = await this.lobbyService.resetForNewGame(code);
+      if (!lobby) return;
+
+      // Broadcast the refreshed lobby to everyone
+      this.server.to(`lobby:${code}`).emit(LOBBY_EVENTS.STATE, { lobby });
+    } catch {
+      // ignore
+    }
+  }
+
   getSocketLobbyMap(): Map<string, string> {
     return this.socketLobbyMap;
   }

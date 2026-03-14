@@ -193,6 +193,19 @@ export class LobbyService {
     await this.lobbyRepo.update({ code }, { status });
   }
 
+  /** Reset lobby for a new game: set status to WAITING and clear all players' ready flags */
+  async resetForNewGame(code: string): Promise<Lobby | null> {
+    const lobby = await this.getLobby(code);
+    if (!lobby) return null;
+    lobby.status = LobbyStatus.WAITING;
+    for (const p of lobby.players) {
+      p.isReady = false;
+    }
+    await this.saveLobby(lobby);
+    await this.lobbyRepo.update({ code }, { status: LobbyStatus.WAITING });
+    return lobby;
+  }
+
   private async saveLobby(lobby: Lobby): Promise<void> {
     await this.redis.set(
       `lobby:${lobby.code}`,

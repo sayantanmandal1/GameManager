@@ -1,151 +1,85 @@
-import * as crypto from 'crypto';
 import {
   BingoBoard,
   BingoCell,
-  BingoWinPattern,
-  BingoWinResult,
-  BINGO_COLUMN_RANGES,
-  BINGO_COLUMNS,
   BINGO_BOARD_SIZE,
-  BINGO_FREE_ROW,
-  BINGO_FREE_COL,
-  BINGO_TOTAL_NUMBERS,
 } from '@multiplayer-games/shared';
 
-function rangeArray(start: number, end: number): number[] {
-  const arr: number[] = [];
-  for (let i = start; i <= end; i++) arr.push(i);
-  return arr;
-}
-
-function shuffleArray<T>(arr: T[]): T[] {
-  const shuffled = [...arr];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = crypto.randomInt(0, i + 1);
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-}
-
-export function generateBoard(): BingoBoard {
+/** Create an empty 5×5 board (all zeros, unmarked) — players fill it during setup */
+export function createEmptyBoard(): BingoBoard {
   const board: BingoBoard = [];
-
   for (let row = 0; row < BINGO_BOARD_SIZE; row++) {
     const cells: BingoCell[] = [];
     for (let col = 0; col < BINGO_BOARD_SIZE; col++) {
-      if (row === BINGO_FREE_ROW && col === BINGO_FREE_COL) {
-        cells.push({ value: 'FREE', marked: true });
-      } else {
-        cells.push({ value: 0, marked: false }); // placeholder
-      }
+      cells.push({ value: 0, marked: false });
     }
     board.push(cells);
   }
-
-  // Fill each column with random numbers from the correct range
-  for (let col = 0; col < BINGO_BOARD_SIZE; col++) {
-    const column = BINGO_COLUMNS[col];
-    const [min, max] = BINGO_COLUMN_RANGES[column];
-    const pool = shuffleArray(rangeArray(min, max));
-    let poolIdx = 0;
-
-    for (let row = 0; row < BINGO_BOARD_SIZE; row++) {
-      if (row === BINGO_FREE_ROW && col === BINGO_FREE_COL) continue;
-      board[row][col] = { value: pool[poolIdx++], marked: false };
-    }
-  }
-
   return board;
 }
 
-export function generateDrawPool(): number[] {
-  return shuffleArray(rangeArray(1, BINGO_TOTAL_NUMBERS));
-}
-
-export function markNumberOnBoard(
-  board: BingoBoard,
-  number: number,
-): BingoBoard {
+/** Mark a number on a board (cross it off). Mutates in-place for performance. */
+export function markNumberOnBoard(board: BingoBoard, number: number): void {
   for (let row = 0; row < BINGO_BOARD_SIZE; row++) {
     for (let col = 0; col < BINGO_BOARD_SIZE; col++) {
       if (board[row][col].value === number) {
-        board[row][col] = { ...board[row][col], marked: true };
+        board[row][col].marked = true;
+        return; // each number appears exactly once
       }
     }
   }
-  return board;
 }
 
-export function checkBoardWin(
-  board: BingoBoard,
-): { pattern: BingoWinPattern; winningCells: [number, number][] } | null {
-  // Check rows
+/** Count the total completed lines on a board (rows + cols + diagonals, max 12) */
+export function countCompletedLines(board: BingoBoard): number {
+  let count = 0;
+
+  // Check 5 rows
   for (let row = 0; row < BINGO_BOARD_SIZE; row++) {
-    if (board[row].every((cell) => cell.marked)) {
-      return {
-        pattern: BingoWinPattern.ROW,
-        winningCells: board[row].map((_, col) => [row, col] as [number, number]),
-      };
-    }
+    if (board[row].every((cell) => cell.marked)) count++;
   }
 
-  // Check columns
+  // Check 5 columns
   for (let col = 0; col < BINGO_BOARD_SIZE; col++) {
-    const allMarked = Array.from({ length: BINGO_BOARD_SIZE }, (_, row) =>
-      board[row][col].marked,
-    ).every(Boolean);
-    if (allMarked) {
-      return {
-        pattern: BingoWinPattern.COLUMN,
-        winningCells: Array.from(
-          { length: BINGO_BOARD_SIZE },
-          (_, row) => [row, col] as [number, number],
-        ),
-      };
+    let allMarked = true;
+    for (let row = 0; row < BINGO_BOARD_SIZE; row++) {
+      if (!board[row][col].marked) { allMarked = false; break; }
+    }
+    if (allMarked) count++;
+  }
+
+  // Diagonal top-left → bottom-right
+  let d1 = true;
+  for (let i = 0; i < BINGO_BOARD_SIZE; i++) {
+    if (!board[i][i].marked) { d1 = false; break; }
+  }
+  if (d1) count++;
+
+  // Diagonal top-right → bottom-left
+  let d2 = true;
+  for (let i = 0; i < BINGO_BOARD_SIZE; i++) {
+    if (!board[i][BINGO_BOARD_SIZE - 1 - i].marked) { d2 = false; break; }
+  }
+  if (d2) count++;
+
+  return count; // max possible = 12 (5 rows + 5 cols + 2 diags)
+}
+
+/** Check if a board has all 25 numbers placed (no zeros remain) */
+export function isBoardFilled(board: BingoBoard): boolean {
+  for (let row = 0; row < BINGO_BOARD_SIZE; row++) {
+    for (let col = 0; col < BINGO_BOARD_SIZE; col++) {
+      if (board[row][col].value === 0) return false;
     }
   }
+  return true;
+}
 
-  // Check diagonal (top-left to bottom-right)
-  const diag1 = Array.from(
-    { length: BINGO_BOARD_SIZE },
-    (_, i) => board[i][i].marked,
-  ).every(Boolean);
-  if (diag1) {
-    return {
-      pattern: BingoWinPattern.DIAGONAL,
-      winningCells: Array.from(
-        { length: BINGO_BOARD_SIZE },
-        (_, i) => [i, i] as [number, number],
-      ),
-    };
-  }
-
-  // Check diagonal (top-right to bottom-left)
-  const diag2 = Array.from(
-    { length: BINGO_BOARD_SIZE },
-    (_, i) => board[i][BINGO_BOARD_SIZE - 1 - i].marked,
-  ).every(Boolean);
-  if (diag2) {
-    return {
-      pattern: BingoWinPattern.DIAGONAL,
-      winningCells: Array.from(
-        { length: BINGO_BOARD_SIZE },
-        (_, i) => [i, BINGO_BOARD_SIZE - 1 - i] as [number, number],
-      ),
-    };
-  }
-
-  // Check full house
-  const allMarked = board.every((row) => row.every((cell) => cell.marked));
-  if (allMarked) {
-    const cells: [number, number][] = [];
-    for (let r = 0; r < BINGO_BOARD_SIZE; r++) {
-      for (let c = 0; c < BINGO_BOARD_SIZE; c++) {
-        cells.push([r, c]);
-      }
+/** Check if a specific number is already placed on the board */
+export function isNumberOnBoard(board: BingoBoard, number: number): boolean {
+  for (let row = 0; row < BINGO_BOARD_SIZE; row++) {
+    for (let col = 0; col < BINGO_BOARD_SIZE; col++) {
+      if (board[row][col].value === number) return true;
     }
-    return { pattern: BingoWinPattern.FULL_HOUSE, winningCells: cells };
   }
-
-  return null;
+  return false;
 }

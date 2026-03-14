@@ -5,48 +5,67 @@ import {
   BINGO_EVENTS,
   LOBBY_EVENTS,
   type BingoPlayerView,
-  type BingoWinPattern,
 } from '@multiplayer-games/shared';
 
 interface GameResult {
   gameId: string;
   winnerId: string;
-  pattern: BingoWinPattern;
-  winningCells: [number, number][];
+  completedLines: Record<string, number>;
 }
 
 interface GameState {
   gameId: string | null;
+  lobbyCode: string | null;
   view: BingoPlayerView | null;
   result: GameResult | null;
-  claimRejected: string | null;
   error: string | null;
-  markNumber: (number: number) => void;
-  claimBingo: (lobbyCode: string) => void;
+  /** Setup phase: next number the player needs to place (1-25) */
+  nextPlaceNumber: number;
+  placeNumber: (row: number, col: number) => void;
+  chooseNumber: (number: number) => void;
+  backToLobby: () => void;
+  setLobbyCode: (code: string) => void;
   initListeners: () => () => void;
   reset: () => void;
 }
 
 export const useGameStore = create<GameState>()((set, get) => ({
   gameId: null,
+  lobbyCode: null,
   view: null,
   result: null,
-  claimRejected: null,
   error: null,
+  nextPlaceNumber: 1,
 
-  markNumber: (number: number) => {
+  setLobbyCode: (code: string) => set({ lobbyCode: code }),
+
+  /** Setup phase: place the next number at (row, col) */
+  placeNumber: (row: number, col: number) => {
     const socket = getSocket();
-    const { gameId } = get();
-    if (!socket || !gameId) return;
-    socket.emit(BINGO_EVENTS.MARK_NUMBER, { gameId, number });
+    const { gameId, lobbyCode, nextPlaceNumber } = get();
+    if (!socket || !gameId || !lobbyCode) return;
+    socket.emit(BINGO_EVENTS.PLACE_NUMBER, {
+      gameId,
+      lobbyCode,
+      row,
+      col,
+      number: nextPlaceNumber,
+    });
+    set({ nextPlaceNumber: nextPlaceNumber + 1 });
   },
 
-  claimBingo: (lobbyCode: string) => {
+  /** Play phase: choose a number on your turn */
+  chooseNumber: (number: number) => {
     const socket = getSocket();
-    const { gameId } = get();
-    if (!socket || !gameId) return;
-    set({ claimRejected: null });
-    socket.emit(BINGO_EVENTS.CLAIM, { gameId, lobbyCode });
+    const { gameId, lobbyCode } = get();
+    if (!socket || !gameId || !lobbyCode) return;
+    socket.emit(BINGO_EVENTS.CHOOSE_NUMBER, { gameId, lobbyCode, number });
+  },
+
+  backToLobby: () => {
+    const socket = getSocket();
+    if (!socket) return;
+    socket.emit(LOBBY_EVENTS.BACK_TO_LOBBY);
   },
 
   initListeners: () => {
@@ -61,29 +80,22 @@ export const useGameStore = create<GameState>()((set, get) => ({
       set({ result: data });
     };
 
-    const onClaimRejected = (data: { message: string }) => {
-      set({ claimRejected: data.message });
-    };
-
     const onError = (data: { message: string }) => {
       set({ error: data.message });
     };
 
-    const onGameStarting = (data: { lobbyCode: string }) => {
-      // Game is starting — gateway will send GAME_EVENTS.STATE next
-      set({ result: null, claimRejected: null, error: null });
+    const onGameStarting = () => {
+      set({ result: null, error: null, nextPlaceNumber: 1 });
     };
 
     socket.on(GAME_EVENTS.STATE, onState);
     socket.on(GAME_EVENTS.RESULT, onResult);
-    socket.on(BINGO_EVENTS.CLAIM_REJECTED, onClaimRejected);
     socket.on(GAME_EVENTS.ERROR, onError);
     socket.on(LOBBY_EVENTS.GAME_STARTING, onGameStarting);
 
     return () => {
       socket.off(GAME_EVENTS.STATE, onState);
       socket.off(GAME_EVENTS.RESULT, onResult);
-      socket.off(BINGO_EVENTS.CLAIM_REJECTED, onClaimRejected);
       socket.off(GAME_EVENTS.ERROR, onError);
       socket.off(LOBBY_EVENTS.GAME_STARTING, onGameStarting);
     };
@@ -92,9 +104,10 @@ export const useGameStore = create<GameState>()((set, get) => ({
   reset: () =>
     set({
       gameId: null,
+      lobbyCode: null,
       view: null,
       result: null,
-      claimRejected: null,
       error: null,
+      nextPlaceNumber: 1,
     }),
 }));

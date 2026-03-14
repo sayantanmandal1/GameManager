@@ -7,10 +7,8 @@ export const GAME_CONSTANTS = {
 
 export const BINGO_CONSTANTS = {
   BOARD_SIZE: 5,
-  TOTAL_NUMBERS: 75,
-  DEFAULT_DRAW_INTERVAL_MS: 5000,
-  FREE_CELL_ROW: 2,
-  FREE_CELL_COL: 2,
+  TOTAL_NUMBERS: 25,
+  LINES_TO_WIN: 5, // B-I-N-G-O
 } as const;
 
 export const AVATARS = [

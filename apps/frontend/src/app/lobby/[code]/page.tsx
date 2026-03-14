@@ -22,7 +22,7 @@ export default function LobbyPage() {
   const { isAuthenticated, user } = useAuthStore();
   const { lobby, leaveLobby, setReady, startGame, initListeners } =
     useLobbyStore();
-  const { initListeners: initGameListeners, gameId } = useGameStore();
+  const { initListeners: initGameListeners, reset: resetGame } = useGameStore();
   const [copied, setCopied] = useState(false);
   useSocket();
 
@@ -31,13 +31,16 @@ export default function LobbyPage() {
       router.push('/');
       return;
     }
+
+    // Reset game state when entering lobby (handles back-to-lobby flow)
+    resetGame();
+
     const cleanupLobby = initListeners();
     const cleanupGame = initGameListeners();
 
     // Listen for game starting to navigate
     const socket = getSocket();
     const onGameStarting = () => {
-      // The game gateway handles starting; navigate to play
       router.push(`/games/bingo/play?lobby=${code}`);
     };
     socket?.on(LOBBY_EVENTS.GAME_STARTING, onGameStarting);
@@ -47,14 +50,7 @@ export default function LobbyPage() {
       cleanupGame();
       socket?.off(LOBBY_EVENTS.GAME_STARTING, onGameStarting);
     };
-  }, [isAuthenticated, router, code, initListeners, initGameListeners]);
-
-  // Redirect to play if game already started
-  useEffect(() => {
-    if (gameId) {
-      router.push(`/games/bingo/play?lobby=${code}`);
-    }
-  }, [gameId, code, router]);
+  }, [isAuthenticated, router, code, initListeners, initGameListeners, resetGame]);
 
   const isHost = lobby?.hostId === user?.id;
   const currentPlayer = lobby?.players.find((p) => p.id === user?.id);
