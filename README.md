@@ -10,7 +10,7 @@ A production-grade, real-time multiplayer gaming platform built with **Next.js**
 ┌────────────────────┐      ┌────────────────────┐
 │   Next.js 14       │◄────►│   NestJS 10        │
 │   (App Router)     │ WS   │   (REST + WS)      │
-│   Port 3000        │      │   Port 3001         │
+│   Port 3000        │      │   Port 8000         │
 └────────────────────┘      └──────┬───────┬──────┘
                                    │       │
                              ┌─────┘       └─────┐
@@ -50,7 +50,7 @@ cp .env.example .env
 docker compose up -d
 
 # Frontend → http://localhost:3000
-# Backend  → http://localhost:3001
+# Backend  → http://localhost:8000
 ```
 
 ---
@@ -74,7 +74,7 @@ npm run dev
 | App      | URL                     |
 |----------|-------------------------|
 | Frontend | http://localhost:3000    |
-| Backend  | http://localhost:3001    |
+| Backend  | http://localhost:8000    |
 
 ### Individual app commands
 
@@ -110,8 +110,8 @@ Copy `.env.example` to `.env` at the project root. Key variables:
 | `JWT_SECRET`          | *(change in prod)*    | JWT signing secret            |
 | `JWT_EXPIRATION`      | `24h`                 | Token lifetime                |
 | `BINGO_DRAW_INTERVAL` | `4000`                | ms between number draws       |
-| `NEXT_PUBLIC_API_URL` | `http://localhost:3001`| Backend URL for the frontend |
-| `NEXT_PUBLIC_WS_URL`  | `http://localhost:3001`| WebSocket URL for the frontend|
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8000`| Backend URL for the frontend |
+| `NEXT_PUBLIC_WS_URL`  | `http://localhost:8000`| WebSocket URL for the frontend|
 
 ---
 

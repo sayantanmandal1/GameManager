@@ -26,5 +26,5 @@ COPY --from=base /app/packages/shared/package.json ./packages/shared/
 COPY --from=base /app/apps/backend/dist ./apps/backend/dist
 COPY --from=base /app/apps/backend/package.json ./apps/backend/
 WORKDIR /app/apps/backend
-EXPOSE 3001
+EXPOSE 8000
 CMD ["node", "dist/main"]
