@@ -103,18 +103,24 @@ export function useVoiceChat(roomId: string) {
 
     const onPeerJoined = async (data: {
       peers: Array<{ socketId: string; userId: string; username: string }>;
+      shouldInitiate?: boolean;
     }) => {
       for (const peer of data.peers) {
         addPeer(peer);
 
         if (!peerConnections.current.has(peer.socketId)) {
           const pc = createPeerConnection(peer.socketId);
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          socket.emit(VOICE_EVENTS.OFFER, {
-            targetSocketId: peer.socketId,
-            offer,
-          });
+
+          // Only create an offer if we are the initiator (new joiner → existing peers)
+          // Existing peers wait for the offer from the new joiner
+          if (data.shouldInitiate) {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            socket.emit(VOICE_EVENTS.OFFER, {
+              targetSocketId: peer.socketId,
+              offer,
+            });
+          }
         }
       }
     };
@@ -132,7 +138,11 @@ export function useVoiceChat(roomId: string) {
       socketId: string;
       offer: RTCSessionDescriptionInit;
     }) => {
-      const pc = createPeerConnection(data.socketId);
+      // Reuse existing PC (created in onPeerJoined) or create a new one
+      let pc = peerConnections.current.get(data.socketId);
+      if (!pc) {
+        pc = createPeerConnection(data.socketId);
+      }
       await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);

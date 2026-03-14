@@ -11,7 +11,6 @@ import { JwtService } from '@nestjs/jwt';
 import { GameService } from './game.service';
 import { getSocketUser } from '../auth/ws-jwt.guard';
 import {
-  LOBBY_EVENTS,
   GAME_EVENTS,
   BINGO_EVENTS,
   BingoWinResult,
@@ -44,40 +43,6 @@ export class GameGateway implements OnGatewayInit {
         winningCells: result.winningCells,
       });
     };
-  }
-
-  @SubscribeMessage(LOBBY_EVENTS.GAME_STARTING)
-  async handleGameStarting(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { lobbyCode: string },
-  ): Promise<void> {
-    const user = getSocketUser(client, this.jwtService);
-    if (!user) return;
-
-    try {
-      const { gameId, state } = await this.gameService.startBingoGame(
-        data.lobbyCode,
-      );
-      lobbyGameMap.set(data.lobbyCode, gameId);
-
-      // Move all lobby sockets to the game room
-      const lobbyRoom = `lobby:${data.lobbyCode}`;
-      const gameRoom = `game:${data.lobbyCode}`;
-      const sockets = await this.server.in(lobbyRoom).fetchSockets();
-
-      for (const s of sockets) {
-        s.join(gameRoom);
-        // Send each player their personalized view
-        const sUser = s.data?.user;
-        if (sUser) {
-          const view = this.gameService.getPlayerView(gameId, sUser.sub);
-          s.emit(GAME_EVENTS.STATE, { gameId, view });
-        }
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to start game';
-      client.emit(GAME_EVENTS.ERROR, { message });
-    }
   }
 
   @SubscribeMessage(BINGO_EVENTS.MARK_NUMBER)

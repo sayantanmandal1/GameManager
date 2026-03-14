@@ -27,7 +27,7 @@ export class VoiceGateway {
 
     const voiceRoom = `voice:${data.roomId}`;
 
-    // Get existing peers
+    // Get existing peers before joining the room
     const sockets = await this.server.in(voiceRoom).fetchSockets();
     const existingPeers = sockets
       .filter((s) => s.id !== client.id)
@@ -39,10 +39,13 @@ export class VoiceGateway {
 
     client.join(voiceRoom);
 
-    // Send existing peers to the new joiner
-    client.emit(VOICE_EVENTS.PEER_JOINED, { peers: existingPeers });
+    // Send existing peers to the new joiner — they will initiate offers
+    client.emit(VOICE_EVENTS.PEER_JOINED, {
+      peers: existingPeers,
+      shouldInitiate: true,
+    });
 
-    // Notify existing peers about the new joiner
+    // Notify existing peers about the new joiner — they should wait for offers
     client.to(voiceRoom).emit(VOICE_EVENTS.PEER_JOINED, {
       peers: [
         {
@@ -51,6 +54,7 @@ export class VoiceGateway {
           username: user.username,
         },
       ],
+      shouldInitiate: false,
     });
   }
 

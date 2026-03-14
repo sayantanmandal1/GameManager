@@ -7,12 +7,15 @@ import {
   ConnectedSocket,
   MessageBody,
 } from '@nestjs/websockets';
+import { Inject, forwardRef } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { LobbyService } from './lobby.service';
+import { GameService } from '../game/game.service';
 import { getSocketUser } from '../auth/ws-jwt.guard';
 import {
   LOBBY_EVENTS,
+  GAME_EVENTS,
   GameType,
   CreateLobbyPayload,
   JoinLobbyPayload,
@@ -31,6 +34,8 @@ export class LobbyGateway
   constructor(
     private readonly lobbyService: LobbyService,
     private readonly jwtService: JwtService,
+    @Inject(forwardRef(() => GameService))
+    private readonly gameService: GameService,
   ) {}
 
   handleConnection(client: Socket): void {
@@ -171,9 +176,28 @@ export class LobbyGateway
         return;
       }
 
-      // Tell all clients the game is starting
+      // Start the game directly on the server
+      const { gameId } = await this.gameService.startBingoGame(code);
+
+      // Move all lobby sockets to the game room and send each player their view
+      const lobbyRoom = `lobby:${code}`;
+      const gameRoom = `game:${code}`;
+      const sockets = await this.server.in(lobbyRoom).fetchSockets();
+
+      for (const s of sockets) {
+        s.join(gameRoom);
+        const sUser = s.data?.user;
+        if (sUser) {
+          const view = this.gameService.getPlayerView(gameId, sUser.sub);
+          if (view) {
+            s.emit(GAME_EVENTS.STATE, { gameId, view });
+          }
+        }
+      }
+
+      // Tell all clients the game is starting (triggers frontend navigation)
       this.server
-        .to(`lobby:${code}`)
+        .to(lobbyRoom)
         .emit(LOBBY_EVENTS.GAME_STARTING, { lobbyCode: code });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to start game';
