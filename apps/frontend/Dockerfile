@@ -8,6 +8,7 @@ COPY packages/shared/package.json ./packages/shared/
 RUN npm install --workspace=apps/frontend --workspace=packages/shared
 
 # Copy source
+COPY tsconfig.base.json ./
 COPY packages/shared/ ./packages/shared/
 COPY apps/frontend/ ./apps/frontend/
 

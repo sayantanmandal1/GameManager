@@ -35,7 +35,7 @@ services:
     ports:
       - "3001:3001"
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       DATABASE_HOST: postgres
       DATABASE_PORT: 5432
       DATABASE_NAME: multiplayer_games
@@ -43,8 +43,8 @@ services:
       DATABASE_PASSWORD: ${DATABASE_PASSWORD:-postgres_dev}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_dev}
-      JWT_SECRET: ${JWT_SECRET}
+      REDIS_PASSWORD: redis_dev
+      JWT_SECRET: ${JWT_SECRET:-dev_jwt_secret_change_in_production}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
       BACKEND_PORT: 3001
     depends_on:

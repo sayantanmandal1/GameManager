@@ -3,6 +3,7 @@ WORKDIR /app
 
 # Install dependencies
 COPY package.json package-lock.json* ./
+COPY tsconfig.base.json ./
 COPY apps/backend/package.json ./apps/backend/
 COPY packages/shared/package.json ./packages/shared/
 RUN npm install --workspace=apps/backend --workspace=packages/shared
