@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { getSocket } from '@/lib/socket';
 import { useVoiceStore } from '@/stores/voiceStore';
-import { VOICE_EVENTS } from '@multiplayer-games/shared';
+import { VOICE_EVENTS } from '@/shared';
 
 const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
