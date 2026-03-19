@@ -38,12 +38,15 @@ function BingoPlayContent() {
       router.push('/');
       return;
     }
+    // Set lobby code first, then init listeners
     setLobbyCode(lobbyCode);
+  }, [isAuthenticated, router, lobbyCode, setLobbyCode]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !lobbyCode) return;
     const cleanup = initListeners();
-    return () => {
-      cleanup();
-    };
-  }, [isAuthenticated, router, lobbyCode, initListeners, setLobbyCode]);
+    return cleanup;
+  }, [isAuthenticated, lobbyCode, initListeners]);
 
   // Confetti on game result
   useEffect(() => {
