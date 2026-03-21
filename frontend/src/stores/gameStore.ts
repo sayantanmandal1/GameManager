@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { getSocket } from '@/lib/socket';
+import { getSocket, waitForSocket } from '@/lib/socket';
 import {
   GAME_EVENTS,
   BINGO_EVENTS,
@@ -25,6 +25,7 @@ interface GameState {
   chooseNumber: (number: number) => void;
   backToLobby: () => void;
   setLobbyCode: (code: string) => void;
+  requestGameState: () => Promise<void>;
   initListeners: () => () => void;
   reset: () => void;
 }
@@ -38,6 +39,17 @@ export const useGameStore = create<GameState>()((set, get) => ({
   nextPlaceNumber: 1,
 
   setLobbyCode: (code: string) => set({ lobbyCode: code }),
+
+  /** Request game state from server */
+  requestGameState: async () => {
+    const { lobbyCode } = get();
+    if (!lobbyCode) return;
+
+    const socket = await waitForSocket();
+    if (!socket) return;
+
+    socket.emit(GAME_EVENTS.REQUEST_STATE, { lobbyCode });
+  },
 
   /** Setup phase: place the next number at (row, col) */
   placeNumber: (row: number, col: number) => {
@@ -93,7 +105,8 @@ export const useGameStore = create<GameState>()((set, get) => ({
     socket.on(GAME_EVENTS.ERROR, onError);
     socket.on(LOBBY_EVENTS.GAME_STARTING, onGameStarting);
 
-    // Request current game state from server (in case we missed the initial emit)
+    // Request current game state (handles case where initial state
+    // was sent before listeners were registered, e.g. after navigation)
     const { lobbyCode } = get();
     if (lobbyCode) {
       socket.emit(GAME_EVENTS.REQUEST_STATE, { lobbyCode });

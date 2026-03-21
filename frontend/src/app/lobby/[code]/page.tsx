@@ -20,23 +20,27 @@ export default function LobbyPage() {
   const code = params.code as string;
 
   const { isAuthenticated, user } = useAuthStore();
-  const { lobby, leaveLobby, setReady, startGame, initListeners } =
+  const { lobby, joinLobby, leaveLobby, setReady, startGame, initListeners } =
     useLobbyStore();
   const { initListeners: initGameListeners, reset: resetGame } = useGameStore();
   const [copied, setCopied] = useState(false);
-  useSocket();
+  const { isConnected } = useSocket();
 
+  // Set up listeners and auto-rejoin lobby when socket is connected
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/');
       return;
     }
+    if (!isConnected) return;
 
-    // Reset game state when entering lobby (handles back-to-lobby flow)
     resetGame();
 
     const cleanupLobby = initListeners();
     const cleanupGame = initGameListeners();
+
+    // Re-join lobby to ensure socket is in the room (handles page refresh)
+    joinLobby(code);
 
     // Listen for game starting to navigate
     const socket = getSocket();
@@ -50,7 +54,7 @@ export default function LobbyPage() {
       cleanupGame();
       socket?.off(LOBBY_EVENTS.GAME_STARTING, onGameStarting);
     };
-  }, [isAuthenticated, router, code, initListeners, initGameListeners, resetGame]);
+  }, [isAuthenticated, isConnected, router, code, initListeners, initGameListeners, resetGame, joinLobby]);
 
   const isHost = lobby?.hostId === user?.id;
   const currentPlayer = lobby?.players.find((p) => p.id === user?.id);

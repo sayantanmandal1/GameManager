@@ -31,7 +31,7 @@ function BingoPlayContent() {
     initListeners,
     reset,
   } = useGameStore();
-  useSocket();
+  const { isConnected } = useSocket();
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -43,10 +43,10 @@ function BingoPlayContent() {
   }, [isAuthenticated, router, lobbyCode, setLobbyCode]);
 
   useEffect(() => {
-    if (!isAuthenticated || !lobbyCode) return;
+    if (!isAuthenticated || !lobbyCode || !isConnected) return;
     const cleanup = initListeners();
     return cleanup;
-  }, [isAuthenticated, lobbyCode, initListeners]);
+  }, [isAuthenticated, lobbyCode, isConnected, initListeners]);
 
   // Confetti on game result
   useEffect(() => {

@@ -15,19 +15,20 @@ import { GameType } from '@/shared';
 export default function BingoEntryPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
-  const { lobby, createLobby, joinLobby, initListeners, error } = useLobbyStore();
+  const { lobby, isLoading, createLobby, joinLobby, initListeners, error } = useLobbyStore();
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [joinCode, setJoinCode] = useState('');
-  useSocket();
+  const { isConnected } = useSocket();
 
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/');
       return;
     }
+    if (!isConnected) return;
     const cleanup = initListeners();
     return cleanup;
-  }, [isAuthenticated, router, initListeners]);
+  }, [isAuthenticated, isConnected, router, initListeners]);
 
   // Navigate to lobby when created/joined
   useEffect(() => {
@@ -61,10 +62,12 @@ export default function BingoEntryPage() {
               hoverable
               glowing
               className="text-center"
-              onClick={() => createLobby(GameType.BINGO)}
+              onClick={() => !isLoading && createLobby(GameType.BINGO)}
             >
-              <div className="text-3xl mb-2">🏠</div>
-              <h3 className="font-bold text-white mb-1">Create Lobby</h3>
+              <div className="text-3xl mb-2">{isLoading ? '⏳' : '🏠'}</div>
+              <h3 className="font-bold text-white mb-1">
+                {isLoading ? 'Creating…' : 'Create Lobby'}
+              </h3>
               <p className="text-xs text-game-muted">
                 Host a game and invite friends
               </p>

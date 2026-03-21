@@ -93,12 +93,14 @@ export class LobbyService {
   async joinLobby(code: string, userId: string): Promise<Lobby> {
     const lobby = await this.getLobby(code);
     if (!lobby) throw new Error('Lobby not found');
+
+    // If player is already in the lobby, return current state (handles reconnect/rejoin)
+    if (lobby.players.some((p) => p.id === userId)) return lobby;
+
     if (lobby.status !== LobbyStatus.WAITING)
       throw new Error('Game already in progress');
     if (lobby.players.length >= lobby.maxPlayers)
       throw new Error('Lobby is full');
-    if (lobby.players.some((p) => p.id === userId))
-      throw new Error('Already in lobby');
 
     const user = await this.userService.findById(userId);
     if (!user) throw new Error('User not found');
