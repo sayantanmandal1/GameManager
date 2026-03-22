@@ -25,6 +25,7 @@ function BingoPlayContent() {
     result,
     nextPlaceNumber,
     placeNumber,
+    randomizeBoard,
     chooseNumber,
     backToLobby,
     setLobbyCode,
@@ -38,7 +39,6 @@ function BingoPlayContent() {
       router.push('/');
       return;
     }
-    // Set lobby code first, then init listeners
     setLobbyCode(lobbyCode);
   }, [isAuthenticated, router, lobbyCode, setLobbyCode]);
 
@@ -52,14 +52,27 @@ function BingoPlayContent() {
   useEffect(() => {
     if (result) {
       const isWinner = result.winnerId === user?.id;
-      confetti({
-        particleCount: isWinner ? 200 : 50,
-        spread: isWinner ? 120 : 60,
-        origin: { y: 0.6 },
-        colors: isWinner
-          ? ['#6366f1', '#ec4899', '#fbbf24', '#34d399']
-          : ['#6366f1', '#94a3b8'],
-      });
+      if (isWinner) {
+        // Big celebration for winner
+        const end = Date.now() + 3000;
+        const fire = () => {
+          confetti({
+            particleCount: 100,
+            spread: 120,
+            origin: { x: Math.random(), y: Math.random() * 0.6 },
+            colors: ['#6366f1', '#ec4899', '#fbbf24', '#34d399'],
+          });
+          if (Date.now() < end) requestAnimationFrame(fire);
+        };
+        fire();
+      } else {
+        confetti({
+          particleCount: 30,
+          spread: 60,
+          origin: { y: 0.6 },
+          colors: ['#6366f1', '#94a3b8'],
+        });
+      }
     }
   }, [result, user?.id]);
 
@@ -106,13 +119,22 @@ function BingoPlayContent() {
               Place numbers 1–25 on your board. Click any empty cell to place{' '}
               <span className="text-primary font-bold">{nextPlaceNumber > 25 ? '✓' : nextPlaceNumber}</span>
             </p>
-            <p className="text-xs text-game-muted mb-6">
+            <p className="text-xs text-game-muted mb-4">
               {view.isSetupDone
                 ? 'Waiting for opponent to finish…'
                 : view.opponentSetupDone
                   ? 'Opponent is ready! Finish placing your numbers.'
                   : 'Both players are setting up…'}
             </p>
+
+            {/* Random button */}
+            {!view.isSetupDone && (
+              <div className="mb-6">
+                <Button onClick={randomizeBoard} variant="secondary">
+                  🎲 Randomize Board
+                </Button>
+              </div>
+            )}
 
             <BingoBoard
               board={view.board}
@@ -127,7 +149,7 @@ function BingoPlayContent() {
         {/* ──────── PLAY PHASE & FINISHED ──────── */}
         {(isPlayPhase || isFinished) && (
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 max-w-3xl mx-auto">
-            {/* Left: My board */}
+            {/* Left: My board only */}
             <BingoBoard
               board={view.board}
               disabled
@@ -139,11 +161,12 @@ function BingoPlayContent() {
             <div className="space-y-4">
               <NumberDisplay
                 chosenNumbers={view.chosenNumbers}
+                calledBy={view.calledBy}
                 isMyTurn={isMyTurn}
                 onChooseNumber={(num) => chooseNumber(num)}
-                completedLines={view.completedLines}
+                myCompletedLines={view.myCompletedLines}
                 userId={user?.id || ''}
-                players={view.players}
+                playerNames={view.playerNames}
                 disabled={isFinished}
               />
 
@@ -160,24 +183,32 @@ function BingoPlayContent() {
             animate={{ opacity: 1, scale: 1 }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
           >
-            <div className="text-center p-8 bg-game-card border border-game-border rounded-2xl max-w-sm">
+            <motion.div
+              initial={{ y: 50, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+              className="text-center p-8 bg-game-card border border-game-border rounded-2xl max-w-sm"
+            >
               <div className="text-6xl mb-4">
                 {result.winnerId === user?.id ? '🏆' : '😢'}
               </div>
               <h2 className="text-3xl font-black text-white mb-2">
                 {result.winnerId === user?.id ? 'YOU WON!' : 'Game Over'}
               </h2>
-              <p className="text-game-muted mb-4">
-                {result.winnerId === user?.id
-                  ? 'You completed BINGO first!'
-                  : 'Your opponent completed BINGO first.'}
+              <p className="text-lg text-game-muted mb-1">
+                <span className="text-primary font-bold">{result.winnerName}</span> completed BINGO!
               </p>
-              <div className="mt-4 flex gap-3 justify-center">
+              <p className="text-sm text-game-muted mb-6">
+                {result.winnerId === user?.id
+                  ? 'Amazing strategy! You outsmarted your opponent.'
+                  : 'Better luck next time — every loss is a lesson.'}
+              </p>
+              <div className="flex gap-3 justify-center">
                 <Button onClick={handleBackToLobby}>
                   🔄 Back to Lobby
                 </Button>
               </div>
-            </div>
+            </motion.div>
           </motion.div>
         )}
       </div>

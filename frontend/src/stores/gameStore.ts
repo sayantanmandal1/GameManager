@@ -10,6 +10,7 @@ import {
 interface GameResult {
   gameId: string;
   winnerId: string;
+  winnerName: string;
   completedLines: Record<string, number>;
 }
 
@@ -22,6 +23,7 @@ interface GameState {
   /** Setup phase: next number the player needs to place (1-25) */
   nextPlaceNumber: number;
   placeNumber: (row: number, col: number) => void;
+  randomizeBoard: () => void;
   chooseNumber: (number: number) => void;
   backToLobby: () => void;
   setLobbyCode: (code: string) => void;
@@ -64,6 +66,15 @@ export const useGameStore = create<GameState>()((set, get) => ({
       number: nextPlaceNumber,
     });
     set({ nextPlaceNumber: nextPlaceNumber + 1 });
+  },
+
+  /** Setup phase: randomize entire board */
+  randomizeBoard: () => {
+    const socket = getSocket();
+    const { gameId, lobbyCode } = get();
+    if (!socket || !gameId || !lobbyCode) return;
+    socket.emit(BINGO_EVENTS.RANDOMIZE_BOARD, { gameId, lobbyCode });
+    set({ nextPlaceNumber: 26 }); // Mark setup as complete locally
   },
 
   /** Play phase: choose a number on your turn */

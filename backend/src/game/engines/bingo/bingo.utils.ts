@@ -17,6 +17,26 @@ export function createEmptyBoard(): BingoBoard {
   return board;
 }
 
+/** Create a randomly filled 5×5 board with numbers 1-25 shuffled */
+export function createRandomBoard(): BingoBoard {
+  const numbers = Array.from({ length: 25 }, (_, i) => i + 1);
+  // Fisher-Yates shuffle
+  for (let i = numbers.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [numbers[i], numbers[j]] = [numbers[j], numbers[i]];
+  }
+  const board: BingoBoard = [];
+  let idx = 0;
+  for (let row = 0; row < BINGO_BOARD_SIZE; row++) {
+    const cells: BingoCell[] = [];
+    for (let col = 0; col < BINGO_BOARD_SIZE; col++) {
+      cells.push({ value: numbers[idx++], marked: false });
+    }
+    board.push(cells);
+  }
+  return board;
+}
+
 /** Mark a number on a board (cross it off). Mutates in-place for performance. */
 export function markNumberOnBoard(board: BingoBoard, number: number): void {
   for (let row = 0; row < BINGO_BOARD_SIZE; row++) {

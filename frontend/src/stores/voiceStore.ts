@@ -10,9 +10,11 @@ interface VoicePeer {
 interface VoiceState {
   isInVoice: boolean;
   isMuted: boolean;
+  isSpeakerOff: boolean;
   activePeers: Map<string, VoicePeer>;
   toggleVoice: () => void;
   toggleMute: () => void;
+  toggleSpeaker: () => void;
   addPeer: (peer: Omit<VoicePeer, 'isMuted'>) => void;
   removePeer: (socketId: string) => void;
   setPeerMuted: (socketId: string, isMuted: boolean) => void;
@@ -22,6 +24,7 @@ interface VoiceState {
 export const useVoiceStore = create<VoiceState>()((set) => ({
   isInVoice: false,
   isMuted: false,
+  isSpeakerOff: false,
   activePeers: new Map(),
 
   toggleVoice: () =>
@@ -29,6 +32,9 @@ export const useVoiceStore = create<VoiceState>()((set) => ({
 
   toggleMute: () =>
     set((state) => ({ isMuted: !state.isMuted })),
+
+  toggleSpeaker: () =>
+    set((state) => ({ isSpeakerOff: !state.isSpeakerOff })),
 
   addPeer: (peer) =>
     set((state) => {
@@ -53,5 +59,5 @@ export const useVoiceStore = create<VoiceState>()((set) => ({
     }),
 
   reset: () =>
-    set({ isInVoice: false, isMuted: false, activePeers: new Map() }),
+    set({ isInVoice: false, isMuted: false, isSpeakerOff: false, activePeers: new Map() }),
 }));

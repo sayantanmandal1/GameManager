@@ -3,11 +3,13 @@ import {
   BingoGamePhase,
   BingoPlayerView,
   BingoWinResult,
+  BingoBoard,
   BINGO_TOTAL_NUMBERS,
   BINGO_CONSTANTS,
 } from '../../../shared';
 import {
   createEmptyBoard,
+  createRandomBoard,
   markNumberOnBoard,
   countCompletedLines,
   isBoardFilled,
@@ -16,8 +18,8 @@ import {
 
 export class BingoEngine {
   /** Create initial game state — both players get empty boards for setup */
-  initGame(playerIds: string[]): BingoGameState {
-    const boards: Record<string, ReturnType<typeof createEmptyBoard>> = {};
+  initGame(playerIds: string[], playerNames: Record<string, string>): BingoGameState {
+    const boards: Record<string, BingoBoard> = {};
     for (const id of playerIds) {
       boards[id] = createEmptyBoard();
     }
@@ -33,10 +35,39 @@ export class BingoEngine {
       setupDone: [],
       currentTurn: null,
       chosenNumbers: [],
+      calledBy: {},
       completedLines,
       playerIds: [...playerIds],
+      playerNames,
       winnerId: null,
     };
+  }
+
+  /** Randomize a player's board during setup — fills all 25 cells randomly */
+  randomizeBoard(
+    state: BingoGameState,
+    playerId: string,
+  ): { valid: boolean; reason?: string } {
+    if (state.phase !== BingoGamePhase.SETUP) {
+      return { valid: false, reason: 'Not in setup phase' };
+    }
+    if (state.setupDone.includes(playerId)) {
+      return { valid: false, reason: 'You already finished setup' };
+    }
+    const board = state.boards[playerId];
+    if (!board) return { valid: false, reason: 'Player not in game' };
+
+    // Replace with a fully random board
+    state.boards[playerId] = createRandomBoard();
+    state.setupDone.push(playerId);
+
+    // If all players are done with setup, transition to playing
+    if (state.setupDone.length === state.playerIds.length) {
+      state.phase = BingoGamePhase.PLAYING;
+      state.currentTurn = state.playerIds[0];
+    }
+
+    return { valid: true };
   }
 
   /** Place a number on the player's board during setup phase */
@@ -107,6 +138,7 @@ export class BingoEngine {
 
     // Mark the number on ALL boards
     state.chosenNumbers.push(number);
+    state.calledBy[number] = playerId;
     for (const pid of state.playerIds) {
       markNumberOnBoard(state.boards[pid], number);
     }
@@ -126,6 +158,7 @@ export class BingoEngine {
           valid: true,
           winner: {
             winnerId: pid,
+            winnerName: state.playerNames[pid] || 'Unknown',
             completedLines: { ...state.completedLines },
           },
         };
@@ -143,18 +176,19 @@ export class BingoEngine {
   getPlayerView(state: BingoGameState, playerId: string): BingoPlayerView {
     const opponentId = state.playerIds.find((id) => id !== playerId) || null;
 
-    // Boards are ALWAYS hidden from opponent — core strategic rule
     return {
       board: state.boards[playerId] || [],
-      opponentBoard: null,
       phase: state.phase,
       isSetupDone: state.setupDone.includes(playerId),
       opponentSetupDone: opponentId ? state.setupDone.includes(opponentId) : false,
       currentTurn: state.currentTurn,
       chosenNumbers: [...state.chosenNumbers],
-      completedLines: { ...state.completedLines },
+      calledBy: { ...state.calledBy },
+      myCompletedLines: state.completedLines[playerId] || 0,
       players: state.playerIds,
+      playerNames: { ...state.playerNames },
       winnerId: state.winnerId,
+      winnerName: state.winnerId ? (state.playerNames[state.winnerId] || null) : null,
     };
   }
 }

@@ -20,22 +20,26 @@ export interface BingoGameState {
   setupDone: string[];
   currentTurn: string | null;
   chosenNumbers: number[];
+  calledBy: Record<number, string>;
   completedLines: Record<string, number>;
   playerIds: string[];
+  playerNames: Record<string, string>;
   winnerId: string | null;
 }
 
 export interface BingoPlayerView {
   board: BingoBoard;
-  opponentBoard: BingoBoard | null;
   phase: BingoGamePhase;
   isSetupDone: boolean;
   opponentSetupDone: boolean;
   currentTurn: string | null;
   chosenNumbers: number[];
-  completedLines: Record<string, number>;
+  calledBy: Record<number, string>;
+  myCompletedLines: number;
   players: string[];
+  playerNames: Record<string, string>;
   winnerId: string | null;
+  winnerName: string | null;
 }
 
 export interface BingoPlaceMove {
@@ -50,5 +54,6 @@ export interface BingoChooseMove {
 
 export interface BingoWinResult {
   winnerId: string;
+  winnerName: string;
   completedLines: Record<string, number>;
 }

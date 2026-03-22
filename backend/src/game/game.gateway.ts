@@ -34,6 +34,7 @@ export class GameGateway implements OnGatewayInit {
       this.server.to(`game:${lobbyCode}`).emit(GAME_EVENTS.RESULT, {
         gameId,
         winnerId: result.winnerId,
+        winnerName: result.winnerName,
         completedLines: result.completedLines,
       });
     };
@@ -79,6 +80,26 @@ export class GameGateway implements OnGatewayInit {
       data.row,
       data.col,
       data.number,
+      data.lobbyCode,
+    );
+
+    if (!result.ok) {
+      client.emit(GAME_EVENTS.ERROR, { message: result.error });
+    }
+  }
+
+  /** Setup phase: player randomizes their entire board */
+  @SubscribeMessage(BINGO_EVENTS.RANDOMIZE_BOARD)
+  handleRandomizeBoard(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { gameId: string; lobbyCode: string },
+  ): void {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+
+    const result = this.gameService.randomizeBoard(
+      data.gameId,
+      user.sub,
       data.lobbyCode,
     );
 

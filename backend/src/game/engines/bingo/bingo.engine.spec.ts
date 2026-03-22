@@ -119,6 +119,7 @@ describe('BingoUtils', () => {
 describe('BingoEngine', () => {
   let engine: BingoEngine;
   const players = ['player1', 'player2'];
+  const playerNames: Record<string, string> = { player1: 'Alice', player2: 'Bob' };
 
   beforeEach(() => {
     engine = new BingoEngine();
@@ -126,7 +127,7 @@ describe('BingoEngine', () => {
 
   describe('initGame', () => {
     it('should create empty boards for each player in setup phase', () => {
-      const state = engine.initGame(players);
+      const state = engine.initGame(players, playerNames);
       expect(Object.keys(state.boards)).toHaveLength(2);
       expect(state.phase).toBe(BingoGamePhase.SETUP);
       expect(state.setupDone).toEqual([]);
@@ -136,28 +137,28 @@ describe('BingoEngine', () => {
 
   describe('placeNumber', () => {
     it('should place a number on an empty cell', () => {
-      const state = engine.initGame(players);
+      const state = engine.initGame(players, playerNames);
       const result = engine.placeNumber(state, 'player1', 0, 0, 1);
       expect(result.valid).toBe(true);
       expect(state.boards['player1'][0][0].value).toBe(1);
     });
 
     it('should reject placing on an occupied cell', () => {
-      const state = engine.initGame(players);
+      const state = engine.initGame(players, playerNames);
       engine.placeNumber(state, 'player1', 0, 0, 1);
       const result = engine.placeNumber(state, 'player1', 0, 0, 2);
       expect(result.valid).toBe(false);
     });
 
     it('should reject placing a duplicate number', () => {
-      const state = engine.initGame(players);
+      const state = engine.initGame(players, playerNames);
       engine.placeNumber(state, 'player1', 0, 0, 5);
       const result = engine.placeNumber(state, 'player1', 0, 1, 5);
       expect(result.valid).toBe(false);
     });
 
     it('should transition to PLAYING when both boards are full', () => {
-      const state = engine.initGame(players);
+      const state = engine.initGame(players, playerNames);
       let n = 1;
       for (let r = 0; r < 5; r++) {
         for (let c = 0; c < 5; c++) {
@@ -197,7 +198,7 @@ describe('BingoEngine', () => {
     }
 
     it('should reject moves when not your turn', () => {
-      const state = engine.initGame(players);
+      const state = engine.initGame(players, playerNames);
       setupFullBoards(state);
       const result = engine.chooseNumber(state, 'player2', 1);
       expect(result.valid).toBe(false);
@@ -205,7 +206,7 @@ describe('BingoEngine', () => {
     });
 
     it('should mark the number on both boards and advance turn', () => {
-      const state = engine.initGame(players);
+      const state = engine.initGame(players, playerNames);
       setupFullBoards(state);
       const result = engine.chooseNumber(state, 'player1', 1);
       expect(result.valid).toBe(true);
@@ -215,7 +216,7 @@ describe('BingoEngine', () => {
     });
 
     it('should reject already-chosen numbers', () => {
-      const state = engine.initGame(players);
+      const state = engine.initGame(players, playerNames);
       setupFullBoards(state);
       engine.chooseNumber(state, 'player1', 1);
       engine.chooseNumber(state, 'player2', 2);
@@ -224,7 +225,7 @@ describe('BingoEngine', () => {
     });
 
     it('should detect a winner when 5 lines are completed', () => {
-      const state = engine.initGame(players);
+      const state = engine.initGame(players, playerNames);
       setupFullBoards(state);
 
       // Both players have the same board layout (1-25 sequentially).
@@ -252,15 +253,15 @@ describe('BingoEngine', () => {
 
   describe('getPlayerView', () => {
     it('should hide opponent board during setup', () => {
-      const state = engine.initGame(players);
+      const state = engine.initGame(players, playerNames);
       const view = engine.getPlayerView(state, 'player1');
       expect(view.board).toBeDefined();
-      expect(view.opponentBoard).toBeNull();
       expect(view.phase).toBe(BingoGamePhase.SETUP);
+      expect(view.myCompletedLines).toBe(0);
     });
 
-    it('should show opponent board during playing', () => {
-      const state = engine.initGame(players);
+    it('should always hide opponent board during playing', () => {
+      const state = engine.initGame(players, playerNames);
       // Fill both boards
       let n = 1;
       for (let r = 0; r < 5; r++) {
@@ -276,8 +277,8 @@ describe('BingoEngine', () => {
       }
 
       const view = engine.getPlayerView(state, 'player1');
-      expect(view.opponentBoard).not.toBeNull();
       expect(view.phase).toBe(BingoGamePhase.PLAYING);
+      expect(view.playerNames).toEqual(playerNames);
     });
   });
 });

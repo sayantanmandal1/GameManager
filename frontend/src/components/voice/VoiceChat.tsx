@@ -9,7 +9,7 @@ interface VoiceChatProps {
 }
 
 export function VoiceChat({ roomId }: VoiceChatProps) {
-  const { isInVoice, isMuted, activePeers, toggleVoice, toggleMute } =
+  const { isInVoice, isMuted, isSpeakerOff, activePeers, toggleVoice, toggleMute, toggleSpeaker } =
     useVoiceStore();
   const { joinVoice, leaveVoice } = useVoiceChat(roomId);
 
@@ -31,14 +31,24 @@ export function VoiceChat({ roomId }: VoiceChatProps) {
         </h3>
         <div className="flex gap-2">
           {isInVoice && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={toggleMute}
-              title={isMuted ? 'Unmute' : 'Mute'}
-            >
-              {isMuted ? '🔇' : '🔊'}
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleMute}
+                title={isMuted ? 'Unmute Mic' : 'Mute Mic'}
+              >
+                {isMuted ? '🎙️❌' : '🎙️'}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleSpeaker}
+                title={isSpeakerOff ? 'Enable Speaker' : 'Disable Speaker'}
+              >
+                {isSpeakerOff ? '🔇' : '🔊'}
+              </Button>
+            </>
           )}
           <Button
             variant={isInVoice ? 'danger' : 'secondary'}
@@ -59,7 +69,7 @@ export function VoiceChat({ roomId }: VoiceChatProps) {
             >
               <span
                 className={`w-2 h-2 rounded-full ${
-                  peer.isMuted ? 'bg-red-400' : 'bg-green-400'
+                  peer.isMuted ? 'bg-red-400' : 'bg-green-400 animate-pulse'
                 }`}
               />
               <span className="text-game-muted">{peer.username}</span>
@@ -70,6 +80,10 @@ export function VoiceChat({ roomId }: VoiceChatProps) {
 
       {isInVoice && activePeers.size === 0 && (
         <p className="text-xs text-game-muted">No one else in voice yet…</p>
+      )}
+
+      {!isInVoice && (
+        <p className="text-xs text-game-muted">Click Join to start voice chat</p>
       )}
     </div>
   );

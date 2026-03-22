@@ -3,47 +3,55 @@
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface NumberDisplayProps {
-  /** Numbers 1-25 that have been called so far */
   chosenNumbers: number[];
-  /** Is it this player's turn? */
+  /** Who called each number: number → playerId */
+  calledBy: Record<number, string>;
   isMyTurn: boolean;
-  /** Callback when a number is chosen */
   onChooseNumber: (num: number) => void;
-  /** Completed line counts */
-  completedLines: Record<string, number>;
-  /** Current user ID */
+  /** Only YOUR completed line count */
+  myCompletedLines: number;
   userId: string;
-  /** All player IDs */
-  players: string[];
+  /** playerId → username */
+  playerNames: Record<string, string>;
   disabled?: boolean;
 }
 
 export function NumberDisplay({
   chosenNumbers,
+  calledBy,
   isMyTurn,
   onChooseNumber,
-  completedLines,
+  myCompletedLines,
   userId,
-  players,
+  playerNames,
   disabled = false,
 }: NumberDisplayProps) {
   const allNumbers = Array.from({ length: 25 }, (_, i) => i + 1);
   const lastCalled = chosenNumbers.length > 0 ? chosenNumbers[chosenNumbers.length - 1] : null;
+  const lastCalledBy = lastCalled !== null ? calledBy[lastCalled] : null;
+  const lastCalledByName = lastCalledBy
+    ? lastCalledBy === userId
+      ? 'You'
+      : playerNames[lastCalledBy] || 'Opponent'
+    : null;
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Last called number */}
+      {/* Last called number with who called it */}
       {lastCalled !== null && (
         <div className="text-center">
           <p className="text-xs text-game-muted uppercase tracking-wider mb-1">Last Called</p>
           <motion.div
             key={lastCalled}
-            initial={{ scale: 0.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
+            initial={{ scale: 0.5, opacity: 0, rotate: -10 }}
+            animate={{ scale: 1, opacity: 1, rotate: 0 }}
             className="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-yellow-500/20 border-2 border-yellow-400 text-yellow-300 text-3xl font-black"
           >
             {lastCalled}
           </motion.div>
+          <p className="text-xs text-game-muted mt-1">
+            Called by <span className={lastCalledBy === userId ? 'text-primary font-bold' : 'text-red-400 font-bold'}>{lastCalledByName}</span>
+          </p>
         </div>
       )}
 
@@ -73,44 +81,63 @@ export function NumberDisplay({
         </p>
       )}
 
-      {/* BINGO progress */}
+      {/* MY BINGO progress only */}
       <div className="bg-game-card border border-game-border rounded-xl p-4">
         <h3 className="text-xs text-game-muted uppercase tracking-wider mb-3">
-          BINGO Progress
+          Your BINGO Progress
         </h3>
-        {players.map((pid) => {
-          const lines = completedLines[pid] || 0;
-          const letters = 'BINGO';
-          const isMe = pid === userId;
-          return (
-            <div key={pid} className="flex items-center gap-2 mb-2 last:mb-0">
-              <span className={`text-xs min-w-[60px] ${isMe ? 'text-primary font-bold' : 'text-game-muted'}`}>
-                {isMe ? 'You' : 'Opponent'}
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1">
+            {'BINGO'.split('').map((letter, i) => (
+              <span
+                key={i}
+                className={`w-8 h-8 rounded flex items-center justify-center text-sm font-black transition-all ${
+                  i < myCompletedLines
+                    ? 'bg-primary text-white shadow-lg shadow-primary/30'
+                    : 'bg-game-bg text-game-muted/40 border border-game-border'
+                }`}
+              >
+                {letter}
               </span>
-              <div className="flex gap-1">
-                {letters.split('').map((letter, i) => (
-                  <span
-                    key={i}
-                    className={`w-7 h-7 rounded flex items-center justify-center text-sm font-black ${
-                      i < lines
-                        ? 'bg-primary text-white'
-                        : 'bg-game-bg text-game-muted/40 border border-game-border'
-                    }`}
-                  >
-                    {letter}
-                  </span>
-                ))}
-              </div>
-              <span className="text-xs text-game-muted ml-auto">{lines}/5</span>
-            </div>
-          );
-        })}
+            ))}
+          </div>
+          <span className="text-sm text-game-muted ml-auto font-mono">{myCompletedLines}/5 lines</span>
+        </div>
+      </div>
+
+      {/* Called numbers history */}
+      <div className="bg-game-card border border-game-border rounded-xl p-4">
+        <h3 className="text-xs text-game-muted uppercase tracking-wider mb-3">
+          Called Numbers ({chosenNumbers.length}/25)
+        </h3>
+        {chosenNumbers.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {chosenNumbers.map((num) => {
+              const callerIsMe = calledBy[num] === userId;
+              return (
+                <span
+                  key={num}
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
+                    callerIsMe
+                      ? 'bg-primary/20 text-primary border border-primary/30'
+                      : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                  }`}
+                  title={`Called by ${callerIsMe ? 'you' : 'opponent'}`}
+                >
+                  {num}
+                </span>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-xs text-game-muted">No numbers called yet</p>
+        )}
       </div>
 
       {/* Number picker grid */}
       <div className="bg-game-card border border-game-border rounded-xl p-4">
         <h3 className="text-xs text-game-muted uppercase tracking-wider mb-3">
-          Choose a Number ({chosenNumbers.length}/25 used)
+          Choose a Number
         </h3>
         <div className="grid grid-cols-5 gap-2">
           {allNumbers.map((num) => {

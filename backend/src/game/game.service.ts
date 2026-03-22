@@ -41,7 +41,11 @@ export class GameService {
     if (!lobby) throw new Error('Lobby not found');
 
     const playerIds = lobby.players.map((p) => p.id);
-    const state = this.engine.initGame(playerIds);
+    const playerNames: Record<string, string> = {};
+    for (const p of lobby.players) {
+      playerNames[p.id] = p.username;
+    }
+    const state = this.engine.initGame(playerIds, playerNames);
 
     // Persist game record
     const entity = this.gameRepo.create({
@@ -89,6 +93,26 @@ export class GameService {
     this.gameStates.set(gameId, state);
 
     // Broadcast updated state to all players
+    if (this.onStateChanged) {
+      this.onStateChanged(gameId, lobbyCode);
+    }
+
+    return { ok: true };
+  }
+
+  randomizeBoard(
+    gameId: string,
+    playerId: string,
+    lobbyCode: string,
+  ): { ok: boolean; error?: string } {
+    const state = this.gameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+
+    const result = this.engine.randomizeBoard(state, playerId);
+    if (!result.valid) return { ok: false, error: result.reason };
+
+    this.gameStates.set(gameId, state);
+
     if (this.onStateChanged) {
       this.onStateChanged(gameId, lobbyCode);
     }

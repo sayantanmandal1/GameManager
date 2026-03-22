@@ -224,6 +224,29 @@ export class LobbyGateway
     }
   }
 
+  @SubscribeMessage(LOBBY_EVENTS.CHAT_MESSAGE)
+  handleChatMessage(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { message: string },
+  ): void {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+
+    const code = this.socketLobbyMap.get(client.id);
+    if (!code) return;
+
+    // Sanitize: limit length, strip dangerous content
+    const message = (data.message || '').slice(0, 500).trim();
+    if (!message) return;
+
+    this.server.to(`lobby:${code}`).emit(LOBBY_EVENTS.CHAT_MESSAGE, {
+      userId: user.sub,
+      username: user.username,
+      message,
+      timestamp: Date.now(),
+    });
+  }
+
   getSocketLobbyMap(): Map<string, string> {
     return this.socketLobbyMap;
   }

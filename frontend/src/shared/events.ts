@@ -25,6 +25,7 @@ export const GAME_EVENTS = {
 export const BINGO_EVENTS = {
   PLACE_NUMBER: 'bingo:place_number',
   CHOOSE_NUMBER: 'bingo:choose_number',
+  RANDOMIZE_BOARD: 'bingo:randomize_board',
 } as const;
 
 export const VOICE_EVENTS = {

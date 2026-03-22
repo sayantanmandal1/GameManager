@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { LobbyPlayerCard } from '@/components/lobby/LobbyPlayer';
+import { LobbyChat } from '@/components/lobby/LobbyChat';
 import { VoiceChat } from '@/components/voice/VoiceChat';
 import { useAuthStore } from '@/stores/authStore';
 import { useLobbyStore } from '@/stores/lobbyStore';
@@ -157,6 +158,9 @@ export default function LobbyPage() {
           </div>
         </div>
       </div>
+
+      {/* Lobby text chat — fixed bottom-right corner */}
+      <LobbyChat lobbyCode={code} />
     </main>
   );
 }

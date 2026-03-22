@@ -15,8 +15,89 @@ const ICE_SERVERS: RTCConfiguration = {
 export function useVoiceChat(roomId: string) {
   const peerConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
   const localStream = useRef<MediaStream | null>(null);
-  const { isInVoice, isMuted, addPeer, removePeer, setPeerMuted } =
+  /** Keep audio elements attached to the DOM for autoplay policy compliance */
+  const audioElements = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const audioContainerRef = useRef<HTMLDivElement | null>(null);
+  const { isInVoice, isMuted, isSpeakerOff, addPeer, removePeer, setPeerMuted } =
     useVoiceStore();
+
+  // Create a hidden container for audio elements on mount
+  useEffect(() => {
+    if (!audioContainerRef.current) {
+      const container = document.createElement('div');
+      container.id = 'voice-audio-container';
+      container.style.display = 'none';
+      document.body.appendChild(container);
+      audioContainerRef.current = container;
+    }
+    return () => {
+      // Cleanup all audio elements
+      audioElements.current.forEach((audio) => {
+        audio.pause();
+        audio.srcObject = null;
+        audio.remove();
+      });
+      audioElements.current.clear();
+      if (audioContainerRef.current) {
+        audioContainerRef.current.remove();
+        audioContainerRef.current = null;
+      }
+    };
+  }, []);
+
+  // Speaker toggle: mute/unmute all remote audio elements
+  useEffect(() => {
+    audioElements.current.forEach((audio) => {
+      audio.muted = isSpeakerOff;
+    });
+  }, [isSpeakerOff]);
+
+  const createAudioElement = useCallback((socketId: string, stream: MediaStream) => {
+    // Remove existing audio for this peer if any
+    const existing = audioElements.current.get(socketId);
+    if (existing) {
+      existing.pause();
+      existing.srcObject = null;
+      existing.remove();
+    }
+
+    const audio = document.createElement('audio');
+    audio.autoplay = true;
+    audio.playsInline = true;
+    audio.muted = useVoiceStore.getState().isSpeakerOff;
+    audio.srcObject = stream;
+
+    // Attach to DOM container (critical for autoplay in most browsers)
+    if (audioContainerRef.current) {
+      audioContainerRef.current.appendChild(audio);
+    }
+
+    // Force play with retry on autoplay failure
+    const playAudio = () => {
+      audio.play().catch(() => {
+        // Retry after a short delay — user may need to interact first
+        setTimeout(() => audio.play().catch(() => {}), 1000);
+      });
+    };
+    playAudio();
+
+    audioElements.current.set(socketId, audio);
+  }, []);
+
+  const cleanupPeer = useCallback((socketId: string) => {
+    const pc = peerConnections.current.get(socketId);
+    if (pc) {
+      pc.close();
+      peerConnections.current.delete(socketId);
+    }
+    const audio = audioElements.current.get(socketId);
+    if (audio) {
+      audio.pause();
+      audio.srcObject = null;
+      audio.remove();
+      audioElements.current.delete(socketId);
+    }
+  }, []);
 
   const createPeerConnection = useCallback(
     (targetSocketId: string): RTCPeerConnection => {
@@ -33,9 +114,15 @@ export function useVoiceChat(roomId: string) {
       };
 
       pc.ontrack = (event) => {
-        const audio = new Audio();
-        audio.srcObject = event.streams[0];
-        audio.play().catch(() => {});
+        if (event.streams[0]) {
+          createAudioElement(targetSocketId, event.streams[0]);
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+          cleanupPeer(targetSocketId);
+        }
       };
 
       // Add local tracks
@@ -48,7 +135,7 @@ export function useVoiceChat(roomId: string) {
       peerConnections.current.set(targetSocketId, pc);
       return pc;
     },
-    [],
+    [createAudioElement, cleanupPeer],
   );
 
   const joinVoice = useCallback(async () => {
@@ -57,8 +144,17 @@ export function useVoiceChat(roomId: string) {
 
     try {
       localStream.current = await navigator.mediaDevices.getUserMedia({
-        audio: true,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
         video: false,
+      });
+
+      // Apply current mute state
+      localStream.current.getAudioTracks().forEach((track) => {
+        track.enabled = !useVoiceStore.getState().isMuted;
       });
 
       socket.emit(VOICE_EVENTS.JOIN, { roomId });
@@ -70,9 +166,18 @@ export function useVoiceChat(roomId: string) {
   const leaveVoice = useCallback(() => {
     const socket = getSocket();
 
-    // Close all peer connections
-    peerConnections.current.forEach((pc) => pc.close());
+    // Close all peer connections and audio
+    peerConnections.current.forEach((pc, socketId) => {
+      pc.close();
+      const audio = audioElements.current.get(socketId);
+      if (audio) {
+        audio.pause();
+        audio.srcObject = null;
+        audio.remove();
+      }
+    });
     peerConnections.current.clear();
+    audioElements.current.clear();
 
     // Stop local stream
     localStream.current?.getTracks().forEach((t) => t.stop());
@@ -83,7 +188,7 @@ export function useVoiceChat(roomId: string) {
     }
   }, [roomId]);
 
-  // Toggle mute
+  // Toggle mute for local mic
   useEffect(() => {
     if (localStream.current) {
       localStream.current.getAudioTracks().forEach((track) => {
@@ -111,8 +216,6 @@ export function useVoiceChat(roomId: string) {
         if (!peerConnections.current.has(peer.socketId)) {
           const pc = createPeerConnection(peer.socketId);
 
-          // Only create an offer if we are the initiator (new joiner → existing peers)
-          // Existing peers wait for the offer from the new joiner
           if (data.shouldInitiate) {
             try {
               const offer = await pc.createOffer();
@@ -130,11 +233,7 @@ export function useVoiceChat(roomId: string) {
     };
 
     const onPeerLeft = (data: { socketId: string }) => {
-      const pc = peerConnections.current.get(data.socketId);
-      if (pc) {
-        pc.close();
-        peerConnections.current.delete(data.socketId);
-      }
+      cleanupPeer(data.socketId);
       removePeer(data.socketId);
     };
 
@@ -148,7 +247,6 @@ export function useVoiceChat(roomId: string) {
           pc = createPeerConnection(data.socketId);
         }
 
-        // Handle glare: if we already sent an offer, roll back first
         if (pc.signalingState === 'have-local-offer') {
           await pc.setLocalDescription({ type: 'rollback' });
         }
@@ -171,7 +269,6 @@ export function useVoiceChat(roomId: string) {
     }) => {
       try {
         const pc = peerConnections.current.get(data.socketId);
-        // Only apply the answer if we're waiting for one
         if (pc && pc.signalingState === 'have-local-offer') {
           await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
         }
@@ -216,7 +313,7 @@ export function useVoiceChat(roomId: string) {
       socket.off(VOICE_EVENTS.ICE_CANDIDATE, onIceCandidate);
       socket.off(VOICE_EVENTS.MUTE_STATUS, onMuteStatus);
     };
-  }, [createPeerConnection, addPeer, removePeer, setPeerMuted]);
+  }, [createPeerConnection, cleanupPeer, addPeer, removePeer, setPeerMuted]);
 
   return { joinVoice, leaveVoice, isInVoice };
 }

@@ -2,7 +2,7 @@ export const GAME_CONSTANTS = {
   LOBBY_CODE_LENGTH: 6,
   DEFAULT_MAX_PLAYERS: 8,
   MIN_PLAYERS: 2,
-  LOBBY_TTL_SECONDS: 1800, // 30 minutes
+  LOBBY_TTL_SECONDS: 900, // 15 minutes inactivity
 } as const;
 
 export const BINGO_CONSTANTS = {
