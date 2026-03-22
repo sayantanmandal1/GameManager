@@ -9,7 +9,8 @@ import { LobbyStatus } from '../shared';
 
 @Entity('lobbies')
 export class LobbyEntity {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_lobbies' })
+  @Column({ type: 'uuid', default: () => 'gen_random_uuid()' })
   id: string;
 
   @Column({ unique: true, length: 6 })
