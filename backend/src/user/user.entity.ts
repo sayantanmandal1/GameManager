@@ -8,7 +8,8 @@ import {
 
 @Entity('users')
 export class UserEntity {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_users' })
+  @Column({ type: 'uuid', default: () => 'gen_random_uuid()' })
   id: string;
 
   @Column({ length: 32 })
