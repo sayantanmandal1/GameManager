@@ -31,6 +31,11 @@ import { VoiceModule } from './voice/voice.module';
             ssl: needsSsl ? { rejectUnauthorized: false } : false,
             autoLoadEntities: true,
             synchronize: config.get('NODE_ENV') !== 'production',
+            extra: needsSsl ? {
+              ssl: {
+                rejectUnauthorized: false,
+              },
+            } : {},
           };
         }
         return {
