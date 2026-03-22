@@ -84,6 +84,9 @@ function BingoPlayContent() {
   const isPlayPhase = view.phase === BingoGamePhase.PLAYING;
   const isFinished = view.phase === BingoGamePhase.FINISHED;
   const isMyTurn = view.currentTurn === user?.id;
+  const lastCalledNumber = view.chosenNumbers.length > 0
+    ? view.chosenNumbers[view.chosenNumbers.length - 1]
+    : undefined;
 
   return (
     <main className="min-h-screen p-4 md:p-8">
@@ -123,15 +126,16 @@ function BingoPlayContent() {
 
         {/* ──────── PLAY PHASE & FINISHED ──────── */}
         {(isPlayPhase || isFinished) && (
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px_1fr] gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 max-w-3xl mx-auto">
             {/* Left: My board */}
             <BingoBoard
               board={view.board}
               disabled
               label="Your Board"
+              lastCalledNumber={lastCalledNumber}
             />
 
-            {/* Center: Number picker & info */}
+            {/* Right: Number picker & info */}
             <div className="space-y-4">
               <NumberDisplay
                 chosenNumbers={view.chosenNumbers}
@@ -146,15 +150,6 @@ function BingoPlayContent() {
               {/* Voice chat */}
               <VoiceChat roomId={lobbyCode} />
             </div>
-
-            {/* Right: Opponent board */}
-            {view.opponentBoard && (
-              <BingoBoard
-                board={view.opponentBoard}
-                disabled
-                label="Opponent's Board"
-              />
-            )}
           </div>
         )}
 

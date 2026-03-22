@@ -3,7 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface NumberDisplayProps {
-  /** Numbers 1-25 that the current player can choose on their turn */
+  /** Numbers 1-25 that have been called so far */
   chosenNumbers: number[];
   /** Is it this player's turn? */
   isMyTurn: boolean;
@@ -28,9 +28,25 @@ export function NumberDisplay({
   disabled = false,
 }: NumberDisplayProps) {
   const allNumbers = Array.from({ length: 25 }, (_, i) => i + 1);
+  const lastCalled = chosenNumbers.length > 0 ? chosenNumbers[chosenNumbers.length - 1] : null;
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Last called number */}
+      {lastCalled !== null && (
+        <div className="text-center">
+          <p className="text-xs text-game-muted uppercase tracking-wider mb-1">Last Called</p>
+          <motion.div
+            key={lastCalled}
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-yellow-500/20 border-2 border-yellow-400 text-yellow-300 text-3xl font-black"
+          >
+            {lastCalled}
+          </motion.div>
+        </div>
+      )}
+
       {/* Turn indicator */}
       <div className="text-center">
         <AnimatePresence mode="wait">
@@ -49,6 +65,13 @@ export function NumberDisplay({
           </motion.div>
         </AnimatePresence>
       </div>
+
+      {/* Strategy hint */}
+      {isMyTurn && !disabled && (
+        <p className="text-xs text-game-muted text-center italic">
+          Pick a number that completes YOUR lines — but remember, it marks on both boards!
+        </p>
+      )}
 
       {/* BINGO progress */}
       <div className="bg-game-card border border-game-border rounded-xl p-4">

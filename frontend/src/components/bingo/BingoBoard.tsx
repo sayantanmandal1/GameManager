@@ -15,6 +15,8 @@ interface BingoBoardProps {
   label?: string;
   /** If true, render smaller (used for opponent board) */
   compact?: boolean;
+  /** The last called number to highlight */
+  lastCalledNumber?: number;
 }
 
 export function BingoBoard({
@@ -24,6 +26,7 @@ export function BingoBoard({
   disabled = false,
   label,
   compact = false,
+  lastCalledNumber,
 }: BingoBoardProps) {
   const cellSize = compact
     ? 'w-10 h-10 text-sm'
@@ -57,6 +60,7 @@ export function BingoBoard({
           row.map((cell, colIdx) => {
             const isEmpty = cell.value === 0;
             const isMarked = cell.marked;
+            const isLastCalled = lastCalledNumber !== undefined && cell.value === lastCalledNumber && isMarked;
             const canClick = !disabled && onCellClick && isEmpty;
 
             return (
@@ -64,9 +68,11 @@ export function BingoBoard({
                 key={`${rowIdx}-${colIdx}`}
                 whileTap={canClick ? { scale: 0.9 } : undefined}
                 animate={
-                  isMarked
-                    ? { scale: [1, 1.1, 1], transition: { duration: 0.25 } }
-                    : undefined
+                  isLastCalled
+                    ? { scale: [1, 1.2, 1], transition: { duration: 0.4 } }
+                    : isMarked
+                      ? { scale: [1, 1.1, 1], transition: { duration: 0.25 } }
+                      : undefined
                 }
                 onClick={() => {
                   if (canClick) onCellClick(rowIdx, colIdx);
@@ -79,9 +85,11 @@ export function BingoBoard({
                       ? canClick
                         ? 'bg-game-card border-2 border-dashed border-primary/40 text-primary/60 hover:border-primary hover:bg-primary/10 cursor-pointer'
                         : 'bg-game-card border border-game-border text-game-muted/30'
-                      : isMarked
-                        ? 'bg-primary/30 border-2 border-primary text-white line-through decoration-2'
-                        : 'bg-game-card border border-game-border text-white'
+                      : isLastCalled
+                        ? 'bg-yellow-500/40 border-2 border-yellow-400 text-white ring-2 ring-yellow-400/50'
+                        : isMarked
+                          ? 'bg-primary/30 border-2 border-primary text-white line-through decoration-2'
+                          : 'bg-game-card border border-game-border text-white'
                   }`}
               >
                 {isEmpty

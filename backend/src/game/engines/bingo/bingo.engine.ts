@@ -143,18 +143,10 @@ export class BingoEngine {
   getPlayerView(state: BingoGameState, playerId: string): BingoPlayerView {
     const opponentId = state.playerIds.find((id) => id !== playerId) || null;
 
-    // During setup, hide opponent's board; during play/finished, show it (numbers are crossed off)
-    let opponentBoard = null;
-    if (
-      opponentId &&
-      (state.phase === BingoGamePhase.PLAYING || state.phase === BingoGamePhase.FINISHED)
-    ) {
-      opponentBoard = state.boards[opponentId] || null;
-    }
-
+    // Boards are ALWAYS hidden from opponent — core strategic rule
     return {
       board: state.boards[playerId] || [],
-      opponentBoard,
+      opponentBoard: null,
       phase: state.phase,
       isSetupDone: state.setupDone.includes(playerId),
       opponentSetupDone: opponentId ? state.setupDone.includes(opponentId) : false,
