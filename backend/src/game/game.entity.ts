@@ -8,8 +8,7 @@ import { GameStatus } from '../shared';
 
 @Entity('games')
 export class GameEntity {
-  @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_games' })
-  @Column({ type: 'uuid', default: () => 'gen_random_uuid()' })
+  @PrimaryColumn('uuid', { default: () => 'gen_random_uuid()' })
   id: string;
 
   @Column('uuid')
