@@ -8,6 +8,7 @@ import { BingoBoard } from '@/components/bingo/BingoBoard';
 import { NumberDisplay } from '@/components/bingo/NumberDisplay';
 import { Button } from '@/components/ui/Button';
 import { VoiceChat } from '@/components/voice/VoiceChat';
+import { GameChat } from '@/components/chat/GameChat';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { useSocket } from '@/hooks/useSocket';
@@ -149,21 +150,23 @@ function BingoPlayContent() {
         {/* ──────── PLAY PHASE & FINISHED ──────── */}
         {(isPlayPhase || isFinished) && (
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 max-w-3xl mx-auto">
-            {/* Left: My board only */}
+            {/* Left: My board — click a number to choose it */}
             <BingoBoard
               board={view.board}
-              disabled
+              onNumberChoose={!isFinished ? (num) => chooseNumber(num) : undefined}
+              chosenNumbers={view.chosenNumbers}
+              isMyTurn={isMyTurn}
+              disabled={isFinished}
               label="Your Board"
               lastCalledNumber={lastCalledNumber}
             />
 
-            {/* Right: Number picker & info */}
+            {/* Right: Info panel + chat */}
             <div className="space-y-4">
               <NumberDisplay
                 chosenNumbers={view.chosenNumbers}
                 calledBy={view.calledBy}
                 isMyTurn={isMyTurn}
-                onChooseNumber={(num) => chooseNumber(num)}
                 myCompletedLines={view.myCompletedLines}
                 userId={user?.id || ''}
                 playerNames={view.playerNames}
@@ -172,6 +175,9 @@ function BingoPlayContent() {
 
               {/* Voice chat */}
               <VoiceChat roomId={lobbyCode} />
+
+              {/* Game chat */}
+              <GameChat lobbyCode={lobbyCode} />
             </div>
           </div>
         )}

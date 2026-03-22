@@ -12,6 +12,7 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { LobbyService } from './lobby.service';
 import { GameService } from '../game/game.service';
+import { UserService } from '../user/user.service';
 import { getSocketUser } from '../auth/ws-jwt.guard';
 import {
   LOBBY_EVENTS,
@@ -36,13 +37,17 @@ export class LobbyGateway
     private readonly jwtService: JwtService,
     @Inject(forwardRef(() => GameService))
     private readonly gameService: GameService,
+    private readonly userService: UserService,
   ) {}
 
   handleConnection(client: Socket): void {
     const user = getSocketUser(client, this.jwtService);
     if (!user) {
       client.disconnect();
+      return;
     }
+    // Track user activity on connect
+    this.userService.updateLastActive(user.sub).catch(() => {});
   }
 
   async handleDisconnect(client: Socket): Promise<void> {

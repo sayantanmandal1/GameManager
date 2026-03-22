@@ -7,7 +7,6 @@ interface NumberDisplayProps {
   /** Who called each number: number → playerId */
   calledBy: Record<number, string>;
   isMyTurn: boolean;
-  onChooseNumber: (num: number) => void;
   /** Only YOUR completed line count */
   myCompletedLines: number;
   userId: string;
@@ -20,7 +19,6 @@ export function NumberDisplay({
   chosenNumbers,
   calledBy,
   isMyTurn,
-  onChooseNumber,
   myCompletedLines,
   userId,
   playerNames,
@@ -134,35 +132,6 @@ export function NumberDisplay({
         )}
       </div>
 
-      {/* Number picker grid */}
-      <div className="bg-game-card border border-game-border rounded-xl p-4">
-        <h3 className="text-xs text-game-muted uppercase tracking-wider mb-3">
-          Choose a Number
-        </h3>
-        <div className="grid grid-cols-5 gap-2">
-          {allNumbers.map((num) => {
-            const isChosen = chosenNumbers.includes(num);
-            const canPick = isMyTurn && !isChosen && !disabled;
-            return (
-              <motion.button
-                key={num}
-                whileTap={canPick ? { scale: 0.85 } : undefined}
-                onClick={() => canPick && onChooseNumber(num)}
-                disabled={!canPick}
-                className={`w-full aspect-square rounded-lg text-sm font-bold transition-all ${
-                  isChosen
-                    ? 'bg-game-bg text-game-muted/30 line-through cursor-default'
-                    : canPick
-                      ? 'bg-primary/20 text-primary border border-primary/50 hover:bg-primary/40 cursor-pointer'
-                      : 'bg-game-bg text-game-muted/60 border border-game-border cursor-not-allowed'
-                }`}
-              >
-                {num}
-              </motion.button>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }

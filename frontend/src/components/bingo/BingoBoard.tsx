@@ -7,6 +7,12 @@ interface BingoBoardProps {
   board: BingoBoardType;
   /** Setup phase: called when player clicks an empty cell */
   onCellClick?: (row: number, col: number) => void;
+  /** Play phase: called when player clicks an unchosen number on board */
+  onNumberChoose?: (num: number) => void;
+  /** Numbers already chosen (for play phase - greys out chosen ones) */
+  chosenNumbers?: number[];
+  /** Whether it's the player's turn (to enable play-phase clicking) */
+  isMyTurn?: boolean;
   /** Play phase: the number being placed next (shown as hint) */
   nextPlaceNumber?: number;
   /** Whether interaction is disabled */
@@ -22,6 +28,9 @@ interface BingoBoardProps {
 export function BingoBoard({
   board,
   onCellClick,
+  onNumberChoose,
+  chosenNumbers = [],
+  isMyTurn = false,
   nextPlaceNumber,
   disabled = false,
   label,
@@ -61,7 +70,9 @@ export function BingoBoard({
             const isEmpty = cell.value === 0;
             const isMarked = cell.marked;
             const isLastCalled = lastCalledNumber !== undefined && cell.value === lastCalledNumber && isMarked;
-            const canClick = !disabled && onCellClick && isEmpty;
+            const canClickSetup = !disabled && onCellClick && isEmpty;
+            const canClickPlay = !disabled && onNumberChoose && isMyTurn && !isEmpty && !isMarked && !chosenNumbers.includes(cell.value);
+            const canClick = canClickSetup || canClickPlay;
 
             return (
               <motion.button
@@ -75,21 +86,24 @@ export function BingoBoard({
                       : undefined
                 }
                 onClick={() => {
-                  if (canClick) onCellClick(rowIdx, colIdx);
+                  if (canClickSetup && onCellClick) onCellClick(rowIdx, colIdx);
+                  if (canClickPlay && onNumberChoose) onNumberChoose(cell.value);
                 }}
                 disabled={!canClick}
                 className={`${cellSize} rounded-lg font-bold flex items-center justify-center
                   transition-all duration-150 select-none
                   ${
                     isEmpty
-                      ? canClick
+                      ? canClickSetup
                         ? 'bg-game-card border-2 border-dashed border-primary/40 text-primary/60 hover:border-primary hover:bg-primary/10 cursor-pointer'
                         : 'bg-game-card border border-game-border text-game-muted/30'
                       : isLastCalled
                         ? 'bg-yellow-500/40 border-2 border-yellow-400 text-white ring-2 ring-yellow-400/50'
                         : isMarked
                           ? 'bg-primary/30 border-2 border-primary text-white line-through decoration-2'
-                          : 'bg-game-card border border-game-border text-white'
+                          : canClickPlay
+                            ? 'bg-game-card border-2 border-green-400/50 text-white hover:bg-green-500/20 hover:border-green-400 cursor-pointer'
+                            : 'bg-game-card border border-game-border text-white'
                   }`}
               >
                 {isEmpty

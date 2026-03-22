@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
@@ -13,20 +14,33 @@ import { VoiceModule } from './voice/voice.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
 
+    ScheduleModule.forRoot(),
+
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres',
-        host: config.get('DATABASE_HOST', 'localhost'),
-        port: config.get<number>('DATABASE_PORT', 5432),
-        username: config.get('DATABASE_USER', 'postgres'),
-        password: config.get('DATABASE_PASSWORD', 'postgres_dev'),
-        database: config.get('DATABASE_NAME', 'multiplayer_games'),
-        autoLoadEntities: true,
-        // SECURITY_NOTE: synchronize should be false in production
-        synchronize: config.get('NODE_ENV') !== 'production',
-      }),
+      useFactory: (config: ConfigService) => {
+        const databaseUrl = config.get<string>('DATABASE_URL');
+        if (databaseUrl) {
+          return {
+            type: 'postgres',
+            url: databaseUrl,
+            ssl: config.get('NODE_ENV') === 'production' ? { rejectUnauthorized: false } : false,
+            autoLoadEntities: true,
+            synchronize: config.get('NODE_ENV') !== 'production',
+          };
+        }
+        return {
+          type: 'postgres',
+          host: config.get('DATABASE_HOST', 'localhost'),
+          port: config.get<number>('DATABASE_PORT', 5432),
+          username: config.get('DATABASE_USER', 'postgres'),
+          password: config.get('DATABASE_PASSWORD', 'postgres_dev'),
+          database: config.get('DATABASE_NAME', 'multiplayer_games'),
+          autoLoadEntities: true,
+          synchronize: config.get('NODE_ENV') !== 'production',
+        };
+      },
     }),
 
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 30 }]),

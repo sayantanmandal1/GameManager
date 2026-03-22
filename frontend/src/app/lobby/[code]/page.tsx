@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { LobbyPlayerCard } from '@/components/lobby/LobbyPlayer';
-import { LobbyChat } from '@/components/lobby/LobbyChat';
+import { GameChat } from '@/components/chat/GameChat';
 import { VoiceChat } from '@/components/voice/VoiceChat';
 import { useAuthStore } from '@/stores/authStore';
 import { useLobbyStore } from '@/stores/lobbyStore';
@@ -156,11 +156,11 @@ export default function LobbyPage() {
               Leave
             </Button>
           </div>
+
+          {/* Team Chat */}
+          <GameChat lobbyCode={code} />
         </div>
       </div>
-
-      {/* Lobby text chat — fixed bottom-right corner */}
-      <LobbyChat lobbyCode={code} />
     </main>
   );
 }
