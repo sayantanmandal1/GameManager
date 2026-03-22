@@ -63,7 +63,7 @@ export function useVoiceChat(roomId: string) {
 
     const audio = document.createElement('audio');
     audio.autoplay = true;
-    audio.playsInline = true;
+    audio.setAttribute('playsinline', 'true');
     audio.muted = useVoiceStore.getState().isSpeakerOff;
     audio.srcObject = stream;
 
