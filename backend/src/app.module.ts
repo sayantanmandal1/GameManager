@@ -21,12 +21,11 @@ import { VoiceModule } from './voice/voice.module';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const databaseUrl = config.get<string>('DATABASE_URL');
-        
         if (databaseUrl) {
           return {
             type: 'postgres',
             url: databaseUrl,
-            ssl: false,
+            ssl: config.get('NODE_ENV') === 'production' ? { rejectUnauthorized: false } : false,
             autoLoadEntities: true,
             synchronize: config.get('NODE_ENV') !== 'production',
           };

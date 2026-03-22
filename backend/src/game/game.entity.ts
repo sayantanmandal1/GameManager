@@ -1,6 +1,6 @@
 import {
   Entity,
-  PrimaryColumn,
+  PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
 } from 'typeorm';
@@ -8,7 +8,7 @@ import { GameStatus } from '../shared';
 
 @Entity('games')
 export class GameEntity {
-  @PrimaryColumn('uuid', { default: () => 'gen_random_uuid()' })
+  @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column('uuid')

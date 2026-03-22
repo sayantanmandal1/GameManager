@@ -1,6 +1,6 @@
 import {
   Entity,
-  PrimaryColumn,
+  PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
   UpdateDateColumn,
@@ -9,7 +9,7 @@ import { LobbyStatus } from '../shared';
 
 @Entity('lobbies')
 export class LobbyEntity {
-  @PrimaryColumn('uuid', { default: () => 'gen_random_uuid()' })
+  @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column({ unique: true, length: 6 })
