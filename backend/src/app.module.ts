@@ -21,21 +21,14 @@ import { VoiceModule } from './voice/voice.module';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const databaseUrl = config.get<string>('DATABASE_URL');
-        const isProduction = config.get('NODE_ENV') === 'production';
-        const needsSsl = databaseUrl && (databaseUrl.includes('?sslmode=require') || isProduction);
         
         if (databaseUrl) {
           return {
             type: 'postgres',
             url: databaseUrl,
-            ssl: needsSsl ? { rejectUnauthorized: false } : false,
+            ssl: false,
             autoLoadEntities: true,
             synchronize: config.get('NODE_ENV') !== 'production',
-            extra: needsSsl ? {
-              ssl: {
-                rejectUnauthorized: false,
-              },
-            } : {},
           };
         }
         return {
