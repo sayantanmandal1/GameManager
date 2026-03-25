@@ -8,21 +8,31 @@ import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { useAuthStore } from '@/stores/authStore';
 
-function FloatingParticle({ delay }: { delay: number }) {
+function FloatingParticle({ delay, seed }: { delay: number; seed: number }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  const startX = seed * window.innerWidth;
+  const startY = window.innerHeight + 10;
+  const drift = seed * 200 - 100;
+  const duration = 6 + seed * 4;
+
   return (
     <motion.div
       className="absolute w-1 h-1 bg-primary/30 rounded-full"
-      initial={{
-        x: Math.random() * (typeof window !== 'undefined' ? window.innerWidth : 1000),
-        y: typeof window !== 'undefined' ? window.innerHeight + 10 : 800,
-      }}
+      initial={{ x: startX, y: startY }}
       animate={{
         y: -10,
-        x: `+=${Math.random() * 200 - 100}`,
+        x: `+=${drift}`,
         opacity: [0, 1, 0],
       }}
       transition={{
-        duration: 6 + Math.random() * 4,
+        duration,
         delay,
         repeat: Infinity,
         ease: 'linear',
@@ -52,7 +62,7 @@ export default function HomePage() {
     <main className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden">
       {/* Floating particles */}
       {Array.from({ length: 20 }).map((_, i) => (
-        <FloatingParticle key={i} delay={i * 0.3} />
+        <FloatingParticle key={i} delay={i * 0.3} seed={((i * 7 + 3) % 20) / 20} />
       ))}
 
       {/* Main content */}

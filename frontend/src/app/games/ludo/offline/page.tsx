@@ -39,49 +39,6 @@ export default function OfflineLudoPage() {
   const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const humanId = 'human-player';
 
-  // Setup screen
-  if (!config) {
-    return (
-      <main className="min-h-screen flex items-center justify-center p-6">
-        <div className="max-w-md w-full">
-          <button
-            onClick={() => router.push('/games/ludo')}
-            className="text-sm text-game-muted hover:text-white transition-colors mb-6 block"
-          >
-            ← Back
-          </button>
-          <h1 className="text-3xl font-black text-white mb-2 text-center">🎲 Offline Ludo</h1>
-          <p className="text-game-muted text-center mb-8">
-            Play against AI bots
-          </p>
-
-          <div className="space-y-4">
-            {[2, 3, 4].map((count) => (
-              <Card
-                key={count}
-                hoverable
-                className="text-center"
-                onClick={() => {
-                  setConfig({
-                    playerCount: count as 2 | 3 | 4,
-                    botCount: count - 1,
-                  });
-                }}
-              >
-                <h3 className="font-bold text-white text-lg mb-1">
-                  {count} Players
-                </h3>
-                <p className="text-sm text-game-muted">
-                  You + {count - 1} Bot{count > 2 ? 's' : ''}
-                </p>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </main>
-    );
-  }
-
   // Initialize the game when config is set
   useEffect(() => {
     if (!config || state) return;
@@ -196,6 +153,49 @@ export default function OfflineLudoPage() {
     setWinner(null);
     setSelectedTokenId(null);
   };
+
+  // Setup screen — must be AFTER all hooks
+  if (!config) {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-6">
+        <div className="max-w-md w-full">
+          <button
+            onClick={() => router.push('/games/ludo')}
+            className="text-sm text-game-muted hover:text-white transition-colors mb-6 block"
+          >
+            ← Back
+          </button>
+          <h1 className="text-3xl font-black text-white mb-2 text-center">🎲 Offline Ludo</h1>
+          <p className="text-game-muted text-center mb-8">
+            Play against AI bots
+          </p>
+
+          <div className="space-y-4">
+            {[2, 3, 4].map((count) => (
+              <Card
+                key={count}
+                hoverable
+                className="text-center"
+                onClick={() => {
+                  setConfig({
+                    playerCount: count as 2 | 3 | 4,
+                    botCount: count - 1,
+                  });
+                }}
+              >
+                <h3 className="font-bold text-white text-lg mb-1">
+                  {count} Players
+                </h3>
+                <p className="text-sm text-game-muted">
+                  You + {count - 1} Bot{count > 2 ? 's' : ''}
+                </p>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   if (!state || !view) {
     return (
