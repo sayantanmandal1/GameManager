@@ -12,6 +12,7 @@ interface GameResult {
   winnerId: string;
   winnerName: string;
   completedLines: Record<string, number>;
+  surrenderedBy?: string;
 }
 
 interface GameState {
@@ -25,6 +26,7 @@ interface GameState {
   placeNumber: (row: number, col: number) => void;
   randomizeBoard: () => void;
   chooseNumber: (number: number) => void;
+  surrender: () => void;
   backToLobby: () => void;
   setLobbyCode: (code: string) => void;
   requestGameState: () => Promise<void>;
@@ -83,6 +85,14 @@ export const useGameStore = create<GameState>()((set, get) => ({
     const { gameId, lobbyCode } = get();
     if (!socket || !gameId || !lobbyCode) return;
     socket.emit(BINGO_EVENTS.CHOOSE_NUMBER, { gameId, lobbyCode, number });
+  },
+
+  /** Surrender: forfeit and give opponent the win */
+  surrender: () => {
+    const socket = getSocket();
+    const { gameId, lobbyCode } = get();
+    if (!socket || !gameId || !lobbyCode) return;
+    socket.emit(GAME_EVENTS.SURRENDER, { gameId, lobbyCode });
   },
 
   backToLobby: () => {

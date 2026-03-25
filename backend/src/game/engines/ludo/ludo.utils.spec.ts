@@ -9,7 +9,7 @@ import {
   isBlockedByOpponentStack,
   isPathBlocked,
   canTokenMove,
-  rollTwoDice,
+  rollDie,
   calculateAllPossibleMoves,
   createInitialTokens,
   FINISHED_STEPS,
@@ -51,7 +51,7 @@ function makePlayer(
 function makeState(
   players: Record<string, LudoPlayerState>,
   currentTurn: string,
-  dice: [number, number] | null = null,
+  dice: number | null = null,
 ): LudoGameState {
   return {
     players,
@@ -317,14 +317,12 @@ describe('LudoUtils', () => {
 
   // ─── Dice ───
 
-  describe('rollTwoDice', () => {
-    it('should return two numbers between 1 and 6', () => {
+  describe('rollDie', () => {
+    it('should return a number between 1 and 6', () => {
       for (let i = 0; i < 50; i++) {
-        const [d1, d2] = rollTwoDice();
-        expect(d1).toBeGreaterThanOrEqual(1);
-        expect(d1).toBeLessThanOrEqual(6);
-        expect(d2).toBeGreaterThanOrEqual(1);
-        expect(d2).toBeLessThanOrEqual(6);
+        const d = rollDie();
+        expect(d).toBeGreaterThanOrEqual(1);
+        expect(d).toBeLessThanOrEqual(6);
       }
     });
   });
@@ -350,92 +348,53 @@ describe('LudoUtils', () => {
       const players: Record<string, LudoPlayerState> = {
         p1: makePlayer('p1', LudoColor.RED, [0, 0, 0, 0]),
       };
-      const state = makeState(players, 'p1', [3, 4]);
+      const state = makeState(players, 'p1', 3);
       const moves = calculateAllPossibleMoves(state, 'p1');
       expect(moves).toHaveLength(0);
     });
 
-    it('should allow entering from base when one die is 6', () => {
+    it('should allow entering from base when die is 6', () => {
       const players: Record<string, LudoPlayerState> = {
         p1: makePlayer('p1', LudoColor.RED, [0, 0, 0, 0]),
       };
-      const state = makeState(players, 'p1', [6, 3]);
+      const state = makeState(players, 'p1', 6);
       const moves = calculateAllPossibleMoves(state, 'p1');
-      // Should have at least one move (enter + move 3, or combined 9 if possible)
       expect(moves.length).toBeGreaterThan(0);
 
-      // At least one move should include a step=6 action (entering from base)
+      // The move should include a step=6 action (entering from base)
       const hasEntry = moves.some((combo) => combo.some((m) => m.steps === 6));
       expect(hasEntry).toBe(true);
     });
 
-    it('should allow combined move on an active token', () => {
+    it('should return a single move for active token', () => {
       const players: Record<string, LudoPlayerState> = {
         p1: makePlayer('p1', LudoColor.RED, [10, 0, 0, 0]),
       };
-      const state = makeState(players, 'p1', [3, 4]);
+      const state = makeState(players, 'p1', 4);
       const moves = calculateAllPossibleMoves(state, 'p1');
 
-      // Should be able to move token 0 by 7 (combined)
-      const hasCombined = moves.some(
-        (combo) => combo.length === 1 && combo[0].tokenId === 0 && combo[0].steps === 7,
-      );
-      expect(hasCombined).toBe(true);
-    });
-
-    it('should allow split moves on different tokens', () => {
-      const players: Record<string, LudoPlayerState> = {
-        p1: makePlayer('p1', LudoColor.RED, [10, 20, 0, 0]),
-      };
-      const state = makeState(players, 'p1', [3, 4]);
-      const moves = calculateAllPossibleMoves(state, 'p1');
-
-      // Should allow: token0+3 & token1+4, token0+4 & token1+3
-      const hasSplit = moves.some(
-        (combo) => combo.length === 2,
-      );
-      expect(hasSplit).toBe(true);
-    });
-
-    it('should fall back to single die moves when both dice cannot be used', () => {
-      // Token at step 56, dice [4, 5]. Combined = 9 → overshoot. 4 → overshoot (60). 5 → overshoot (61).
-      // Actually step 56 + 3 = 59 (finished). 56 + 4 = 60 (overshoot).
-      // Let's use step 55. 55+4=59 (ok). 55+5=60 (overshoot). Combined 55+9=64 (overshoot).
-      // So only one die (4) works → single die move.
-      const players: Record<string, LudoPlayerState> = {
-        p1: makePlayer('p1', LudoColor.RED, [55, 0, 0, 0]),
-      };
-      const state = makeState(players, 'p1', [4, 5]);
-      const moves = calculateAllPossibleMoves(state, 'p1');
-
-      // Should have a single die move for token 0 with steps 4
-      expect(moves.length).toBeGreaterThan(0);
-      const hasSingle4 = moves.some(
+      // Should have exactly one combo: [{ tokenId: 0, steps: 4 }]
+      const hasMove = moves.some(
         (combo) => combo.length === 1 && combo[0].tokenId === 0 && combo[0].steps === 4,
       );
-      expect(hasSingle4).toBe(true);
+      expect(hasMove).toBe(true);
     });
 
-    it('should handle double dice (same value)', () => {
+    it('should return empty when token cannot move with die value', () => {
+      // Token at step 57, die = 3 → overshoot (57 + 3 = 60 > 59)
       const players: Record<string, LudoPlayerState> = {
-        p1: makePlayer('p1', LudoColor.RED, [10, 20, 0, 0]),
+        p1: makePlayer('p1', LudoColor.RED, [57, 0, 0, 0]),
       };
-      const state = makeState(players, 'p1', [3, 3]);
+      const state = makeState(players, 'p1', 3);
       const moves = calculateAllPossibleMoves(state, 'p1');
-      expect(moves.length).toBeGreaterThan(0);
-
-      // Should have combined (6 on one token) and split (3+3 on same or different)
-      const hasCombined = moves.some(
-        (combo) => combo.length === 1 && combo[0].steps === 6,
-      );
-      expect(hasCombined).toBe(true);
+      expect(moves).toHaveLength(0);
     });
 
     it('should not produce moves for finished tokens', () => {
       const players: Record<string, LudoPlayerState> = {
         p1: makePlayer('p1', LudoColor.RED, [FINISHED_STEPS, FINISHED_STEPS, FINISHED_STEPS, 10]),
       };
-      const state = makeState(players, 'p1', [3, 4]);
+      const state = makeState(players, 'p1', 3);
       const moves = calculateAllPossibleMoves(state, 'p1');
 
       // All moves should only reference token 3 (id=3) since others are finished

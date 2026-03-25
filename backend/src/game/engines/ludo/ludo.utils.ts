@@ -166,158 +166,29 @@ export function canTokenMove(
 
 // ─── Dice ───
 
-/** Roll two fair dice using cryptographic RNG */
-export function rollTwoDice(): [number, number] {
-  return [
-    crypto.randomInt(1, 7),
-    crypto.randomInt(1, 7),
-  ];
+/** Roll a single fair die using cryptographic RNG */
+export function rollDie(): number {
+  return crypto.randomInt(1, 7);
 }
 
-// ─── Move Calculation ───
-
-/**
- * Calculate all possible move combinations for a player given the current dice.
- * Each combination is an array of LudoMoveAction (1 or 2 actions per turn).
- *
- * Possibilities:
- * 1. Move one token by die1, another by die2 (split)
- * 2. Move one token by die1 + die2 (combined)
- * 3. Move one token by die1 only (if die2 can't be used)
- * 4. Move one token by die2 only (if die1 can't be used)
- *
- * Returns all unique valid combinations. Empty array = no moves.
- */
 export function calculateAllPossibleMoves(
   state: LudoGameState,
   playerId: string,
 ): LudoMoveAction[][] {
   const player = state.players[playerId];
-  if (!player || !state.dice) return [];
-
-  const [die1, die2] = state.dice;
+  if (!player || state.dice == null) return [];
+  const die = state.dice;
   const allMoves: LudoMoveAction[][] = [];
-  const seen = new Set<string>();
-
-  const addIfUnique = (moves: LudoMoveAction[]) => {
-    // Normalize: sort by tokenId then steps for dedup
-    const sorted = [...moves].sort((a, b) => a.tokenId - b.tokenId || a.steps - b.steps);
-    const key = sorted.map((m) => `${m.tokenId}:${m.steps}`).join('|');
-    if (!seen.has(key)) {
-      seen.add(key);
-      allMoves.push(moves);
-    }
-  };
 
   const activeTokens = player.tokens.filter((t) => !isFinished(t.stepsFromStart));
 
-  // Option A: Combined move (die1 + die2) on one token
-  const combined = die1 + die2;
   for (const token of activeTokens) {
-    if (canTokenMove(token, combined, player, state.players)) {
-      addIfUnique([{ tokenId: token.id, steps: combined }]);
-    }
-  }
-
-  // Option B: Split moves — die1 on token A, die2 on token B (or same token)
-  if (die1 === die2) {
-    // Same die values — split on two tokens or same token twice
-    for (const t1 of activeTokens) {
-      if (!canTokenMove(t1, die1, player, state.players)) continue;
-
-      // Apply die1 to t1 temporarily to check die2
-      const simPlayers = simulateMove(state.players, playerId, t1.id, die1, player.color);
-      const simPlayer = simPlayers[playerId];
-
-      for (const t2 of simPlayer.tokens) {
-        if (isFinished(t2.stepsFromStart)) continue;
-        if (canTokenMove(t2, die2, simPlayer, simPlayers)) {
-          addIfUnique([
-            { tokenId: t1.id, steps: die1 },
-            { tokenId: t2.id, steps: die2 },
-          ]);
-        }
-      }
-    }
-  } else {
-    // Different die values — try both orderings
-    for (const [first, second] of [[die1, die2], [die2, die1]]) {
-      for (const t1 of activeTokens) {
-        if (!canTokenMove(t1, first, player, state.players)) continue;
-
-        // Apply first die temporarily
-        const simPlayers = simulateMove(state.players, playerId, t1.id, first, player.color);
-        const simPlayer = simPlayers[playerId];
-
-        for (const t2 of simPlayer.tokens) {
-          if (isFinished(t2.stepsFromStart)) continue;
-          if (canTokenMove(t2, second, simPlayer, simPlayers)) {
-            addIfUnique([
-              { tokenId: t1.id, steps: first },
-              { tokenId: t2.id, steps: second },
-            ]);
-          }
-        }
-      }
-    }
-  }
-
-  // Option C: Single die moves (when only one die can be used)
-  // Only add these if no combined/split moves exist that use both dice
-  const hasBothDiceMove = allMoves.some((moves) => {
-    const totalSteps = moves.reduce((sum, m) => sum + m.steps, 0);
-    return totalSteps === die1 + die2;
-  });
-
-  if (!hasBothDiceMove) {
-    for (const token of activeTokens) {
-      if (canTokenMove(token, die1, player, state.players)) {
-        addIfUnique([{ tokenId: token.id, steps: die1 }]);
-      }
-      if (die1 !== die2 && canTokenMove(token, die2, player, state.players)) {
-        addIfUnique([{ tokenId: token.id, steps: die2 }]);
-      }
+    if (canTokenMove(token, die, player, state.players)) {
+      allMoves.push([{ tokenId: token.id, steps: die }]);
     }
   }
 
   return allMoves;
-}
-
-/**
- * Simulate moving a token (for calculating subsequent moves after a split).
- * Returns a deep copy of the players with the move applied.
- * Does NOT apply capture logic — only positional.
- */
-function simulateMove(
-  players: Record<string, LudoPlayerState>,
-  playerId: string,
-  tokenId: number,
-  steps: number,
-  color: LudoColor,
-): Record<string, LudoPlayerState> {
-  const copy: Record<string, LudoPlayerState> = {};
-  for (const [pid, p] of Object.entries(players)) {
-    copy[pid] = {
-      ...p,
-      tokens: p.tokens.map((t) => ({ ...t })),
-    };
-  }
-
-  const token = copy[playerId].tokens.find((t) => t.id === tokenId);
-  if (!token) return copy;
-
-  if (isAtBase(token.stepsFromStart) && steps === 6) {
-    // Enter the board
-    token.stepsFromStart = 1;
-    token.state = 'active';
-  } else {
-    token.stepsFromStart += steps;
-    if (isFinished(token.stepsFromStart)) {
-      token.state = 'home';
-    }
-  }
-
-  return copy;
 }
 
 /** Create initial tokens for a player (all at base) */

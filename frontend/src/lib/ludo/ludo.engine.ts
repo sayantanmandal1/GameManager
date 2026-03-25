@@ -12,7 +12,7 @@ import {
   LUDO_START_POSITIONS,
 } from '@/shared';
 import {
-  rollTwoDice,
+  rollDie,
   calculateAllPossibleMoves,
   getAbsolutePosition,
   isAtBase,
@@ -71,7 +71,7 @@ export class LudoEngine {
   ): {
     valid: boolean;
     reason?: string;
-    dice?: [number, number];
+    dice?: number;
     availableMoves?: LudoMoveAction[][];
     turnSkipped?: boolean;
     turnCanceled?: boolean;
@@ -79,11 +79,10 @@ export class LudoEngine {
     if (state.phase !== LudoGamePhase.ROLLING) return { valid: false, reason: 'Not in rolling phase' };
     if (state.currentTurn !== playerId) return { valid: false, reason: 'Not your turn' };
 
-    const dice = rollTwoDice();
+    const dice = rollDie();
     state.dice = dice;
-    const hasSix = dice[0] === 6 || dice[1] === 6;
 
-    if (hasSix) {
+    if (dice === 6) {
       state.consecutiveSixes++;
     } else {
       state.consecutiveSixes = 0;
@@ -208,7 +207,7 @@ export class LudoEngine {
       }
     }
 
-    const hasSix = state.dice && (state.dice[0] === 6 || state.dice[1] === 6);
+    const hasSix = state.dice === 6;
     const extraTurn = !!(hasSix || capturedAny || reachedHome);
 
     if (extraTurn) {
@@ -279,6 +278,55 @@ export class LudoEngine {
       playerNames,
       isMyTurn: state.currentTurn === playerId,
     };
+  }
+
+  surrender(
+    state: LudoGameState,
+    playerId: string,
+  ): { valid: boolean; reason?: string; winner?: LudoWinResult } {
+    if (state.phase === LudoGamePhase.FINISHED) {
+      return { valid: false, reason: 'Game already finished' };
+    }
+    if (!state.players[playerId]) {
+      return { valid: false, reason: 'Player not found' };
+    }
+    if (state.rankings.includes(playerId)) {
+      return { valid: false, reason: 'Player already finished' };
+    }
+
+    state.rankings.push(playerId);
+
+    const activePlayers = state.playerOrder.filter(
+      (pid) => !state.rankings.includes(pid),
+    );
+
+    if (activePlayers.length <= 1) {
+      for (const pid of activePlayers) {
+        if (!state.rankings.includes(pid)) {
+          state.rankings.unshift(pid);
+        }
+      }
+      state.phase = LudoGamePhase.FINISHED;
+      state.winnerId = state.rankings[0];
+      state.turnState = null;
+      state.dice = null;
+
+      return {
+        valid: true,
+        winner: {
+          winnerId: state.rankings[0],
+          winnerName: state.players[state.rankings[0]]?.username || 'Unknown',
+          rankings: [...state.rankings],
+          surrenderedBy: playerId,
+        },
+      };
+    }
+
+    if (state.currentTurn === playerId) {
+      this.advanceTurn(state);
+    }
+
+    return { valid: true };
   }
 
   private advanceTurn(state: LudoGameState): void {

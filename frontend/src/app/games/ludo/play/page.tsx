@@ -7,11 +7,15 @@ import confetti from 'canvas-confetti';
 import { LudoBoard } from '@/components/ludo/LudoBoard';
 import { LudoDice } from '@/components/ludo/LudoDice';
 import { LudoPlayerPanel } from '@/components/ludo/LudoPlayerPanel';
-import { LudoMoveSelector } from '@/components/ludo/LudoMoveSelector';
 import { GameChat } from '@/components/chat/GameChat';
 import { VoiceChat } from '@/components/voice/VoiceChat';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import {
+  playDiceRoll,
+  playTokenMove,
+  playWin,
+} from '@/lib/sounds';
 import { useAuthStore } from '@/stores/authStore';
 import { useLudoStore } from '@/stores/ludoStore';
 import { useSocket } from '@/hooks/useSocket';
@@ -32,12 +36,14 @@ function LudoPlayContent() {
     diceRolling,
     rollDice,
     moveToken,
+    surrender,
     setLobbyCode,
     initListeners,
     reset,
   } = useLudoStore();
   const { isConnected } = useSocket();
   const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -54,15 +60,33 @@ function LudoPlayContent() {
     };
   }, [isAuthenticated, isConnected, lobbyCode, router, setLobbyCode, initListeners]);
 
-  // Win confetti
+  // Win confetti + sound
   useEffect(() => {
     if (result && result.winnerId === user?.id) {
+      playWin();
       confetti({ particleCount: 200, spread: 120, origin: { y: 0.6 } });
     }
   }, [result, user?.id]);
 
+  // Surrender on browser close / refresh / tab close
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (gameId && view && view.phase !== LudoGamePhase.FINISHED) {
+        surrender();
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [gameId, view, surrender]);
+
+  const handleRollDice = useCallback(() => {
+    playDiceRoll();
+    rollDice();
+  }, [rollDice]);
+
   const handleMoveSelect = useCallback(
     (moves: LudoMoveAction[]) => {
+      playTokenMove();
       moveToken(moves);
       setSelectedTokenId(null);
     },
@@ -70,6 +94,23 @@ function LudoPlayContent() {
   );
 
   const handleBackToLobby = () => {
+    reset();
+    router.push(`/lobby/${lobbyCode}`);
+  };
+
+  // Auto-move when only 1 option available
+  useEffect(() => {
+    if (!view || !view.isMyTurn || view.phase !== LudoGamePhase.MOVING) return;
+    if (!view.availableMoves || view.availableMoves.length !== 1) return;
+    const timer = setTimeout(() => {
+      handleMoveSelect(view.availableMoves![0]);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [view?.availableMoves, view?.isMyTurn, view?.phase, handleMoveSelect]);
+
+  const handleSurrenderAndLeave = () => {
+    surrender();
+    setShowLeaveConfirm(false);
     reset();
     router.push(`/lobby/${lobbyCode}`);
   };
@@ -129,20 +170,6 @@ function LudoPlayContent() {
               selectedTokenId={selectedTokenId}
               onTokenSelect={setSelectedTokenId}
             />
-
-            {/* Move selector popup */}
-            <AnimatePresence>
-              {selectedTokenId != null && view.availableMoves && (
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                  <LudoMoveSelector
-                    moves={view.availableMoves}
-                    tokenId={selectedTokenId}
-                    onSelect={handleMoveSelect}
-                    onCancel={() => setSelectedTokenId(null)}
-                  />
-                </div>
-              )}
-            </AnimatePresence>
           </div>
 
           {error && (
@@ -157,7 +184,7 @@ function LudoPlayContent() {
             <LudoDice
               dice={view.dice}
               isRolling={diceRolling}
-              onRoll={rollDice}
+              onRoll={handleRollDice}
               disabled={!isMyTurn || isFinished}
               isMyTurn={isMyTurn}
               showRollButton={isRollingPhase && !isFinished}
@@ -179,8 +206,57 @@ function LudoPlayContent() {
 
           {/* Chat */}
           <GameChat lobbyCode={lobbyCode} />
+
+          {/* Leave / Surrender */}
+          {!isFinished && (
+            <Button
+              className="w-full bg-red-600/20 border border-red-500/40 text-red-400 hover:bg-red-600/30"
+              onClick={() => setShowLeaveConfirm(true)}
+            >
+              🚪 Back to Lobby
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Leave confirmation modal */}
+      <AnimatePresence>
+        {showLeaveConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center"
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              className="bg-white/[0.06] backdrop-blur-2xl border border-white/[0.1] rounded-2xl p-6 text-center max-w-sm mx-4 shadow-2xl"
+            >
+              <div className="text-4xl mb-3">⚠️</div>
+              <h3 className="text-xl font-bold text-white mb-2">Leave Game?</h3>
+              <p className="text-game-muted text-sm mb-5">
+                Leaving will count as a surrender. Your opponent will be declared the winner.
+              </p>
+              <div className="flex gap-3 justify-center">
+                <Button
+                  className="bg-white/[0.05] border border-white/[0.1] text-white/50 hover:text-white"
+                  onClick={() => setShowLeaveConfirm(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  onClick={handleSurrenderAndLeave}
+                >
+                  Surrender & Leave
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Winner overlay */}
       <AnimatePresence>
@@ -195,7 +271,7 @@ function LudoPlayContent() {
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-              className="bg-game-card border border-game-border rounded-2xl p-8 text-center max-w-md mx-4"
+              className="bg-white/[0.06] backdrop-blur-2xl border border-white/[0.1] rounded-2xl p-8 text-center max-w-md mx-4 shadow-2xl"
             >
               <div className="text-6xl mb-4">
                 {result.winnerId === user?.id ? '🏆' : '🎮'}
@@ -205,6 +281,13 @@ function LudoPlayContent() {
                   ? 'You Win!'
                   : `${result.winnerName} Wins!`}
               </h2>
+              {result.surrenderedBy && (
+                <p className="text-game-muted text-sm mb-1">
+                  {result.surrenderedBy === user?.id
+                    ? 'You surrendered'
+                    : `${view.playerNames[result.surrenderedBy] || 'Opponent'} surrendered`}
+                </p>
+              )}
 
               {/* Rankings */}
               <div className="mt-4 space-y-1">

@@ -190,7 +190,7 @@ function getOwnTokensAtAbsolutePos(
 
 /**
  * Check if a square is "in danger" — reachable by any opponent token
- * within a single dice roll (1–12 for two dice).
+ * within a single dice roll (1–6).
  */
 function isInDanger(
   absolutePos: number,
@@ -202,9 +202,9 @@ function isInDanger(
     for (const token of player.tokens) {
       if (!isOnMainTrack(token.stepsFromStart)) continue;
       const tokenAbs = getAbsolutePosition(player.color, token.stepsFromStart);
-      // Can an opponent reach this square with a roll of 1–12?
-      const distance = (absolutePos - tokenAbs + LUDO_SAFE_SQUARES.length * 52) % 52;
-      if (distance >= 1 && distance <= 12) {
+      // Can an opponent reach this square with a roll of 1–6?
+      const distance = (absolutePos - tokenAbs + 52) % 52;
+      if (distance >= 1 && distance <= 6) {
         return true;
       }
     }

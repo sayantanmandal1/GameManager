@@ -20,7 +20,7 @@ jest.mock('framer-motion', () => ({
 
 describe('LudoDice Component', () => {
   const defaultProps = {
-    dice: null as [number, number] | null,
+    dice: null as number | null,
     isRolling: false,
     onRoll: jest.fn(),
     disabled: false,
@@ -32,20 +32,19 @@ describe('LudoDice Component', () => {
     defaultProps.onRoll = jest.fn();
   });
 
-  it('should show placeholder dice when no dice rolled', () => {
+  it('should show placeholder when no dice rolled', () => {
     const { container } = render(<LudoDice {...defaultProps} />);
-    const placeholders = container.querySelectorAll('.text-game-muted');
-    expect(placeholders.length).toBeGreaterThanOrEqual(2);
+    const placeholder = container.querySelector('.text-2xl');
+    expect(placeholder).toBeInTheDocument();
   });
 
-  it('should show dice values when rolled', () => {
+  it('should show dice value when rolled', () => {
     const { container } = render(
-      <LudoDice {...defaultProps} dice={[3, 5]} />,
+      <LudoDice {...defaultProps} dice={3} />,
     );
-    // Dice faces render SVG circles for dots
+    // Dice face renders SVG circles for dots: 3 dots
     const circles = container.querySelectorAll('circle');
-    // 3 dots + 5 dots = 8 dots total
-    expect(circles).toHaveLength(8);
+    expect(circles).toHaveLength(3);
   });
 
   it('should show roll button when showRollButton is true', () => {
@@ -58,12 +57,11 @@ describe('LudoDice Component', () => {
     expect(screen.queryByText(/Roll/i)).not.toBeInTheDocument();
   });
 
-  it('should show sum when dice are present and not rolling', () => {
+  it('should show rolled value when dice are present and not rolling', () => {
     render(
-      <LudoDice {...defaultProps} dice={[4, 3]} />,
+      <LudoDice {...defaultProps} dice={4} />,
     );
-    // "Total:" is a text node, "7" is inside a child <span>
-    expect(screen.getByText('Total:')).toBeInTheDocument();
-    expect(screen.getByText('7')).toBeInTheDocument();
+    expect(screen.getByText('Rolled:')).toBeInTheDocument();
+    expect(screen.getByText('4')).toBeInTheDocument();
   });
 });

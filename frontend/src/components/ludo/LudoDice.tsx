@@ -21,25 +21,27 @@ interface DieFaceProps {
 
 function DieFace({ value, isRolling, isSix }: DieFaceProps) {
   const dots = DOT_PATTERNS[value] || DOT_PATTERNS[1];
-  const size = 64;
+  const size = 80;
 
   return (
     <motion.div
-      className={`relative rounded-xl bg-white shadow-lg ${
-        isSix ? 'ring-2 ring-yellow-400 shadow-yellow-400/30' : ''
+      className={`relative rounded-2xl shadow-xl border border-white/10 ${
+        isSix
+          ? 'bg-gradient-to-br from-yellow-400/90 to-amber-500/90 ring-2 ring-yellow-300 shadow-yellow-400/40'
+          : 'bg-gradient-to-br from-white/95 to-gray-100/95'
       }`}
-      style={{ width: size, height: size }}
+      style={{ width: size, height: size, backdropFilter: 'blur(8px)' }}
       animate={
         isRolling
           ? {
               rotate: [0, 90, 180, 270, 360],
-              scale: [1, 0.9, 1.1, 0.95, 1],
+              scale: [1, 0.85, 1.15, 0.9, 1],
             }
           : { rotate: 0, scale: 1 }
       }
       transition={
         isRolling
-          ? { duration: 0.6, repeat: Infinity, ease: 'easeInOut' }
+          ? { duration: 0.5, repeat: Infinity, ease: 'easeInOut' }
           : { type: 'spring', stiffness: 300, damping: 20 }
       }
     >
@@ -49,8 +51,8 @@ function DieFace({ value, isRolling, isSix }: DieFaceProps) {
             key={i}
             cx={cx}
             cy={cy}
-            r={0.09}
-            fill={isSix ? '#F59E0B' : '#1a1a2e'}
+            r={0.1}
+            fill={isSix ? '#1a1a2e' : '#1a1a2e'}
           />
         ))}
       </svg>
@@ -61,7 +63,7 @@ function DieFace({ value, isRolling, isSix }: DieFaceProps) {
 // ─── Main Dice Component ───
 
 interface LudoDiceProps {
-  dice: [number, number] | null;
+  dice: number | null;
   isRolling: boolean;
   onRoll: () => void;
   disabled: boolean;
@@ -81,33 +83,25 @@ export function LudoDice({
     <div className="flex flex-col items-center gap-4">
       {/* Dice display */}
       <div className="flex gap-3 items-center">
-        {dice ? (
-          <>
-            <DieFace value={dice[0]} isRolling={isRolling} isSix={dice[0] === 6} />
-            <DieFace value={dice[1]} isRolling={isRolling} isSix={dice[1] === 6} />
-          </>
+        {dice != null ? (
+          <DieFace value={dice} isRolling={isRolling} isSix={dice === 6} />
         ) : (
-          <>
-            <div className="w-16 h-16 rounded-xl bg-game-card border-2 border-dashed border-game-border flex items-center justify-center text-game-muted">
-              ?
-            </div>
-            <div className="w-16 h-16 rounded-xl bg-game-card border-2 border-dashed border-game-border flex items-center justify-center text-game-muted">
-              ?
-            </div>
-          </>
+          <div className="w-20 h-20 rounded-2xl bg-white/5 backdrop-blur-md border-2 border-dashed border-white/20 flex items-center justify-center text-white/30 text-2xl">
+            ?
+          </div>
         )}
       </div>
 
-      {/* Sum display */}
-      {dice && !isRolling && (
+      {/* Result display */}
+      {dice != null && !isRolling && (
         <motion.div
           initial={{ opacity: 0, y: -5 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-sm text-game-muted"
+          className="text-sm text-white/50"
         >
-          Total: <span className="text-white font-bold">{dice[0] + dice[1]}</span>
-          {(dice[0] === 6 || dice[1] === 6) && (
-            <span className="ml-2 text-yellow-400 font-bold">🎉 Six!</span>
+          Rolled: <span className="text-white font-bold text-base">{dice}</span>
+          {dice === 6 && (
+            <span className="ml-2 text-yellow-400 font-bold animate-pulse">Six!</span>
           )}
         </motion.div>
       )}
@@ -117,7 +111,7 @@ export function LudoDice({
         <Button
           onClick={onRoll}
           disabled={disabled || !isMyTurn || isRolling}
-          className={isMyTurn && !disabled ? 'animate-pulse-glow' : ''}
+          className={`${isMyTurn && !disabled ? 'animate-pulse-glow' : ''} px-6 py-3 text-base`}
         >
           {isRolling ? '🎲 Rolling…' : '🎲 Roll Dice'}
         </Button>

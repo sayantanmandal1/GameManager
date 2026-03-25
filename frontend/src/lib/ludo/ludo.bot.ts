@@ -128,7 +128,7 @@ function isInDanger(
       if (!isOnMainTrack(token.stepsFromStart)) continue;
       const tokenAbs = getAbsolutePosition(player.color, token.stepsFromStart);
       const distance = (absolutePos - tokenAbs + LUDO_BOARD_SIZE) % LUDO_BOARD_SIZE;
-      if (distance >= 1 && distance <= 12) return true;
+      if (distance >= 1 && distance <= 6) return true;
     }
   }
   return false;

@@ -22,6 +22,7 @@ export const GAME_EVENTS = {
   RESULT: 'game:result',
   ERROR: 'game:error',
   REQUEST_STATE: 'game:request_state',
+  SURRENDER: 'game:surrender',
 } as const;
 
 // ─── Bingo-Specific Events ───

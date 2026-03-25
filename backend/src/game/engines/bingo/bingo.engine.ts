@@ -191,4 +191,37 @@ export class BingoEngine {
       winnerName: state.winnerId ? (state.playerNames[state.winnerId] || null) : null,
     };
   }
+
+  /** Surrender: the surrendering player forfeits and the opponent wins */
+  surrender(
+    state: BingoGameState,
+    playerId: string,
+  ): { valid: boolean; reason?: string; winner?: BingoWinResult } {
+    if (state.phase === BingoGamePhase.FINISHED) {
+      return { valid: false, reason: 'Game already finished' };
+    }
+    if (!state.playerIds.includes(playerId)) {
+      return { valid: false, reason: 'Player not in game' };
+    }
+
+    // Find the opponent(s) — the first non-surrendering player wins
+    const winnerId = state.playerIds.find((pid) => pid !== playerId);
+    if (!winnerId) {
+      return { valid: false, reason: 'No opponent to award victory' };
+    }
+
+    state.phase = BingoGamePhase.FINISHED;
+    state.winnerId = winnerId;
+    state.currentTurn = null;
+
+    return {
+      valid: true,
+      winner: {
+        winnerId,
+        winnerName: state.playerNames[winnerId] || 'Unknown',
+        completedLines: { ...state.completedLines },
+        surrenderedBy: playerId,
+      },
+    };
+  }
 }

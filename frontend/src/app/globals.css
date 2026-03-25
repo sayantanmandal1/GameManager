@@ -3,13 +3,15 @@
 @tailwind utilities;
 
 :root {
-  --game-bg: #0f0f1a;
-  --game-card: #1a1a2e;
-  --game-border: #2a2a4a;
+  --game-bg: #080810;
+  --game-card: rgba(20, 20, 40, 0.7);
+  --game-border: rgba(255, 255, 255, 0.08);
 }
 
 body {
-  background-color: var(--game-bg);
+  background-color: #080810;
+  background-image: radial-gradient(ellipse at 20% 50%, rgba(88, 28, 135, 0.08) 0%, transparent 50%),
+                    radial-gradient(ellipse at 80% 20%, rgba(30, 64, 175, 0.06) 0%, transparent 50%);
   color: #e2e8f0;
 }
 

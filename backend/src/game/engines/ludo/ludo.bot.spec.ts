@@ -33,7 +33,7 @@ function makePlayer(
 function makeState(
   players: Record<string, LudoPlayerState>,
   currentTurn: string,
-  dice: [number, number],
+  dice: number,
 ): LudoGameState {
   return {
     players,
@@ -55,36 +55,30 @@ describe('LudoBot', () => {
       const players: Record<string, LudoPlayerState> = {
         p1: makePlayer('p1', LudoColor.RED, [0, 0, 0, 0]),
       };
-      const state = makeState(players, 'p1', [3, 4]);
+      const state = makeState(players, 'p1', 3);
       const best = chooseBestMove(state, 'p1');
       expect(best).toEqual([]);
     });
 
     it('should prefer capturing an opponent over a plain advance', () => {
-      // RED token at step 10 (abs 9). GREEN token at step 49 (abs (13+49-1)%52 = 9)
-      // Wait, need to be on same absolute square. Let me calculate:
-      // RED step 10 → abs 9. Moving 2 → step 12 → abs 11.
+      // RED token at step 10 (abs 9). Moving 2 → step 12 → abs 11.
       // GREEN at step 51 → abs (13+51-1)%52 = 11. So RED can capture GREEN at abs 11 with die=2.
-      // Dice [2, 3]. Token 0 at step 10, can move 2 (capture) or 5 (combined).
       const players: Record<string, LudoPlayerState> = {
         p1: makePlayer('p1', LudoColor.RED, [10, 0, 0, 0]),
         p2: makePlayer('p2', LudoColor.GREEN, [51, 20, 0, 0]),
       };
-      const state = makeState(players, 'p1', [2, 3]);
+      const state = makeState(players, 'p1', 2);
       const best = chooseBestMove(state, 'p1');
       expect(best.length).toBeGreaterThan(0);
-      // The bot should find a move that lands on abs 11 (capture)
-      // Could be combined move of 5 (step 15 → abs 14) or split with 2 first
-      // Actually with only 1 active token, split puts 2 then 3 on same token
-      // But the capture at step 12 (abs 11) via die=2 should be preferred
+      // The bot should find the move that captures GREEN at abs 11
     });
 
     it('should prefer reaching home over a regular move', () => {
-      // Token at step 56, needs 3 to finish. Dice [3, 2].
+      // Token at step 56, needs 3 to finish. Die = 3.
       const players: Record<string, LudoPlayerState> = {
         p1: makePlayer('p1', LudoColor.RED, [56, 10, 0, 0]),
       };
-      const state = makeState(players, 'p1', [3, 2]);
+      const state = makeState(players, 'p1', 3);
       const best = chooseBestMove(state, 'p1');
       expect(best.length).toBeGreaterThan(0);
 
@@ -94,11 +88,11 @@ describe('LudoBot', () => {
     });
 
     it('should prefer exiting base when dice has 6', () => {
-      // All at base, dice [6, 2]. Should enter a token.
+      // All at base, die = 6. Should enter a token.
       const players: Record<string, LudoPlayerState> = {
         p1: makePlayer('p1', LudoColor.RED, [0, 0, 0, 5]),
       };
-      const state = makeState(players, 'p1', [6, 2]);
+      const state = makeState(players, 'p1', 6);
       const best = chooseBestMove(state, 'p1');
       expect(best.length).toBeGreaterThan(0);
 
@@ -108,11 +102,11 @@ describe('LudoBot', () => {
     });
 
     it('should return a move when only one option exists', () => {
-      // One token on track, dice [2, 3].
+      // One token on track, die = 2.
       const players: Record<string, LudoPlayerState> = {
         p1: makePlayer('p1', LudoColor.RED, [10, 0, 0, 0]),
       };
-      const state = makeState(players, 'p1', [2, 3]);
+      const state = makeState(players, 'p1', 2);
       const best = chooseBestMove(state, 'p1');
       expect(best.length).toBeGreaterThan(0);
     });
@@ -122,7 +116,7 @@ describe('LudoBot', () => {
         p1: makePlayer('p1', LudoColor.RED, [10, 20, 30, 0]),
         p2: makePlayer('p2', LudoColor.GREEN, [10, 0, 0, 0]),
       };
-      const state = makeState(players, 'p1', [3, 4]);
+      const state = makeState(players, 'p1', 3);
       const best = chooseBestMove(state, 'p1');
       expect(best.length).toBeGreaterThan(0);
     });

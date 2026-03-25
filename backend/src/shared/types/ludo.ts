@@ -70,7 +70,7 @@ export interface LudoPlayerState {
 // ─── Dice & Moves ───
 
 export interface LudoDiceResult {
-  dice: [number, number];
+  dice: number;
   playerId: string;
 }
 
@@ -102,7 +102,7 @@ export interface LudoGameState {
   players: Record<string, LudoPlayerState>;
   playerOrder: string[];
   currentTurn: string;
-  dice: [number, number] | null;
+  dice: number | null;
   phase: LudoGamePhase;
   consecutiveSixes: number;
   turnState: LudoTurnState | null;
@@ -117,7 +117,7 @@ export interface LudoPlayerView {
   myColor: LudoColor;
   players: LudoPlayerState[];
   currentTurn: string;
-  dice: [number, number] | null;
+  dice: number | null;
   phase: LudoGamePhase;
   availableMoves: LudoMoveAction[][] | null;
   rankings: string[];
@@ -133,4 +133,5 @@ export interface LudoWinResult {
   winnerId: string;
   winnerName: string;
   rankings: string[];
+  surrenderedBy?: string;
 }

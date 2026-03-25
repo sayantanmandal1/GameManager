@@ -47,12 +47,12 @@ export function LudoPlayerPanel({
         return (
           <motion.div
             key={player.id}
-            className={`flex items-center gap-3 px-3 py-2 rounded-lg border transition-all ${
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl border transition-all ${
               isCurrent
-                ? `${color.bg} border-current ${color.text}`
+                ? `${color.bg} border-current ${color.text} backdrop-blur-md`
                 : isFinished
-                ? 'bg-game-card/50 border-game-border/50 opacity-70'
-                : 'bg-game-card border-game-border'
+                ? 'bg-white/[0.02] border-white/[0.04] opacity-70'
+                : 'bg-white/[0.03] border-white/[0.06]'
             }`}
             animate={isCurrent ? { scale: [1, 1.02, 1] } : {}}
             transition={{ repeat: Infinity, duration: 2 }}

@@ -124,11 +124,8 @@ export function canTokenMove(
   return true;
 }
 
-export function rollTwoDice(): [number, number] {
-  return [
-    Math.floor(Math.random() * 6) + 1,
-    Math.floor(Math.random() * 6) + 1,
-  ];
+export function rollDie(): number {
+  return Math.floor(Math.random() * 6) + 1;
 }
 
 export function calculateAllPossibleMoves(
@@ -136,103 +133,19 @@ export function calculateAllPossibleMoves(
   playerId: string,
 ): LudoMoveAction[][] {
   const player = state.players[playerId];
-  if (!player || !state.dice) return [];
-  const [die1, die2] = state.dice;
+  if (!player || state.dice == null) return [];
+  const die = state.dice;
   const allMoves: LudoMoveAction[][] = [];
-  const seen = new Set<string>();
-
-  const addIfUnique = (moves: LudoMoveAction[]) => {
-    const sorted = [...moves].sort((a, b) => a.tokenId - b.tokenId || a.steps - b.steps);
-    const key = sorted.map((m) => `${m.tokenId}:${m.steps}`).join('|');
-    if (!seen.has(key)) {
-      seen.add(key);
-      allMoves.push(moves);
-    }
-  };
 
   const activeTokens = player.tokens.filter((t) => !isFinished(t.stepsFromStart));
-  const combined = die1 + die2;
 
   for (const token of activeTokens) {
-    if (canTokenMove(token, combined, player, state.players)) {
-      addIfUnique([{ tokenId: token.id, steps: combined }]);
-    }
-  }
-
-  if (die1 === die2) {
-    for (const t1 of activeTokens) {
-      if (!canTokenMove(t1, die1, player, state.players)) continue;
-      const simPlayers = simulateMove(state.players, playerId, t1.id, die1, player.color);
-      const simPlayer = simPlayers[playerId];
-      for (const t2 of simPlayer.tokens) {
-        if (isFinished(t2.stepsFromStart)) continue;
-        if (canTokenMove(t2, die2, simPlayer, simPlayers)) {
-          addIfUnique([
-            { tokenId: t1.id, steps: die1 },
-            { tokenId: t2.id, steps: die2 },
-          ]);
-        }
-      }
-    }
-  } else {
-    for (const [first, second] of [[die1, die2], [die2, die1]]) {
-      for (const t1 of activeTokens) {
-        if (!canTokenMove(t1, first, player, state.players)) continue;
-        const simPlayers = simulateMove(state.players, playerId, t1.id, first, player.color);
-        const simPlayer = simPlayers[playerId];
-        for (const t2 of simPlayer.tokens) {
-          if (isFinished(t2.stepsFromStart)) continue;
-          if (canTokenMove(t2, second, simPlayer, simPlayers)) {
-            addIfUnique([
-              { tokenId: t1.id, steps: first },
-              { tokenId: t2.id, steps: second },
-            ]);
-          }
-        }
-      }
-    }
-  }
-
-  const hasBothDiceMove = allMoves.some((moves) => {
-    const totalSteps = moves.reduce((sum, m) => sum + m.steps, 0);
-    return totalSteps === die1 + die2;
-  });
-
-  if (!hasBothDiceMove) {
-    for (const token of activeTokens) {
-      if (canTokenMove(token, die1, player, state.players)) {
-        addIfUnique([{ tokenId: token.id, steps: die1 }]);
-      }
-      if (die1 !== die2 && canTokenMove(token, die2, player, state.players)) {
-        addIfUnique([{ tokenId: token.id, steps: die2 }]);
-      }
+    if (canTokenMove(token, die, player, state.players)) {
+      allMoves.push([{ tokenId: token.id, steps: die }]);
     }
   }
 
   return allMoves;
-}
-
-function simulateMove(
-  players: Record<string, LudoPlayerState>,
-  playerId: string,
-  tokenId: number,
-  steps: number,
-  color: LudoColor,
-): Record<string, LudoPlayerState> {
-  const copy: Record<string, LudoPlayerState> = {};
-  for (const [pid, p] of Object.entries(players)) {
-    copy[pid] = { ...p, tokens: p.tokens.map((t) => ({ ...t })) };
-  }
-  const token = copy[playerId].tokens.find((t) => t.id === tokenId);
-  if (!token) return copy;
-  if (isAtBase(token.stepsFromStart) && steps === 6) {
-    token.stepsFromStart = 1;
-    token.state = 'active';
-  } else {
-    token.stepsFromStart += steps;
-    if (isFinished(token.stepsFromStart)) token.state = 'home';
-  }
-  return copy;
 }
 
 export function createInitialTokens(): LudoToken[] {

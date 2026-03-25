@@ -15,6 +15,7 @@ interface LudoResult {
   winnerId: string;
   winnerName: string;
   rankings: string[];
+  surrenderedBy?: string;
 }
 
 interface LudoStoreState {
@@ -27,6 +28,7 @@ interface LudoStoreState {
 
   rollDice: () => void;
   moveToken: (moves: LudoMoveAction[]) => void;
+  surrender: () => void;
   setLobbyCode: (code: string) => void;
   requestGameState: () => Promise<void>;
   initListeners: () => () => void;
@@ -66,6 +68,13 @@ export const useLudoStore = create<LudoStoreState>()((set, get) => ({
     const { gameId, lobbyCode } = get();
     if (!socket || !gameId || !lobbyCode) return;
     socket.emit(LUDO_EVENTS.MOVE_TOKEN, { gameId, lobbyCode, moves });
+  },
+
+  surrender: () => {
+    const socket = getSocket();
+    const { gameId, lobbyCode } = get();
+    if (!socket || !gameId || !lobbyCode) return;
+    socket.emit(GAME_EVENTS.SURRENDER, { gameId, lobbyCode });
   },
 
   initListeners: () => {

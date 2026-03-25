@@ -7,9 +7,17 @@ import confetti from 'canvas-confetti';
 import { LudoBoard } from '@/components/ludo/LudoBoard';
 import { LudoDice } from '@/components/ludo/LudoDice';
 import { LudoPlayerPanel } from '@/components/ludo/LudoPlayerPanel';
-import { LudoMoveSelector } from '@/components/ludo/LudoMoveSelector';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import {
+  playDiceRoll,
+  playTokenMove,
+  playTokenCapture,
+  playTokenHome,
+  playWin,
+  playSixRoll,
+  playTurnSkip,
+} from '@/lib/sounds';
 import {
   LudoGamePhase,
   LUDO_TOKENS_PER_PLAYER,
@@ -20,6 +28,7 @@ import type {
   LudoMoveAction,
 } from '@/shared';
 import { LudoEngine } from '@/lib/ludo/ludo.engine';
+import { chooseBestMove } from '@/lib/ludo/ludo.bot';
 
 type SetupConfig = {
   playerCount: 2 | 3 | 4;
@@ -36,6 +45,8 @@ export default function OfflineLudoPage() {
   const [diceRolling, setDiceRolling] = useState(false);
   const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
   const [winner, setWinner] = useState<string | null>(null);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [surrendered, setSurrendered] = useState(false);
   const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const humanId = 'human-player';
 
@@ -60,29 +71,74 @@ export default function OfflineLudoPage() {
     setView(engine.getPlayerView(newState, humanId));
   }, [config, state]);
 
-  // Handle bot turns
+  // Handle bot turns — step-by-step with visible dice animation
   const runBotTurn = useCallback(() => {
-    setState((prev) => {
-      if (!prev || prev.phase === LudoGamePhase.FINISHED) return prev;
-      const currentPlayer = prev.players[prev.currentTurn];
-      if (!currentPlayer?.isBot) return prev;
+    if (!state || state.phase === LudoGamePhase.FINISHED) return;
+    const currentPlayer = state.players[state.currentTurn];
+    if (!currentPlayer?.isBot) return;
+    const botId = currentPlayer.id;
 
-      // Deep copy state for mutation
-      const stateCopy: LudoGameState = JSON.parse(JSON.stringify(prev));
-      engine.executeBotTurn(stateCopy, stateCopy.currentTurn);
+    // Step 1: Show dice rolling animation
+    setDiceRolling(true);
+    playDiceRoll();
 
-      setView(engine.getPlayerView(stateCopy, humanId));
+    setTimeout(() => {
+      // Step 2: Actually roll the dice
+      setState((prev) => {
+        if (!prev || prev.phase === LudoGamePhase.FINISHED) return prev;
+        const stateCopy: LudoGameState = JSON.parse(JSON.stringify(prev));
+        const rollResult = engine.rollDice(stateCopy, botId);
+        setDiceRolling(false);
+        setView(engine.getPlayerView(stateCopy, humanId));
 
-      if (stateCopy.winnerId) {
-        setWinner(stateCopy.winnerId);
-        if (stateCopy.winnerId === humanId) {
-          confetti({ particleCount: 200, spread: 120, origin: { y: 0.6 } });
+        if (!rollResult.valid || rollResult.turnCanceled || rollResult.turnSkipped) {
+          if (rollResult.turnSkipped || rollResult.turnCanceled) {
+            playTurnSkip();
+          }
+          return stateCopy;
         }
-      }
 
-      return stateCopy;
-    });
-  }, []);
+        if (rollResult.dice === 6) {
+          playSixRoll();
+        }
+
+        // Step 3: After a delay, execute the best move
+        setTimeout(() => {
+          setState((prev2) => {
+            if (!prev2 || prev2.phase === LudoGamePhase.FINISHED) return prev2;
+            const stateCopy2: LudoGameState = JSON.parse(JSON.stringify(prev2));
+            const bestMove = chooseBestMove(stateCopy2, botId);
+            if (bestMove.length === 0) return stateCopy2;
+
+            const moveResult = engine.moveToken(stateCopy2, botId, bestMove);
+            if (!moveResult.valid) return stateCopy2;
+
+            playTokenMove();
+            if (moveResult.captures && moveResult.captures.length > 0) {
+              playTokenCapture();
+            }
+            if (moveResult.reachedHome) {
+              playTokenHome();
+            }
+
+            setView(engine.getPlayerView(stateCopy2, humanId));
+
+            if (moveResult.winner) {
+              setWinner(moveResult.winner.winnerId);
+              if (moveResult.winner.winnerId === humanId) {
+                playWin();
+                confetti({ particleCount: 200, spread: 120, origin: { y: 0.6 } });
+              }
+            }
+
+            return stateCopy2;
+          });
+        }, 500);
+
+        return stateCopy;
+      });
+    }, 600);
+  }, [state]);
 
   // Check if it's a bot's turn and schedule auto-play
   useEffect(() => {
@@ -101,6 +157,7 @@ export default function OfflineLudoPage() {
   const handleRollDice = useCallback(() => {
     if (!state || state.currentTurn !== humanId) return;
     setDiceRolling(true);
+    playDiceRoll();
 
     setTimeout(() => {
       setState((prev) => {
@@ -111,7 +168,9 @@ export default function OfflineLudoPage() {
         setView(engine.getPlayerView(stateCopy, humanId));
 
         if (result.turnSkipped || result.turnCanceled) {
-          // Turn was skipped — check if next is bot
+          playTurnSkip();
+        } else if (result.dice === 6) {
+          playSixRoll();
         }
 
         return stateCopy;
@@ -131,10 +190,19 @@ export default function OfflineLudoPage() {
         if (result.valid) {
           setView(engine.getPlayerView(stateCopy, humanId));
           setSelectedTokenId(null);
+          playTokenMove();
+
+          if (result.captures && result.captures.length > 0) {
+            playTokenCapture();
+          }
+          if (result.reachedHome) {
+            playTokenHome();
+          }
 
           if (result.winner) {
             setWinner(result.winner.winnerId);
             if (result.winner.winnerId === humanId) {
+              playWin();
               confetti({ particleCount: 200, spread: 120, origin: { y: 0.6 } });
             }
           }
@@ -146,12 +214,39 @@ export default function OfflineLudoPage() {
     [state],
   );
 
+  // Auto-move when only 1 option available
+  useEffect(() => {
+    if (!view || !view.isMyTurn || view.phase !== LudoGamePhase.MOVING) return;
+    if (!view.availableMoves || view.availableMoves.length !== 1) return;
+    const timer = setTimeout(() => {
+      handleMoveSelect(view.availableMoves![0]);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [view?.availableMoves, view?.isMyTurn, view?.phase, handleMoveSelect]);
+
   const handleNewGame = () => {
     setConfig(null);
     setState(null);
     setView(null);
     setWinner(null);
     setSelectedTokenId(null);
+    setSurrendered(false);
+    setShowLeaveConfirm(false);
+  };
+
+  const handleSurrenderAndLeave = () => {
+    if (state && state.phase !== LudoGamePhase.FINISHED) {
+      const stateCopy: LudoGameState = JSON.parse(JSON.stringify(state));
+      const result = engine.surrender(stateCopy, humanId);
+      if (result.valid && result.winner) {
+        setState(stateCopy);
+        setView(engine.getPlayerView(stateCopy, humanId));
+        setWinner(result.winner.winnerId);
+        setSurrendered(true);
+      }
+    }
+    setShowLeaveConfirm(false);
+    router.push('/games/ludo');
   };
 
   // Setup screen — must be AFTER all hooks
@@ -261,19 +356,6 @@ export default function OfflineLudoPage() {
                 selectedTokenId={selectedTokenId}
                 onTokenSelect={setSelectedTokenId}
               />
-
-              <AnimatePresence>
-                {selectedTokenId != null && view.availableMoves && (
-                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                    <LudoMoveSelector
-                      moves={view.availableMoves}
-                      tokenId={selectedTokenId}
-                      onSelect={handleMoveSelect}
-                      onCancel={() => setSelectedTokenId(null)}
-                    />
-                  </div>
-                )}
-              </AnimatePresence>
             </div>
           </div>
 
@@ -298,9 +380,58 @@ export default function OfflineLudoPage() {
                 myPlayerId={humanId}
               />
             </Card>
+
+            {/* Leave / Surrender */}
+            {!isFinished && (
+              <Button
+                className="w-full bg-red-600/20 border border-red-500/40 text-red-400 hover:bg-red-600/30"
+                onClick={() => setShowLeaveConfirm(true)}
+              >
+                🚪 Back to Menu
+              </Button>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Leave confirmation modal */}
+      <AnimatePresence>
+        {showLeaveConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center"
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              className="bg-white/[0.06] backdrop-blur-2xl border border-white/[0.1] rounded-2xl p-6 text-center max-w-sm mx-4 shadow-2xl"
+            >
+              <div className="text-4xl mb-3">⚠️</div>
+              <h3 className="text-xl font-bold text-white mb-2">Leave Game?</h3>
+              <p className="text-game-muted text-sm mb-5">
+                Leaving will end the current game. Your progress will be lost.
+              </p>
+              <div className="flex gap-3 justify-center">
+                <Button
+                  className="bg-white/[0.05] border border-white/[0.1] text-white/50 hover:text-white"
+                  onClick={() => setShowLeaveConfirm(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  onClick={handleSurrenderAndLeave}
+                >
+                  Leave Game
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Winner overlay */}
       <AnimatePresence>
@@ -315,7 +446,7 @@ export default function OfflineLudoPage() {
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-              className="bg-game-card border border-game-border rounded-2xl p-8 text-center max-w-md mx-4"
+              className="bg-white/[0.06] backdrop-blur-2xl border border-white/[0.1] rounded-2xl p-8 text-center max-w-md mx-4 shadow-2xl"
             >
               <div className="text-6xl mb-4">
                 {winner === humanId ? '🏆' : '🎮'}

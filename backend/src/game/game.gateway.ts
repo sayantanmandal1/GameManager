@@ -5,6 +5,7 @@ import {
   ConnectedSocket,
   MessageBody,
   OnGatewayInit,
+  OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
@@ -13,9 +14,12 @@ import { getSocketUser } from '../auth/ws-jwt.guard';
 import { GAME_EVENTS, BINGO_EVENTS, LUDO_EVENTS, GameType, LudoMoveAction } from '../shared';
 
 @WebSocketGateway({ cors: { origin: '*' } })
-export class GameGateway implements OnGatewayInit {
+export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
+
+  /** Track socket → active game info for disconnect surrender */
+  private socketGameMap = new Map<string, { userId: string; gameId: string; lobbyCode: string; gameType: GameType }>();
 
   constructor(
     private readonly gameService: GameService,
@@ -36,6 +40,7 @@ export class GameGateway implements OnGatewayInit {
         winnerId: result.winnerId,
         winnerName: result.winnerName,
         completedLines: result.completedLines,
+        surrenderedBy: result.surrenderedBy,
       });
     };
 
@@ -51,12 +56,33 @@ export class GameGateway implements OnGatewayInit {
         winnerId: result.winnerId,
         winnerName: result.winnerName,
         rankings: result.rankings,
+        surrenderedBy: result.surrenderedBy,
       });
     };
 
     this.gameService.onBotTurnNeeded = (gameId, lobbyCode, botId) => {
       this.scheduleBotTurn(gameId, lobbyCode);
     };
+  }
+
+  async handleDisconnect(client: Socket): Promise<void> {
+    const tracked = this.socketGameMap.get(client.id);
+    if (!tracked) return;
+
+    this.socketGameMap.delete(client.id);
+
+    // Auto-surrender on disconnect for any active game
+    if (tracked.gameType === GameType.LUDO) {
+      const state = this.gameService.getLudoState(tracked.gameId);
+      if (state && state.phase !== 'finished' && !state.rankings.includes(tracked.userId)) {
+        await this.gameService.ludoSurrender(tracked.gameId, tracked.userId, tracked.lobbyCode);
+      }
+    } else if (tracked.gameType === GameType.BINGO) {
+      const state = this.gameService.getState(tracked.gameId);
+      if (state && state.phase !== 'finished') {
+        await this.gameService.bingoSurrender(tracked.gameId, tracked.userId, tracked.lobbyCode);
+      }
+    }
   }
 
   /** Client requests current game state (e.g. after navigating to play page) */
@@ -78,6 +104,17 @@ export class GameGateway implements OnGatewayInit {
     client.join(`game:${data.lobbyCode}`);
 
     const gameType = this.gameService.getGameTypeForLobby(data.lobbyCode);
+
+    // Track socket for disconnect surrender
+    if (gameType) {
+      this.socketGameMap.set(client.id, {
+        userId: user.sub,
+        gameId,
+        lobbyCode: data.lobbyCode,
+        gameType,
+      });
+    }
+
     if (gameType === GameType.LUDO) {
       const view = this.gameService.getLudoPlayerView(gameId, user.sub);
       if (view) {
@@ -213,6 +250,35 @@ export class GameGateway implements OnGatewayInit {
     if (!result.ok) {
       client.emit(GAME_EVENTS.ERROR, { message: result.error });
     }
+  }
+
+  // ─── Generic Surrender Handler (works for all game types) ───
+
+  @SubscribeMessage(GAME_EVENTS.SURRENDER)
+  async handleSurrender(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { gameId: string; lobbyCode: string },
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+
+    const gameType = this.gameService.getGameTypeForLobby(data.lobbyCode);
+    let result: { ok: boolean; error?: string };
+
+    if (gameType === GameType.LUDO) {
+      result = await this.gameService.ludoSurrender(data.gameId, user.sub, data.lobbyCode);
+    } else if (gameType === GameType.BINGO) {
+      result = await this.gameService.bingoSurrender(data.gameId, user.sub, data.lobbyCode);
+    } else {
+      result = { ok: false, error: 'Unknown game type' };
+    }
+
+    if (!result.ok) {
+      client.emit(GAME_EVENTS.ERROR, { message: result.error });
+    }
+
+    // Clean up socket tracking after surrender
+    this.socketGameMap.delete(client.id);
   }
 
   private async broadcastLudoPlayerViews(

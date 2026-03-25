@@ -185,6 +185,35 @@ export class GameService {
     return this.gameStates.get(gameId);
   }
 
+  async bingoSurrender(
+    gameId: string,
+    playerId: string,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const state = this.gameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+
+    const result = this.engine.surrender(state, playerId);
+    if (!result.valid) return { ok: false, error: result.reason };
+
+    this.gameStates.set(gameId, state);
+
+    if (result.winner) {
+      await this.gameRepo.update(gameId, {
+        winnerId: result.winner.winnerId,
+        status: GameStatus.FINISHED,
+        finishedAt: new Date(),
+      });
+      await this.lobbyService.setStatus(lobbyCode, LobbyStatus.WAITING);
+
+      if (this.onGameFinished) {
+        this.onGameFinished(gameId, lobbyCode, result.winner);
+      }
+    }
+
+    return { ok: true };
+  }
+
   // ─── Ludo Game Methods ───
 
   async startLudoGame(
@@ -234,7 +263,7 @@ export class GameService {
     gameId: string,
     playerId: string,
     lobbyCode: string,
-  ): { ok: boolean; error?: string; dice?: [number, number]; turnSkipped?: boolean; turnCanceled?: boolean } {
+  ): { ok: boolean; error?: string; dice?: number; turnSkipped?: boolean; turnCanceled?: boolean } {
     const state = this.ludoGameStates.get(gameId);
     if (!state) return { ok: false, error: 'Game not found' };
 
@@ -331,5 +360,53 @@ export class GameService {
     if (nextPlayer?.isBot && this.onBotTurnNeeded) {
       this.onBotTurnNeeded(gameId, lobbyCode, state.currentTurn);
     }
+  }
+
+  async ludoSurrender(
+    gameId: string,
+    playerId: string,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const state = this.ludoGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+
+    const result = this.ludoEngine.surrender(state, playerId);
+    if (!result.valid) return { ok: false, error: result.reason };
+
+    this.ludoGameStates.set(gameId, state);
+
+    if (result.winner) {
+      await this.gameRepo.update(gameId, {
+        winnerId: result.winner.winnerId,
+        status: GameStatus.FINISHED,
+        finishedAt: new Date(),
+      });
+      await this.lobbyService.setStatus(lobbyCode, LobbyStatus.WAITING);
+
+      if (this.onLudoGameFinished) {
+        this.onLudoGameFinished(gameId, lobbyCode, result.winner);
+      }
+    } else {
+      if (this.onLudoStateChanged) {
+        this.onLudoStateChanged(gameId, lobbyCode);
+      }
+      this.checkBotTurn(gameId, lobbyCode, state);
+    }
+
+    return { ok: true };
+  }
+
+  /** Find active Ludo game for a player by scanning all active games */
+  findLudoGameForPlayer(playerId: string): { gameId: string; lobbyCode: string } | null {
+    for (const [lobbyCode, gameId] of this.lobbyGameMap.entries()) {
+      if (this.lobbyGameTypeMap.get(lobbyCode) !== GameType.LUDO) continue;
+      const state = this.ludoGameStates.get(gameId);
+      if (!state) continue;
+      if (state.phase === 'finished') continue;
+      if (state.players[playerId] && !state.rankings.includes(playerId)) {
+        return { gameId, lobbyCode };
+      }
+    }
+    return null;
   }
 }

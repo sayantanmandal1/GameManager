@@ -89,8 +89,8 @@ describe('LudoEngine', () => {
       const result = engine.rollDice(state, 'p1');
       expect(result.valid).toBe(true);
       expect(result.dice).toBeDefined();
-      expect(result.dice![0]).toBeGreaterThanOrEqual(1);
-      expect(result.dice![1]).toBeLessThanOrEqual(6);
+      expect(result.dice).toBeGreaterThanOrEqual(1);
+      expect(result.dice).toBeLessThanOrEqual(6);
     });
 
     it('should reject roll from wrong player', () => {
@@ -123,8 +123,8 @@ describe('LudoEngine', () => {
       state.consecutiveSixes = 2; // Already had 2 sixes
 
       // Mock to ensure dice has a 6
-      const origRoll = jest.spyOn(require('./ludo.utils'), 'rollTwoDice');
-      origRoll.mockReturnValue([6, 3]);
+      const origRoll = jest.spyOn(require('./ludo.utils'), 'rollDie');
+      origRoll.mockReturnValue(6);
 
       const result = engine.rollDice(state, 'p1');
       expect(result.valid).toBe(true);
@@ -141,8 +141,8 @@ describe('LudoEngine', () => {
         { p1: 'A', p2: 'B' },
       );
       // All at base, roll non-6 → no moves
-      const origRoll = jest.spyOn(require('./ludo.utils'), 'rollTwoDice');
-      origRoll.mockReturnValue([3, 4]);
+      const origRoll = jest.spyOn(require('./ludo.utils'), 'rollDie');
+      origRoll.mockReturnValue(3);
 
       const result = engine.rollDice(state, 'p1');
       expect(result.valid).toBe(true);
@@ -183,17 +183,17 @@ describe('LudoEngine', () => {
       );
       state.players.p1.tokens[0].stepsFromStart = 10;
       state.players.p1.tokens[0].state = 'active';
-      state.dice = [3, 4];
+      state.dice = 3;
       state.phase = LudoGamePhase.MOVING;
       state.turnState = {
-        availableMoves: [[{ tokenId: 0, steps: 7 }]],
+        availableMoves: [[{ tokenId: 0, steps: 3 }]],
         mustRollAgain: false,
         turnCanceled: false,
       };
 
-      const result = engine.moveToken(state, 'p1', [{ tokenId: 0, steps: 7 }]);
+      const result = engine.moveToken(state, 'p1', [{ tokenId: 0, steps: 3 }]);
       expect(result.valid).toBe(true);
-      expect(state.players.p1.tokens[0].stepsFromStart).toBe(17);
+      expect(state.players.p1.tokens[0].stepsFromStart).toBe(13);
     });
 
     it('should reject an invalid move combination', () => {
@@ -203,10 +203,10 @@ describe('LudoEngine', () => {
       );
       state.players.p1.tokens[0].stepsFromStart = 10;
       state.players.p1.tokens[0].state = 'active';
-      state.dice = [3, 4];
+      state.dice = 3;
       state.phase = LudoGamePhase.MOVING;
       state.turnState = {
-        availableMoves: [[{ tokenId: 0, steps: 7 }]],
+        availableMoves: [[{ tokenId: 0, steps: 3 }]],
         mustRollAgain: false,
         turnCanceled: false,
       };
@@ -221,36 +221,23 @@ describe('LudoEngine', () => {
         ['p1', 'p2'],
         { p1: 'A', p2: 'B' },
       );
-      // RED at step 10 (abs 9). Need GREEN token at same dest.
-      // Move RED 2 steps → step 12 → abs 11
+      // RED at step 10 (abs 9). Move RED 2 steps → step 12 → abs 11
       // GREEN at step 51 → abs (13+51-1)%52 = 11 ← capture target
       state.players.p1.tokens[0].stepsFromStart = 10;
       state.players.p1.tokens[0].state = 'active';
       state.players.p2.tokens[0].stepsFromStart = 51;
       state.players.p2.tokens[0].state = 'active';
-      state.dice = [2, 3];
+      state.dice = 2;
       state.phase = LudoGamePhase.MOVING;
       state.turnState = {
-        availableMoves: [
-          [{ tokenId: 0, steps: 2 }, { tokenId: 0, steps: 3 }],
-          [{ tokenId: 0, steps: 5 }],
-        ],
+        availableMoves: [[{ tokenId: 0, steps: 2 }]],
         mustRollAgain: false,
         turnCanceled: false,
       };
 
-      // Move combined 5 to avoid the capture, or split to capture at step 12
-      const result = engine.moveToken(state, 'p1', [
-        { tokenId: 0, steps: 2 },
-        { tokenId: 0, steps: 3 },
-      ]);
+      const result = engine.moveToken(state, 'p1', [{ tokenId: 0, steps: 2 }]);
       expect(result.valid).toBe(true);
-      // Check if capture happened at abs 11
-      // After first step: RED at 12 (abs 11) — GREEN at 51 (abs 11) — capture!
-      // After second step: RED at 15 (abs 14)
-      // The capture should have sent GREEN back to base
-      // Actually moveToken applies sequentially: first move token 0 by 2 → step 12, check capture → yes!
-      // Then move token 0 by 3 → step 15
+      // RED at step 12 (abs 11) captures GREEN at abs 11
       if (result.captures && result.captures.length > 0) {
         expect(state.players.p2.tokens[0].stepsFromStart).toBe(0);
         expect(state.players.p2.tokens[0].state).toBe('base');
@@ -263,37 +250,26 @@ describe('LudoEngine', () => {
         ['p1', 'p2'],
         { p1: 'A', p2: 'B' },
       );
-      // RED needs to land on a safe square where GREEN is
       // Safe squares: 0, 8, 13, 21, 26, 34, 39, 47
-      // RED at step 8 (abs 7), move 2 → step 10 → abs 9 (NOT safe)
-      // RED at step 1 (abs 0 = SAFE), GREEN also at abs 0
-      // GREEN step 40 → abs (13+40-1)%52 = 0 ← safe square
-      state.players.p1.tokens[0].stepsFromStart = 7; // abs 6
-      state.players.p1.tokens[0].state = 'active';
-      state.players.p2.tokens[0].stepsFromStart = 49; // abs (13+49-1)%52 = 9
-      state.players.p2.tokens[0].state = 'active';
-      // abs 9 is not safe. Let me use abs 8 which IS safe
-      // RED step 9 → abs 8 (safe!). GREEN at abs 8: GREEN step 48 → abs (13+48-1)%52 = 8
+      // RED at step 7 (abs 6), move 2 → step 9 → abs 8 (safe!)
+      // GREEN at step 48 → abs (13+48-1)%52 = 8
       state.players.p1.tokens[0].stepsFromStart = 7;
+      state.players.p1.tokens[0].state = 'active';
       state.players.p2.tokens[0].stepsFromStart = 48;
-      state.dice = [2, 3];
+      state.players.p2.tokens[0].state = 'active';
+      state.dice = 2;
       state.phase = LudoGamePhase.MOVING;
-      // RED moves 2 → step 9 → abs 8 (safe square where GREEN is)
       state.turnState = {
-        availableMoves: [
-          [{ tokenId: 0, steps: 5 }],
-          [{ tokenId: 0, steps: 2 }, { tokenId: 0, steps: 3 }],
-        ],
+        availableMoves: [[{ tokenId: 0, steps: 2 }]],
         mustRollAgain: false,
         turnCanceled: false,
       };
 
-      const result = engine.moveToken(state, 'p1', [{ tokenId: 0, steps: 5 }]);
+      const result = engine.moveToken(state, 'p1', [{ tokenId: 0, steps: 2 }]);
       expect(result.valid).toBe(true);
-      // GREEN should NOT be captured since abs 8 is a safe square if we land there
-      // But combined 5 → step 12 → abs 11 (not safe, and no GREEN there)
-      // The split [2, 3] would land first at abs 8 (safe) then at abs 11
-      // Safe square capture prevention is checked per-step, not at final dest
+      // GREEN should NOT be captured since abs 8 is a safe square
+      expect(state.players.p2.tokens[0].stepsFromStart).toBe(48);
+      expect(state.players.p2.tokens[0].state).toBe('active');
     });
 
     it('should grant extra turn on rolling a 6', () => {
@@ -303,15 +279,15 @@ describe('LudoEngine', () => {
       );
       state.players.p1.tokens[0].stepsFromStart = 10;
       state.players.p1.tokens[0].state = 'active';
-      state.dice = [6, 3];
+      state.dice = 6;
       state.phase = LudoGamePhase.MOVING;
       state.turnState = {
-        availableMoves: [[{ tokenId: 0, steps: 9 }]],
+        availableMoves: [[{ tokenId: 0, steps: 6 }]],
         mustRollAgain: false,
         turnCanceled: false,
       };
 
-      const result = engine.moveToken(state, 'p1', [{ tokenId: 0, steps: 9 }]);
+      const result = engine.moveToken(state, 'p1', [{ tokenId: 0, steps: 6 }]);
       expect(result.valid).toBe(true);
       expect(result.extraTurn).toBe(true);
       expect(state.currentTurn).toBe('p1');
@@ -325,7 +301,7 @@ describe('LudoEngine', () => {
       );
       state.players.p1.tokens[0].stepsFromStart = 56; // needs 3 to finish
       state.players.p1.tokens[0].state = 'active';
-      state.dice = [1, 2];
+      state.dice = 3;
       state.phase = LudoGamePhase.MOVING;
       state.turnState = {
         availableMoves: [[{ tokenId: 0, steps: 3 }]],
@@ -355,7 +331,7 @@ describe('LudoEngine', () => {
       state.players.p1.finishedCount = 3;
       state.players.p1.tokens[3].stepsFromStart = 56;
       state.players.p1.tokens[3].state = 'active';
-      state.dice = [1, 2];
+      state.dice = 3;
       state.phase = LudoGamePhase.MOVING;
       state.turnState = {
         availableMoves: [[{ tokenId: 3, steps: 3 }]],

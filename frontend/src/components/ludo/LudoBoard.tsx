@@ -1,135 +1,44 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useMemo, useCallback, useRef, useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import type { LudoPlayerState, LudoMoveAction, LudoMoveRecord } from '@/shared';
 import { LudoColor, LUDO_START_POSITIONS, LUDO_SAFE_SQUARES, LUDO_BOARD_SIZE } from '@/shared';
 
 // ─── Board Geometry ───
-// The Ludo board is a 15×15 grid. Each cell is CELL_SIZE px.
-const CELL_SIZE = 36;
+const CELL_SIZE = 44;
 const BOARD_CELLS = 15;
 const BOARD_PX = CELL_SIZE * BOARD_CELLS;
 
-// Color palette
-const COLORS: Record<LudoColor, { bg: string; fill: string; light: string; token: string }> = {
-  [LudoColor.RED]: { bg: '#FF4C4C', fill: '#FF4C4C', light: '#FFD6D6', token: '#CC0000' },
-  [LudoColor.GREEN]: { bg: '#4CAF50', fill: '#4CAF50', light: '#D6FFD6', token: '#2E7D32' },
-  [LudoColor.YELLOW]: { bg: '#FFC107', fill: '#FFC107', light: '#FFF8D6', token: '#F57F17' },
-  [LudoColor.BLUE]: { bg: '#2196F3', fill: '#2196F3', light: '#D6EAFF', token: '#1565C0' },
+// All 4 colors always shown
+const ALL_COLORS: LudoColor[] = [LudoColor.RED, LudoColor.GREEN, LudoColor.YELLOW, LudoColor.BLUE];
+
+const COLORS: Record<LudoColor, { bg: string; fill: string; light: string; token: string; glow: string }> = {
+  [LudoColor.RED]: { bg: '#FF4C4C', fill: '#FF4C4C', light: '#FFD6D6', token: '#CC0000', glow: 'rgba(255,76,76,0.5)' },
+  [LudoColor.GREEN]: { bg: '#4CAF50', fill: '#4CAF50', light: '#D6FFD6', token: '#2E7D32', glow: 'rgba(76,175,80,0.5)' },
+  [LudoColor.YELLOW]: { bg: '#FFC107', fill: '#FFC107', light: '#FFF8D6', token: '#F57F17', glow: 'rgba(255,193,7,0.5)' },
+  [LudoColor.BLUE]: { bg: '#2196F3', fill: '#2196F3', light: '#D6EAFF', token: '#1565C0', glow: 'rgba(33,150,243,0.5)' },
 };
 
-/**
- * Map of absolute board position (0–51) to pixel coordinates on the 15×15 grid.
- * The track goes clockwise starting from Red's entry.
- */
-const TRACK_COORDS: [number, number][] = buildTrackCoordinates();
-
-function buildTrackCoordinates(): [number, number][] {
-  const coords: [number, number][] = [];
-
-  // The Ludo main track follows the cross-shaped path.
-  // We define it as 4 arms × 13 squares each = 52 squares.
-  // Grid coords are (col, row) where (0,0) is top-left.
-
-  // Segment 1: Red entry (top-left arm) — going up then right across top
-  // Pos 0: Red start square (col=1, row=6)
-  // Going up from (1,6) to (1,1), then right to (5,1), then down at (6,0)
-  const seg: [number, number][] = [
-    [1,6],[2,6],[3,6],[4,6],[5,6], // left to center-left (row 6)
-    [6,5],[6,4],[6,3],[6,2],[6,1],[6,0], // up along col 6
-    [7,0],[8,0], // across top
-    [8,1],[8,2],[8,3],[8,4],[8,5], // down along col 8
-    [9,6],[10,6],[11,6],[12,6],[13,6], // right along row 6
-    [13,7],[13,8], // down right corner
-    [12,8],[11,8],[10,8],[9,8], // left along row 8
-    [8,9],[8,10],[8,11],[8,12],[8,13],[8,14], // down along col 8
-    [7,14],[6,14], // across bottom
-    [6,13],[6,12],[6,11],[6,10],[6,9], // up along col 6
-    [5,8],[4,8],[3,8],[2,8],[1,8], // left along row 8
-    [0,8],[0,7],[0,6], // up-left corner + back to start area
-    [1,7], // This wraps back; but we stop at 52. Actually we need exactly 52.
-  ];
-
-  // The above manual approach is error-prone. Let me use a systematic approach.
-  // Clear and rebuild properly.
-  return buildSystematicTrack();
-}
+const TRACK_COORDS: [number, number][] = buildSystematicTrack();
 
 function buildSystematicTrack(): [number, number][] {
-  // Standard Ludo board track on a 15×15 grid
-  // The cross shape has paths of width 3 in each direction.
-  // Track squares are on the outer 2 columns/rows of each arm.
-
   const c: [number, number][] = [];
-
-  // Starting from Red's entry at position 0 = grid(1, 6), going clockwise
-  // Bottom of top-left arm, going right then up then across...
-
-  // Red's section (positions 0–12): Start bottom-left, go up, then right
-  c.push([1,6]);  // 0: Red start (safe)
-  c.push([2,6]);  // 1
-  c.push([3,6]);  // 2
-  c.push([4,6]);  // 3
-  c.push([5,6]);  // 4
-  c.push([6,5]);  // 5
-  c.push([6,4]);  // 6
-  c.push([6,3]);  // 7
-  c.push([6,2]);  // 8: safe
-  c.push([6,1]);  // 9
-  c.push([6,0]);  // 10
-  c.push([7,0]);  // 11
-  c.push([8,0]);  // 12
-
-  // Green's section (positions 13–25): Top-right, going down then left
-  c.push([8,1]);  // 13: Green start (safe)
-  c.push([8,2]);  // 14
-  c.push([8,3]);  // 15
-  c.push([8,4]);  // 16
-  c.push([8,5]);  // 17
-  c.push([9,6]);  // 18
-  c.push([10,6]); // 19
-  c.push([11,6]); // 20
-  c.push([12,6]); // 21: safe
-  c.push([13,6]); // 22
-  c.push([14,6]); // 23
-  c.push([14,7]); // 24
-  c.push([14,8]); // 25
-
-  // Yellow's section (positions 26–38): Bottom-right, going left then up
-  c.push([13,8]); // 26: Yellow start (safe)
-  c.push([12,8]); // 27
-  c.push([11,8]); // 28
-  c.push([10,8]); // 29
-  c.push([9,8]);  // 30
-  c.push([8,9]);  // 31
-  c.push([8,10]); // 32
-  c.push([8,11]); // 33
-  c.push([8,12]); // 34: safe
-  c.push([8,13]); // 35
-  c.push([8,14]); // 36
-  c.push([7,14]); // 37
-  c.push([6,14]); // 38
-
-  // Blue's section (positions 39–51): Bottom-left, going up then right
-  c.push([6,13]); // 39: Blue start (safe)
-  c.push([6,12]); // 40
-  c.push([6,11]); // 41
-  c.push([6,10]); // 42
-  c.push([6,9]);  // 43
-  c.push([5,8]);  // 44
-  c.push([4,8]);  // 45
-  c.push([3,8]);  // 46
-  c.push([2,8]);  // 47: safe
-  c.push([1,8]);  // 48
-  c.push([0,8]);  // 49
-  c.push([0,7]);  // 50
-  c.push([0,6]);  // 51
-
+  c.push([1,6]);c.push([2,6]);c.push([3,6]);c.push([4,6]);c.push([5,6]);
+  c.push([6,5]);c.push([6,4]);c.push([6,3]);c.push([6,2]);c.push([6,1]);c.push([6,0]);
+  c.push([7,0]);c.push([8,0]);
+  c.push([8,1]);c.push([8,2]);c.push([8,3]);c.push([8,4]);c.push([8,5]);
+  c.push([9,6]);c.push([10,6]);c.push([11,6]);c.push([12,6]);c.push([13,6]);c.push([14,6]);
+  c.push([14,7]);c.push([14,8]);
+  c.push([13,8]);c.push([12,8]);c.push([11,8]);c.push([10,8]);c.push([9,8]);
+  c.push([8,9]);c.push([8,10]);c.push([8,11]);c.push([8,12]);c.push([8,13]);c.push([8,14]);
+  c.push([7,14]);c.push([6,14]);
+  c.push([6,13]);c.push([6,12]);c.push([6,11]);c.push([6,10]);c.push([6,9]);
+  c.push([5,8]);c.push([4,8]);c.push([3,8]);c.push([2,8]);c.push([1,8]);c.push([0,8]);
+  c.push([0,7]);c.push([0,6]);
   return c;
 }
 
-/** Home column coordinates for each color (6 squares leading to center) */
 const HOME_COLUMNS: Record<LudoColor, [number, number][]> = {
   [LudoColor.RED]: [[1,7],[2,7],[3,7],[4,7],[5,7],[6,7]],
   [LudoColor.GREEN]: [[7,1],[7,2],[7,3],[7,4],[7,5],[7,6]],
@@ -137,12 +46,18 @@ const HOME_COLUMNS: Record<LudoColor, [number, number][]> = {
   [LudoColor.BLUE]: [[7,13],[7,12],[7,11],[7,10],[7,9],[7,8]],
 };
 
-/** Base positions for tokens in each color's base area (4 positions) */
 const BASE_POSITIONS: Record<LudoColor, [number, number][]> = {
   [LudoColor.RED]: [[1.5,1.5],[4.5,1.5],[1.5,4.5],[4.5,4.5]],
   [LudoColor.GREEN]: [[10.5,1.5],[13.5,1.5],[10.5,4.5],[13.5,4.5]],
   [LudoColor.YELLOW]: [[10.5,10.5],[13.5,10.5],[10.5,13.5],[13.5,13.5]],
   [LudoColor.BLUE]: [[1.5,10.5],[4.5,10.5],[1.5,13.5],[4.5,13.5]],
+};
+
+const BASE_RECTS: Record<LudoColor, { x: number; y: number; w: number; h: number }> = {
+  [LudoColor.RED]: { x: 0, y: 0, w: 6, h: 6 },
+  [LudoColor.GREEN]: { x: 9, y: 0, w: 6, h: 6 },
+  [LudoColor.YELLOW]: { x: 9, y: 9, w: 6, h: 6 },
+  [LudoColor.BLUE]: { x: 0, y: 9, w: 6, h: 6 },
 };
 
 function getAbsolutePosition(color: LudoColor, stepsFromStart: number): number {
@@ -151,41 +66,192 @@ function getAbsolutePosition(color: LudoColor, stepsFromStart: number): number {
   return (start + stepsFromStart - 1) % LUDO_BOARD_SIZE;
 }
 
-function getTokenPixelPosition(
-  token: { stepsFromStart: number; state: string; id: number },
-  color: LudoColor,
-): [number, number] {
-  // At base
-  if (token.stepsFromStart === 0) {
-    const basePos = BASE_POSITIONS[color][token.id];
+/** Get pixel position for any step value (exported for hop animation) */
+function getPixelForStep(step: number, color: LudoColor, tokenId: number): [number, number] {
+  if (step === 0) {
+    const basePos = BASE_POSITIONS[color][tokenId];
     return [basePos[0] * CELL_SIZE, basePos[1] * CELL_SIZE];
   }
-
-  // Finished (at center)
-  if (token.stepsFromStart >= LUDO_BOARD_SIZE + 7) {
+  if (step >= LUDO_BOARD_SIZE + 7) {
     const offsets = [[-0.3,-0.3],[0.3,-0.3],[-0.3,0.3],[0.3,0.3]];
-    const o = offsets[token.id];
+    const o = offsets[tokenId];
     return [(7 + o[0]) * CELL_SIZE, (7 + o[1]) * CELL_SIZE];
   }
-
-  // On home column (steps 53–58 -> index 0–5)
-  if (token.stepsFromStart > LUDO_BOARD_SIZE) {
-    const homeIdx = token.stepsFromStart - LUDO_BOARD_SIZE - 1;
+  if (step > LUDO_BOARD_SIZE) {
+    const homeIdx = step - LUDO_BOARD_SIZE - 1;
     const homeCoords = HOME_COLUMNS[color];
     if (homeIdx >= 0 && homeIdx < homeCoords.length) {
       const [cx, cy] = homeCoords[homeIdx];
       return [(cx + 0.5) * CELL_SIZE, (cy + 0.5) * CELL_SIZE];
     }
   }
-
-  // On main track
-  const absPos = getAbsolutePosition(color, token.stepsFromStart);
+  const absPos = getAbsolutePosition(color, step);
   if (absPos >= 0 && absPos < TRACK_COORDS.length) {
     const [cx, cy] = TRACK_COORDS[absPos];
     return [(cx + 0.5) * CELL_SIZE, (cy + 0.5) * CELL_SIZE];
   }
-
   return [7.5 * CELL_SIZE, 7.5 * CELL_SIZE];
+}
+
+const HOP_STEP_DURATION = 0.1; // seconds per hop step
+
+/** Hopping token component — animates through intermediate squares */
+function HoppingToken({
+  token,
+  color,
+  isMovable,
+  isSelected,
+  colorDef,
+  pawnH,
+  onClick,
+}: {
+  token: { id: number; stepsFromStart: number; state: string };
+  color: LudoColor;
+  isMovable: boolean;
+  isSelected: boolean;
+  colorDef: typeof COLORS[LudoColor];
+  pawnH: number;
+  onClick: () => void;
+}) {
+  const prevStepsRef = useRef(token.stepsFromStart);
+  const [animPos, setAnimPos] = useState(() => getPixelForStep(token.stepsFromStart, color, token.id));
+  const animatingRef = useRef(false);
+
+  useEffect(() => {
+    const prevSteps = prevStepsRef.current;
+    const newSteps = token.stepsFromStart;
+    prevStepsRef.current = newSteps;
+
+    if (prevSteps === newSteps || animatingRef.current) {
+      // No change or already animating — just jump
+      setAnimPos(getPixelForStep(newSteps, color, token.id));
+      return;
+    }
+
+    // Token sent back to base (captured)
+    if (newSteps === 0 && prevSteps > 0) {
+      setAnimPos(getPixelForStep(0, color, token.id));
+      return;
+    }
+
+    // Entering from base: jump from base to step 1 position
+    if (prevSteps === 0 && newSteps >= 1) {
+      // Animate: base → step 1 → ... → newSteps
+      const waypoints: [number, number][] = [];
+      for (let s = 1; s <= newSteps; s++) {
+        waypoints.push(getPixelForStep(s, color, token.id));
+      }
+      animateWaypoints(waypoints);
+      return;
+    }
+
+    // Normal forward movement: step through each cell
+    if (newSteps > prevSteps) {
+      const waypoints: [number, number][] = [];
+      for (let s = prevSteps + 1; s <= newSteps; s++) {
+        waypoints.push(getPixelForStep(s, color, token.id));
+      }
+      animateWaypoints(waypoints);
+      return;
+    }
+
+    // Fallback — just set position
+    setAnimPos(getPixelForStep(newSteps, color, token.id));
+  }, [token.stepsFromStart, color, token.id]);
+
+  function animateWaypoints(waypoints: [number, number][]) {
+    if (waypoints.length === 0) return;
+    animatingRef.current = true;
+    let i = 0;
+    const step = () => {
+      setAnimPos(waypoints[i]);
+      i++;
+      if (i < waypoints.length) {
+        setTimeout(step, HOP_STEP_DURATION * 1000);
+      } else {
+        animatingRef.current = false;
+      }
+    };
+    step();
+  }
+
+  const c = colorDef;
+
+  return (
+    <motion.g
+      onClick={onClick}
+      style={{ cursor: isMovable ? 'pointer' : 'default' }}
+      animate={{ x: animPos[0], y: animPos[1] }}
+      transition={{ type: 'tween', duration: HOP_STEP_DURATION, ease: 'easeOut' }}
+    >
+      {isMovable && (
+        <circle
+          cx={0}
+          cy={pawnH * 0.1}
+          r={CELL_SIZE * 0.48}
+          fill="none"
+          stroke={c.bg}
+          strokeWidth={2.5}
+          opacity={0.7}
+          className="ludo-pulse"
+        />
+      )}
+      {isSelected && (
+        <circle
+          cx={0}
+          cy={pawnH * 0.1}
+          r={CELL_SIZE * 0.5}
+          fill="none"
+          stroke="#fff"
+          strokeWidth={2.5}
+          opacity={0.9}
+          filter="url(#glow)"
+        />
+      )}
+      <g filter="url(#tokenShadow)">
+        <ellipse
+          cx={0}
+          cy={pawnH * 0.42}
+          rx={pawnH * 0.38}
+          ry={pawnH * 0.14}
+          fill={c.token}
+        />
+        <path
+          d={`M ${-pawnH * 0.28} ${pawnH * 0.38} Q ${-pawnH * 0.18} ${-pawnH * 0.05} 0 ${-pawnH * 0.15} Q ${pawnH * 0.18} ${-pawnH * 0.05} ${pawnH * 0.28} ${pawnH * 0.38} Z`}
+          fill={c.bg}
+        />
+        <circle
+          cx={0}
+          cy={-pawnH * 0.28}
+          r={pawnH * 0.2}
+          fill={c.bg}
+        />
+        <circle
+          cx={-pawnH * 0.06}
+          cy={-pawnH * 0.34}
+          r={pawnH * 0.07}
+          fill="#fff"
+          opacity={0.4}
+        />
+        <path
+          d={`M ${-pawnH * 0.08} ${pawnH * 0.3} Q ${-pawnH * 0.04} ${pawnH * 0.05} 0 ${-pawnH * 0.1} Q ${pawnH * 0.04} ${pawnH * 0.05} ${pawnH * 0.08} ${pawnH * 0.3} Z`}
+          fill="#fff"
+          opacity={0.15}
+        />
+      </g>
+      <text
+        x={0}
+        y={pawnH * 0.2}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize="11"
+        fontWeight="bold"
+        fill="#fff"
+      >
+        {token.id + 1}
+      </text>
+    </motion.g>
+  );
 }
 
 // ─── Component Props ───
@@ -213,25 +279,14 @@ export function LudoBoard({
   selectedTokenId,
   onTokenSelect,
 }: LudoBoardProps) {
-  // Find which tokens can be moved
   const movableTokenIds = useMemo(() => {
     if (!availableMoves || availableMoves.length === 0) return new Set<number>();
     const ids = new Set<number>();
     for (const combo of availableMoves) {
-      for (const action of combo) {
-        ids.add(action.tokenId);
-      }
+      for (const action of combo) ids.add(action.tokenId);
     }
     return ids;
   }, [availableMoves]);
-
-  // Get moves for a selected token
-  const movesForToken = useMemo(() => {
-    if (selectedTokenId == null || !availableMoves) return [];
-    return availableMoves.filter((combo) =>
-      combo.some((a) => a.tokenId === selectedTokenId),
-    );
-  }, [selectedTokenId, availableMoves]);
 
   const handleTokenClick = useCallback(
     (playerId: string, tokenId: number) => {
@@ -240,16 +295,12 @@ export function LudoBoard({
       if (!myPlayer || playerId !== myPlayer.id) return;
       if (!movableTokenIds.has(tokenId)) return;
 
-      // If clicking same token, deselect
       if (selectedTokenId === tokenId) {
         onTokenSelect?.(null);
         return;
       }
-
-      // Select this token
       onTokenSelect?.(tokenId);
 
-      // If only one move combo involves this token, auto-execute
       const tokenMoves = availableMoves?.filter((combo) =>
         combo.some((a) => a.tokenId === tokenId),
       );
@@ -262,6 +313,10 @@ export function LudoBoard({
   );
 
   const myPlayer = players.find((p) => p.color === myColor);
+  // Build a set of active player colors for dimming inactive zones
+  const activeColors = useMemo(() => new Set(players.map((p) => p.color)), [players]);
+
+  const pawnH = CELL_SIZE * 0.75;
 
   return (
     <div className="inline-block">
@@ -269,35 +324,67 @@ export function LudoBoard({
         viewBox={`0 0 ${BOARD_PX} ${BOARD_PX}`}
         width="100%"
         style={{ maxWidth: BOARD_PX, maxHeight: BOARD_PX }}
-        className="select-none"
+        className="select-none drop-shadow-2xl"
       >
-        {/* Background */}
-        <rect width={BOARD_PX} height={BOARD_PX} fill="#1a1a2e" rx="8" />
+        <defs>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          <filter id="tokenShadow">
+            <feDropShadow dx="0" dy="1" stdDeviation="1.5" floodOpacity="0.4" />
+          </filter>
+        </defs>
 
-        {/* Base areas (4 colored squares in corners) */}
-        {players.map((p) => {
-          const c = COLORS[p.color];
-          const baseRect = BASE_RECTS[p.color];
+        {/* Background */}
+        <rect width={BOARD_PX} height={BOARD_PX} fill="#0f0f1e" rx="12" />
+        <rect width={BOARD_PX} height={BOARD_PX} fill="none" stroke="#ffffff10" strokeWidth="2" rx="12" />
+
+        {/* All 4 base areas always shown */}
+        {ALL_COLORS.map((color) => {
+          const c = COLORS[color];
+          const baseRect = BASE_RECTS[color];
+          const isActive = activeColors.has(color);
           return (
-            <g key={p.color}>
+            <g key={color} opacity={isActive ? 1 : 0.3}>
               <rect
-                x={baseRect.x * CELL_SIZE}
-                y={baseRect.y * CELL_SIZE}
-                width={baseRect.w * CELL_SIZE}
-                height={baseRect.h * CELL_SIZE}
+                x={baseRect.x * CELL_SIZE + 2}
+                y={baseRect.y * CELL_SIZE + 2}
+                width={baseRect.w * CELL_SIZE - 4}
+                height={baseRect.h * CELL_SIZE - 4}
                 fill={c.bg}
-                opacity={0.2}
+                opacity={0.15}
+                rx="10"
+              />
+              <rect
+                x={(baseRect.x + 0.8) * CELL_SIZE}
+                y={(baseRect.y + 0.8) * CELL_SIZE}
+                width={(baseRect.w - 1.6) * CELL_SIZE}
+                height={(baseRect.h - 1.6) * CELL_SIZE}
+                fill={c.bg}
+                opacity={0.08}
                 rx="8"
+                stroke={c.bg}
+                strokeWidth="1"
+                strokeOpacity={0.3}
               />
-              <rect
-                x={(baseRect.x + 0.5) * CELL_SIZE}
-                y={(baseRect.y + 0.5) * CELL_SIZE}
-                width={(baseRect.w - 1) * CELL_SIZE}
-                height={(baseRect.h - 1) * CELL_SIZE}
-                fill={c.bg}
-                opacity={0.1}
-                rx="6"
-              />
+              {/* Base token slots */}
+              {BASE_POSITIONS[color].map(([bx, by], i) => (
+                <circle
+                  key={i}
+                  cx={bx * CELL_SIZE}
+                  cy={by * CELL_SIZE}
+                  r={CELL_SIZE * 0.35}
+                  fill={c.bg}
+                  opacity={0.12}
+                  stroke={c.bg}
+                  strokeWidth="1"
+                  strokeOpacity={0.2}
+                />
+              ))}
             </g>
           );
         })}
@@ -305,7 +392,6 @@ export function LudoBoard({
         {/* Track squares */}
         {TRACK_COORDS.map(([cx, cy], i) => {
           const isSafe = LUDO_SAFE_SQUARES.includes(i);
-          // Determine if this is a start square for any color
           const startColor = Object.entries(LUDO_START_POSITIONS).find(
             ([, pos]) => pos === i,
           );
@@ -318,10 +404,10 @@ export function LudoBoard({
                 y={cy * CELL_SIZE + 1}
                 width={CELL_SIZE - 2}
                 height={CELL_SIZE - 2}
-                fill={trackColor ? trackColor.light : '#2a2a4a'}
-                stroke={trackColor ? trackColor.bg : '#3a3a5a'}
+                fill={trackColor ? trackColor.light : '#1a1a35'}
+                stroke={trackColor ? trackColor.bg : '#252545'}
                 strokeWidth={1}
-                rx="3"
+                rx="4"
               />
               {isSafe && (
                 <text
@@ -329,9 +415,9 @@ export function LudoBoard({
                   y={(cy + 0.5) * CELL_SIZE}
                   textAnchor="middle"
                   dominantBaseline="central"
-                  fontSize="14"
-                  fill={trackColor ? trackColor.bg : '#666'}
-                  opacity={0.6}
+                  fontSize="16"
+                  fill={trackColor ? trackColor.bg : '#555'}
+                  opacity={0.7}
                 >
                   ★
                 </text>
@@ -340,128 +426,76 @@ export function LudoBoard({
           );
         })}
 
-        {/* Home columns */}
-        {players.map((p) => {
-          const c = COLORS[p.color];
-          const cols = HOME_COLUMNS[p.color];
+        {/* All 4 home columns always shown */}
+        {ALL_COLORS.map((color) => {
+          const c = COLORS[color];
+          const cols = HOME_COLUMNS[color];
+          const isActive = activeColors.has(color);
           return cols.map(([cx, cy], i) => (
             <rect
-              key={`home-${p.color}-${i}`}
+              key={`home-${color}-${i}`}
               x={cx * CELL_SIZE + 1}
               y={cy * CELL_SIZE + 1}
               width={CELL_SIZE - 2}
               height={CELL_SIZE - 2}
               fill={c.bg}
-              opacity={0.3 + i * 0.1}
-              rx="3"
+              opacity={isActive ? 0.3 + i * 0.08 : 0.1}
+              rx="4"
             />
           ));
         })}
 
-        {/* Center home triangle */}
+        {/* Center home */}
         <rect
-          x={6.5 * CELL_SIZE}
-          y={6.5 * CELL_SIZE}
-          width={2 * CELL_SIZE}
-          height={2 * CELL_SIZE}
-          fill="#2a2a4a"
-          stroke="#4a4a6a"
+          x={6.25 * CELL_SIZE}
+          y={6.25 * CELL_SIZE}
+          width={2.5 * CELL_SIZE}
+          height={2.5 * CELL_SIZE}
+          fill="#1a1a35"
+          stroke="#ffffff15"
           strokeWidth={2}
-          rx="4"
+          rx="6"
         />
-        {/* Center color triangles */}
-        {players.map((p, idx) => {
-          const c = COLORS[p.color];
+        {ALL_COLORS.map((color, idx) => {
+          const c = COLORS[color];
           const cx = 7.5 * CELL_SIZE;
           const cy = 7.5 * CELL_SIZE;
-          const r = 0.9 * CELL_SIZE;
-          const angle = (idx * Math.PI * 2) / players.length - Math.PI / 2;
-          const nextAngle = ((idx + 1) * Math.PI * 2) / players.length - Math.PI / 2;
+          const r = 1.1 * CELL_SIZE;
+          const angle = (idx * Math.PI * 2) / 4 - Math.PI / 2;
+          const nextAngle = ((idx + 1) * Math.PI * 2) / 4 - Math.PI / 2;
           const x1 = cx + r * Math.cos(angle);
           const y1 = cy + r * Math.sin(angle);
           const x2 = cx + r * Math.cos(nextAngle);
           const y2 = cy + r * Math.sin(nextAngle);
           return (
             <polygon
-              key={`center-${p.color}`}
+              key={`center-${color}`}
               points={`${cx},${cy} ${x1},${y1} ${x2},${y2}`}
               fill={c.bg}
-              opacity={0.4}
+              opacity={activeColors.has(color) ? 0.35 : 0.1}
             />
           );
         })}
 
-        {/* Tokens */}
+        {/* Tokens — Pawn shapes with hop animation */}
         {players.map((p) => {
           const c = COLORS[p.color];
           return p.tokens.map((token) => {
-            const [px, py] = getTokenPixelPosition(token, p.color);
             const isMovable =
               myPlayer?.id === p.id && movableTokenIds.has(token.id) && !disabled;
             const isSelected = selectedTokenId === token.id && myPlayer?.id === p.id;
-            const isCurrentPlayer = p.id === currentTurn;
 
             return (
-              <g
+              <HoppingToken
                 key={`token-${p.id}-${token.id}`}
+                token={token}
+                color={p.color}
+                isMovable={isMovable}
+                isSelected={isSelected}
+                colorDef={c}
+                pawnH={pawnH}
                 onClick={() => handleTokenClick(p.id, token.id)}
-                style={{ cursor: isMovable ? 'pointer' : 'default' }}
-              >
-                {/* Pulse animation for movable tokens */}
-                {isMovable && (
-                  <circle
-                    cx={px}
-                    cy={py}
-                    r={CELL_SIZE * 0.42}
-                    fill="none"
-                    stroke={c.bg}
-                    strokeWidth={2}
-                    opacity={0.6}
-                    className="ludo-pulse"
-                  />
-                )}
-                {/* Selection ring */}
-                {isSelected && (
-                  <circle
-                    cx={px}
-                    cy={py}
-                    r={CELL_SIZE * 0.45}
-                    fill="none"
-                    stroke="#fff"
-                    strokeWidth={2.5}
-                    opacity={0.9}
-                  />
-                )}
-                {/* Token body */}
-                <circle
-                  cx={px}
-                  cy={py}
-                  r={CELL_SIZE * 0.35}
-                  fill={c.token}
-                  stroke={isMovable ? '#fff' : c.bg}
-                  strokeWidth={isMovable ? 2 : 1.5}
-                />
-                {/* Token inner circle */}
-                <circle
-                  cx={px}
-                  cy={py}
-                  r={CELL_SIZE * 0.18}
-                  fill={c.bg}
-                  opacity={0.8}
-                />
-                {/* Token number (for accessibility) */}
-                <text
-                  x={px}
-                  y={py}
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                  fontSize="10"
-                  fontWeight="bold"
-                  fill="#fff"
-                >
-                  {token.id + 1}
-                </text>
-              </g>
+              />
             );
           });
         })}
@@ -469,11 +503,3 @@ export function LudoBoard({
     </div>
   );
 }
-
-// Base area rectangles (in grid units)
-const BASE_RECTS: Record<LudoColor, { x: number; y: number; w: number; h: number }> = {
-  [LudoColor.RED]: { x: 0, y: 0, w: 6, h: 6 },
-  [LudoColor.GREEN]: { x: 9, y: 0, w: 6, h: 6 },
-  [LudoColor.YELLOW]: { x: 9, y: 9, w: 6, h: 6 },
-  [LudoColor.BLUE]: { x: 0, y: 9, w: 6, h: 6 },
-};

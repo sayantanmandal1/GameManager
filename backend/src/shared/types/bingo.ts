@@ -59,4 +59,5 @@ export interface BingoWinResult {
   winnerId: string;
   winnerName: string;
   completedLines: Record<string, number>;
+  surrenderedBy?: string;
 }
