@@ -10,7 +10,7 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { GameService } from './game.service';
 import { getSocketUser } from '../auth/ws-jwt.guard';
-import { GAME_EVENTS, BINGO_EVENTS } from '../shared';
+import { GAME_EVENTS, BINGO_EVENTS, LUDO_EVENTS, GameType, LudoMoveAction } from '../shared';
 
 @WebSocketGateway({ cors: { origin: '*' } })
 export class GameGateway implements OnGatewayInit {
@@ -38,6 +38,25 @@ export class GameGateway implements OnGatewayInit {
         completedLines: result.completedLines,
       });
     };
+
+    // Ludo callbacks
+    this.gameService.onLudoStateChanged = (gameId, lobbyCode) => {
+      this.broadcastLudoPlayerViews(gameId, lobbyCode);
+    };
+
+    this.gameService.onLudoGameFinished = (gameId, lobbyCode, result) => {
+      this.broadcastLudoPlayerViews(gameId, lobbyCode);
+      this.server.to(`game:${lobbyCode}`).emit(GAME_EVENTS.RESULT, {
+        gameId,
+        winnerId: result.winnerId,
+        winnerName: result.winnerName,
+        rankings: result.rankings,
+      });
+    };
+
+    this.gameService.onBotTurnNeeded = (gameId, lobbyCode, botId) => {
+      this.scheduleBotTurn(gameId, lobbyCode);
+    };
   }
 
   /** Client requests current game state (e.g. after navigating to play page) */
@@ -58,9 +77,17 @@ export class GameGateway implements OnGatewayInit {
     // Ensure client is in the game room
     client.join(`game:${data.lobbyCode}`);
 
-    const view = this.gameService.getPlayerView(gameId, user.sub);
-    if (view) {
-      client.emit(GAME_EVENTS.STATE, { gameId, view });
+    const gameType = this.gameService.getGameTypeForLobby(data.lobbyCode);
+    if (gameType === GameType.LUDO) {
+      const view = this.gameService.getLudoPlayerView(gameId, user.sub);
+      if (view) {
+        client.emit(GAME_EVENTS.STATE, { gameId, view, gameType: GameType.LUDO });
+      }
+    } else {
+      const view = this.gameService.getPlayerView(gameId, user.sub);
+      if (view) {
+        client.emit(GAME_EVENTS.STATE, { gameId, view });
+      }
     }
   }
 
@@ -145,5 +172,80 @@ export class GameGateway implements OnGatewayInit {
         }
       }
     }
+  }
+
+  // ─── Ludo-Specific Handlers ───
+
+  @SubscribeMessage(LUDO_EVENTS.ROLL_DICE)
+  handleLudoRollDice(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { gameId: string; lobbyCode: string },
+  ): void {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+
+    const result = this.gameService.ludoRollDice(
+      data.gameId,
+      user.sub,
+      data.lobbyCode,
+    );
+
+    if (!result.ok) {
+      client.emit(GAME_EVENTS.ERROR, { message: result.error });
+    }
+  }
+
+  @SubscribeMessage(LUDO_EVENTS.MOVE_TOKEN)
+  async handleLudoMoveToken(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { gameId: string; lobbyCode: string; moves: LudoMoveAction[] },
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+
+    const result = await this.gameService.ludoMoveToken(
+      data.gameId,
+      user.sub,
+      data.moves,
+      data.lobbyCode,
+    );
+
+    if (!result.ok) {
+      client.emit(GAME_EVENTS.ERROR, { message: result.error });
+    }
+  }
+
+  private async broadcastLudoPlayerViews(
+    gameId: string,
+    lobbyCode: string,
+  ): Promise<void> {
+    const gameRoom = `game:${lobbyCode}`;
+    const sockets = await this.server.in(gameRoom).fetchSockets();
+
+    for (const s of sockets) {
+      const sUser = s.data?.user;
+      if (sUser) {
+        const view = this.gameService.getLudoPlayerView(gameId, sUser.sub);
+        if (view) {
+          s.emit(GAME_EVENTS.STATE, { gameId, view, gameType: GameType.LUDO });
+        }
+      }
+    }
+  }
+
+  /** Schedule bot turns with delays for realistic pacing */
+  private scheduleBotTurn(gameId: string, lobbyCode: string): void {
+    setTimeout(() => {
+      const records = this.gameService.executeLudoBotTurn(gameId, lobbyCode);
+
+      // After bot turn, check if next player is also a bot
+      const state = this.gameService.getLudoState(gameId);
+      if (state && state.phase !== 'finished') {
+        const nextPlayer = state.players[state.currentTurn];
+        if (nextPlayer?.isBot) {
+          this.scheduleBotTurn(gameId, lobbyCode);
+        }
+      }
+    }, 800);
   }
 }

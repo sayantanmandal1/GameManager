@@ -56,3 +56,61 @@ body {
 .glow-button:hover::before {
   opacity: 0.2;
 }
+
+/* ─── Ludo Styles ─── */
+
+/* Token pulse animation for movable tokens */
+.ludo-pulse {
+  animation: ludo-pulse-ring 1.5s ease-in-out infinite;
+}
+
+@keyframes ludo-pulse-ring {
+  0%, 100% { r: 13; opacity: 0.6; }
+  50% { r: 16; opacity: 0.2; }
+}
+
+/* Dice shake animation */
+@keyframes dice-shake {
+  0%, 100% { transform: rotate(0deg); }
+  10% { transform: rotate(-15deg); }
+  20% { transform: rotate(15deg); }
+  30% { transform: rotate(-10deg); }
+  40% { transform: rotate(10deg); }
+  50% { transform: rotate(-5deg); }
+  60% { transform: rotate(5deg); }
+  70% { transform: rotate(-2deg); }
+  80% { transform: rotate(2deg); }
+  90% { transform: rotate(0deg); }
+}
+
+.dice-rolling {
+  animation: dice-shake 0.4s ease-in-out infinite;
+}
+
+/* Token capture shake */
+@keyframes capture-shake {
+  0%, 100% { transform: translateX(0); }
+  10% { transform: translateX(-4px); }
+  20% { transform: translateX(4px); }
+  30% { transform: translateX(-3px); }
+  40% { transform: translateX(3px); }
+  50% { transform: translateX(-2px); }
+  60% { transform: translateX(2px); }
+  70% { transform: translateX(-1px); }
+  80% { transform: translateX(1px); }
+}
+
+.ludo-capture {
+  animation: capture-shake 0.5s ease-in-out;
+}
+
+/* Token home arrival glow */
+@keyframes home-glow {
+  0% { filter: brightness(1); }
+  50% { filter: brightness(1.8) drop-shadow(0 0 8px currentColor); }
+  100% { filter: brightness(1); }
+}
+
+.ludo-home-arrive {
+  animation: home-glow 0.8s ease-in-out;
+}

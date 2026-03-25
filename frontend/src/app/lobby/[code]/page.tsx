@@ -11,8 +11,9 @@ import { VoiceChat } from '@/components/voice/VoiceChat';
 import { useAuthStore } from '@/stores/authStore';
 import { useLobbyStore } from '@/stores/lobbyStore';
 import { useGameStore } from '@/stores/gameStore';
+import { useLudoStore } from '@/stores/ludoStore';
 import { useSocket } from '@/hooks/useSocket';
-import { LOBBY_EVENTS } from '@/shared';
+import { LOBBY_EVENTS, GameType } from '@/shared';
 import { getSocket } from '@/lib/socket';
 
 export default function LobbyPage() {
@@ -24,6 +25,7 @@ export default function LobbyPage() {
   const { lobby, joinLobby, leaveLobby, setReady, startGame, initListeners } =
     useLobbyStore();
   const { initListeners: initGameListeners, reset: resetGame } = useGameStore();
+  const { initListeners: initLudoListeners, reset: resetLudo } = useLudoStore();
   const [copied, setCopied] = useState(false);
   const { isConnected } = useSocket();
 
@@ -36,9 +38,11 @@ export default function LobbyPage() {
     if (!isConnected) return;
 
     resetGame();
+    resetLudo();
 
     const cleanupLobby = initListeners();
     const cleanupGame = initGameListeners();
+    const cleanupLudo = initLudoListeners();
 
     // Re-join lobby to ensure socket is in the room (handles page refresh)
     joinLobby(code);
@@ -46,16 +50,22 @@ export default function LobbyPage() {
     // Listen for game starting to navigate
     const socket = getSocket();
     const onGameStarting = () => {
-      router.push(`/games/bingo/play?lobby=${code}`);
+      const gameType = lobby?.gameType;
+      if (gameType === GameType.LUDO) {
+        router.push(`/games/ludo/play?lobby=${code}`);
+      } else {
+        router.push(`/games/bingo/play?lobby=${code}`);
+      }
     };
     socket?.on(LOBBY_EVENTS.GAME_STARTING, onGameStarting);
 
     return () => {
       cleanupLobby();
       cleanupGame();
+      cleanupLudo();
       socket?.off(LOBBY_EVENTS.GAME_STARTING, onGameStarting);
     };
-  }, [isAuthenticated, isConnected, router, code, initListeners, initGameListeners, resetGame, joinLobby]);
+  }, [isAuthenticated, isConnected, router, code, initListeners, initGameListeners, initLudoListeners, resetGame, resetLudo, joinLobby, lobby?.gameType]);
 
   const isHost = lobby?.hostId === user?.id;
   const currentPlayer = lobby?.players.find((p) => p.id === user?.id);
@@ -73,7 +83,12 @@ export default function LobbyPage() {
 
   const handleLeave = () => {
     leaveLobby();
-    router.push('/games/bingo');
+    const gameType = lobby?.gameType;
+    if (gameType === GameType.LUDO) {
+      router.push('/games/ludo');
+    } else {
+      router.push('/games/bingo');
+    }
   };
 
   if (!lobby) {

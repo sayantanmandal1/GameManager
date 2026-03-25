@@ -181,8 +181,15 @@ export class LobbyGateway
         return;
       }
 
-      // Start the game directly on the server
-      const { gameId } = await this.gameService.startBingoGame(code);
+      // Start the game based on game type
+      let gameId: string;
+      if (lobby.gameType === GameType.LUDO) {
+        const result = await this.gameService.startLudoGame(code);
+        gameId = result.gameId;
+      } else {
+        const result = await this.gameService.startBingoGame(code);
+        gameId = result.gameId;
+      }
 
       // Move all lobby sockets to the game room and send each player their view
       const lobbyRoom = `lobby:${code}`;
@@ -193,9 +200,18 @@ export class LobbyGateway
         s.join(gameRoom);
         const sUser = s.data?.user;
         if (sUser) {
-          const view = this.gameService.getPlayerView(gameId, sUser.sub);
+          let view;
+          if (lobby.gameType === GameType.LUDO) {
+            view = this.gameService.getLudoPlayerView(gameId, sUser.sub);
+          } else {
+            view = this.gameService.getPlayerView(gameId, sUser.sub);
+          }
           if (view) {
-            s.emit(GAME_EVENTS.STATE, { gameId, view });
+            s.emit(GAME_EVENTS.STATE, {
+              gameId,
+              view,
+              ...(lobby.gameType === GameType.LUDO ? { gameType: GameType.LUDO } : {}),
+            });
           }
         }
       }

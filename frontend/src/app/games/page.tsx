@@ -31,8 +31,8 @@ const GAMES = [
     name: 'Ludo',
     emoji: '🎲',
     description: 'Race your tokens to the finish line!',
-    available: false,
-    href: '#',
+    available: true,
+    href: '/games/ludo',
     gradient: 'from-green-500 to-emerald-600',
   },
   {

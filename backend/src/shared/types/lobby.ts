@@ -6,6 +6,7 @@ export enum LobbyStatus {
 
 export enum GameType {
   BINGO = 'bingo',
+  LUDO = 'ludo',
 }
 
 export interface LobbyPlayer {

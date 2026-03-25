@@ -28,6 +28,13 @@ export const BINGO_EVENTS = {
   RANDOMIZE_BOARD: 'bingo:randomize_board',
 } as const;
 
+export const LUDO_EVENTS = {
+  ROLL_DICE: 'ludo:roll_dice',
+  MOVE_TOKEN: 'ludo:move_token',
+  ADD_BOT: 'ludo:add_bot',
+  REMOVE_BOT: 'ludo:remove_bot',
+} as const;
+
 export const VOICE_EVENTS = {
   JOIN: 'voice:join',
   LEAVE: 'voice:leave',
