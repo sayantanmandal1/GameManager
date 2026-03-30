@@ -256,12 +256,12 @@ export default function OfflineLudoPage() {
         <div className="max-w-md w-full">
           <button
             onClick={() => router.push('/games/ludo')}
-            className="text-sm text-game-muted hover:text-white transition-colors mb-6 block"
+            className="text-sm text-white/40 hover:text-white transition-colors mb-6 block"
           >
             ← Back
           </button>
           <h1 className="text-3xl font-black text-white mb-2 text-center">🎲 Offline Ludo</h1>
-          <p className="text-game-muted text-center mb-8">
+          <p className="text-white/40 text-center mb-8">
             Play against AI bots
           </p>
 
@@ -281,7 +281,7 @@ export default function OfflineLudoPage() {
                 <h3 className="font-bold text-white text-lg mb-1">
                   {count} Players
                 </h3>
-                <p className="text-sm text-game-muted">
+                <p className="text-sm text-white/40">
                   You + {count - 1} Bot{count > 2 ? 's' : ''}
                 </p>
               </Card>
@@ -295,7 +295,7 @@ export default function OfflineLudoPage() {
   if (!state || !view) {
     return (
       <main className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-white/40 border-t-transparent rounded-full animate-spin" />
       </main>
     );
   }
@@ -312,7 +312,7 @@ export default function OfflineLudoPage() {
         <div className="flex items-center justify-between mb-4">
           <button
             onClick={() => router.push('/games/ludo')}
-            className="text-sm text-game-muted hover:text-white transition-colors"
+            className="text-sm text-white/40 hover:text-white transition-colors"
           >
             ← Back
           </button>
@@ -333,8 +333,8 @@ export default function OfflineLudoPage() {
               <span
                 className={`inline-block px-4 py-2 rounded-full text-sm font-bold ${
                   isMyTurn
-                    ? 'bg-primary/20 text-primary border border-primary/50'
-                    : 'bg-game-card text-game-muted border border-game-border'
+                    ? 'bg-white/[0.08] text-white border border-white/20'
+                    : 'bg-white/[0.03] text-white/40 border border-white/[0.06]'
                 }`}
               >
                 {isMyTurn
@@ -384,7 +384,7 @@ export default function OfflineLudoPage() {
             {/* Leave / Surrender */}
             {!isFinished && (
               <Button
-                className="w-full bg-red-600/20 border border-red-500/40 text-red-400 hover:bg-red-600/30"
+                className="w-full bg-white/[0.04] border border-white/[0.08] text-white/40 hover:bg-white/[0.08] hover:text-white"
                 onClick={() => setShowLeaveConfirm(true)}
               >
                 🚪 Back to Menu
@@ -411,18 +411,18 @@ export default function OfflineLudoPage() {
             >
               <div className="text-4xl mb-3">⚠️</div>
               <h3 className="text-xl font-bold text-white mb-2">Leave Game?</h3>
-              <p className="text-game-muted text-sm mb-5">
+              <p className="text-white/40 text-sm mb-5">
                 Leaving will end the current game. Your progress will be lost.
               </p>
               <div className="flex gap-3 justify-center">
                 <Button
-                  className="bg-white/[0.05] border border-white/[0.1] text-white/50 hover:text-white"
+                  className="bg-white/[0.05] border border-white/[0.08] text-white/50 hover:text-white"
                   onClick={() => setShowLeaveConfirm(false)}
                 >
                   Cancel
                 </Button>
                 <Button
-                  className="bg-red-600 hover:bg-red-700 text-white"
+                  className="bg-white hover:bg-white/90 text-black"
                   onClick={handleSurrenderAndLeave}
                 >
                   Leave Game
@@ -462,7 +462,7 @@ export default function OfflineLudoPage() {
                   <div
                     key={pid}
                     className={`text-sm ${
-                      idx === 0 ? 'text-yellow-400 font-bold' : 'text-game-muted'
+                      idx === 0 ? 'text-white font-bold' : 'text-white/40'
                     }`}
                   >
                     {['🏆', '🥈', '🥉', '4th'][idx]} {state.players[pid]?.username}

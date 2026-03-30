@@ -119,17 +119,17 @@ export function GameChat({ lobbyCode }: GameChatProps) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
             transition={{ duration: 0.15 }}
-            className="bg-game-card/95 backdrop-blur-sm border border-game-border rounded-xl flex flex-col overflow-hidden"
+            className="bg-white/[0.04] backdrop-blur-sm border border-white/[0.06] rounded-xl flex flex-col overflow-hidden"
             style={{ height: '360px' }}
           >
             {/* Header */}
-            <div className="px-3 py-2 border-b border-game-border flex items-center justify-between">
+            <div className="px-3 py-2 border-b border-white/[0.06] flex items-center justify-between">
               <span className="text-xs font-semibold text-white uppercase tracking-wider">
                 Team Chat
               </span>
               <button
                 onClick={() => setIsExpanded(false)}
-                className="text-game-muted hover:text-white text-xs px-2 py-1 rounded hover:bg-game-bg transition-colors"
+                className="text-white/40 hover:text-white text-xs px-2 py-1 rounded hover:bg-black transition-colors"
               >
                 ESC
               </button>
@@ -138,7 +138,7 @@ export function GameChat({ lobbyCode }: GameChatProps) {
             {/* Messages */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-1.5">
               {messages.length === 0 && (
-                <p className="text-xs text-game-muted text-center mt-8 opacity-60">
+                <p className="text-xs text-white/40 text-center mt-8 opacity-60">
                   No messages yet
                 </p>
               )}
@@ -146,10 +146,10 @@ export function GameChat({ lobbyCode }: GameChatProps) {
                 const isMe = msg.userId === user?.id;
                 return (
                   <div key={`${msg.timestamp}-${i}`} className="text-sm leading-snug">
-                    <span className={`font-semibold ${isMe ? 'text-primary' : 'text-yellow-400'}`}>
+                    <span className={`font-semibold ${isMe ? 'text-white' : 'text-yellow-400'}`}>
                       {isMe ? 'You' : msg.username}
                     </span>
-                    <span className="text-game-muted mx-1">:</span>
+                    <span className="text-white/40 mx-1">:</span>
                     <span className="text-white/90 break-words">{msg.message}</span>
                   </div>
                 );
@@ -157,7 +157,7 @@ export function GameChat({ lobbyCode }: GameChatProps) {
             </div>
 
             {/* Input */}
-            <div className="p-2 border-t border-game-border">
+            <div className="p-2 border-t border-white/[0.06]">
               <input
                 ref={inputRef}
                 type="text"
@@ -166,7 +166,7 @@ export function GameChat({ lobbyCode }: GameChatProps) {
                 onKeyDown={handleKeyDown}
                 placeholder="Type a message… (Enter to send, Esc to close)"
                 maxLength={500}
-                className="w-full px-3 py-2 bg-game-bg/80 border border-game-border rounded-lg text-sm text-white placeholder-game-muted/60 focus:outline-none focus:border-primary transition-colors"
+                className="w-full px-3 py-2 bg-black/80 border border-white/[0.06] rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-white/30 transition-colors"
               />
             </div>
           </motion.div>
@@ -178,11 +178,11 @@ export function GameChat({ lobbyCode }: GameChatProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={handleExpand}
-            className="bg-game-card/80 backdrop-blur-sm border border-game-border rounded-xl cursor-pointer hover:border-primary/50 transition-all group"
+            className="bg-white/[0.03] backdrop-blur-sm border border-white/[0.06] rounded-xl cursor-pointer hover:border-white/50 transition-all group"
           >
             {/* Mini header */}
-            <div className="px-3 py-1.5 border-b border-game-border/50 flex items-center justify-between">
-              <span className="text-[10px] font-semibold text-game-muted uppercase tracking-wider group-hover:text-primary transition-colors">
+            <div className="px-3 py-1.5 border-b border-white/[0.04] flex items-center justify-between">
+              <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider group-hover:text-white transition-colors">
                 Chat
               </span>
               {unread > 0 && (
@@ -195,16 +195,16 @@ export function GameChat({ lobbyCode }: GameChatProps) {
             {/* Preview messages */}
             <div className="px-3 py-2 min-h-[52px]">
               {previewMessages.length === 0 ? (
-                <p className="text-[11px] text-game-muted/40 italic">Click to chat…</p>
+                <p className="text-[11px] text-white/30 italic">Click to chat…</p>
               ) : (
                 previewMessages.map((msg, i) => {
                   const isMe = msg.userId === user?.id;
                   return (
                     <div key={`${msg.timestamp}-${i}`} className="text-[11px] leading-relaxed truncate">
-                      <span className={`font-semibold ${isMe ? 'text-primary/70' : 'text-yellow-400/70'}`}>
+                      <span className={`font-semibold ${isMe ? 'text-white/70' : 'text-yellow-400/70'}`}>
                         {isMe ? 'You' : msg.username}
                       </span>
-                      <span className="text-game-muted/40 mx-0.5">:</span>
+                      <span className="text-white/40/40 mx-0.5">:</span>
                       <span className="text-white/50">{msg.message}</span>
                     </div>
                   );

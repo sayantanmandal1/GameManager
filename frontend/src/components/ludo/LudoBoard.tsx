@@ -1,260 +1,180 @@
-'use client';
+﻿'use client';
 
 import { useMemo, useCallback, useRef, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import type { LudoPlayerState, LudoMoveAction, LudoMoveRecord } from '@/shared';
 import { LudoColor, LUDO_START_POSITIONS, LUDO_SAFE_SQUARES, LUDO_BOARD_SIZE } from '@/shared';
 
-// ─── Board Geometry ───
-const CELL_SIZE = 44;
-const BOARD_CELLS = 15;
-const BOARD_PX = CELL_SIZE * BOARD_CELLS;
+// --- Board geometry (SVG internal units) ---
+const CELL = 44;
+const CELLS = 15;
+const VP = CELL * CELLS;
 
-// All 4 colors always shown
 const ALL_COLORS: LudoColor[] = [LudoColor.RED, LudoColor.GREEN, LudoColor.YELLOW, LudoColor.BLUE];
 
-const COLORS: Record<LudoColor, { bg: string; fill: string; light: string; token: string; glow: string }> = {
-  [LudoColor.RED]: { bg: '#FF4C4C', fill: '#FF4C4C', light: '#FFD6D6', token: '#CC0000', glow: 'rgba(255,76,76,0.5)' },
-  [LudoColor.GREEN]: { bg: '#4CAF50', fill: '#4CAF50', light: '#D6FFD6', token: '#2E7D32', glow: 'rgba(76,175,80,0.5)' },
-  [LudoColor.YELLOW]: { bg: '#FFC107', fill: '#FFC107', light: '#FFF8D6', token: '#F57F17', glow: 'rgba(255,193,7,0.5)' },
-  [LudoColor.BLUE]: { bg: '#2196F3', fill: '#2196F3', light: '#D6EAFF', token: '#1565C0', glow: 'rgba(33,150,243,0.5)' },
+// Tokens keep their classic colors for identification on the dark board
+const COLORS: Record<LudoColor, { bg: string; light: string; token: string }> = {
+  [LudoColor.RED]:    { bg: '#FF4C4C', light: '#2a1515', token: '#cc3333' },
+  [LudoColor.GREEN]:  { bg: '#4CAF50', light: '#152a15', token: '#338a33' },
+  [LudoColor.YELLOW]: { bg: '#FFC107', light: '#2a2515', token: '#cc9900' },
+  [LudoColor.BLUE]:   { bg: '#2196F3', light: '#151f2a', token: '#1a6fcc' },
 };
 
-const TRACK_COORDS: [number, number][] = buildSystematicTrack();
-
-function buildSystematicTrack(): [number, number][] {
+// --- Track coordinates ---
+const TRACK: [number, number][] = (() => {
   const c: [number, number][] = [];
-  c.push([1,6]);c.push([2,6]);c.push([3,6]);c.push([4,6]);c.push([5,6]);
-  c.push([6,5]);c.push([6,4]);c.push([6,3]);c.push([6,2]);c.push([6,1]);c.push([6,0]);
-  c.push([7,0]);c.push([8,0]);
-  c.push([8,1]);c.push([8,2]);c.push([8,3]);c.push([8,4]);c.push([8,5]);
-  c.push([9,6]);c.push([10,6]);c.push([11,6]);c.push([12,6]);c.push([13,6]);c.push([14,6]);
-  c.push([14,7]);c.push([14,8]);
-  c.push([13,8]);c.push([12,8]);c.push([11,8]);c.push([10,8]);c.push([9,8]);
-  c.push([8,9]);c.push([8,10]);c.push([8,11]);c.push([8,12]);c.push([8,13]);c.push([8,14]);
-  c.push([7,14]);c.push([6,14]);
-  c.push([6,13]);c.push([6,12]);c.push([6,11]);c.push([6,10]);c.push([6,9]);
-  c.push([5,8]);c.push([4,8]);c.push([3,8]);c.push([2,8]);c.push([1,8]);c.push([0,8]);
-  c.push([0,7]);c.push([0,6]);
+  c.push([1,6],[2,6],[3,6],[4,6],[5,6]);
+  c.push([6,5],[6,4],[6,3],[6,2],[6,1],[6,0]);
+  c.push([7,0],[8,0]);
+  c.push([8,1],[8,2],[8,3],[8,4],[8,5]);
+  c.push([9,6],[10,6],[11,6],[12,6],[13,6],[14,6]);
+  c.push([14,7],[14,8]);
+  c.push([13,8],[12,8],[11,8],[10,8],[9,8]);
+  c.push([8,9],[8,10],[8,11],[8,12],[8,13],[8,14]);
+  c.push([7,14],[6,14]);
+  c.push([6,13],[6,12],[6,11],[6,10],[6,9]);
+  c.push([5,8],[4,8],[3,8],[2,8],[1,8],[0,8]);
+  c.push([0,7],[0,6]);
   return c;
-}
+})();
 
-const HOME_COLUMNS: Record<LudoColor, [number, number][]> = {
-  [LudoColor.RED]: [[1,7],[2,7],[3,7],[4,7],[5,7],[6,7]],
-  [LudoColor.GREEN]: [[7,1],[7,2],[7,3],[7,4],[7,5],[7,6]],
+const HOME_COLS: Record<LudoColor, [number, number][]> = {
+  [LudoColor.RED]:    [[1,7],[2,7],[3,7],[4,7],[5,7],[6,7]],
+  [LudoColor.GREEN]:  [[7,1],[7,2],[7,3],[7,4],[7,5],[7,6]],
   [LudoColor.YELLOW]: [[13,7],[12,7],[11,7],[10,7],[9,7],[8,7]],
-  [LudoColor.BLUE]: [[7,13],[7,12],[7,11],[7,10],[7,9],[7,8]],
+  [LudoColor.BLUE]:   [[7,13],[7,12],[7,11],[7,10],[7,9],[7,8]],
 };
 
-const BASE_POSITIONS: Record<LudoColor, [number, number][]> = {
-  [LudoColor.RED]: [[1.5,1.5],[4.5,1.5],[1.5,4.5],[4.5,4.5]],
-  [LudoColor.GREEN]: [[10.5,1.5],[13.5,1.5],[10.5,4.5],[13.5,4.5]],
+const BASE_POS: Record<LudoColor, [number, number][]> = {
+  [LudoColor.RED]:    [[1.5,1.5],[4.5,1.5],[1.5,4.5],[4.5,4.5]],
+  [LudoColor.GREEN]:  [[10.5,1.5],[13.5,1.5],[10.5,4.5],[13.5,4.5]],
   [LudoColor.YELLOW]: [[10.5,10.5],[13.5,10.5],[10.5,13.5],[13.5,13.5]],
-  [LudoColor.BLUE]: [[1.5,10.5],[4.5,10.5],[1.5,13.5],[4.5,13.5]],
+  [LudoColor.BLUE]:   [[1.5,10.5],[4.5,10.5],[1.5,13.5],[4.5,13.5]],
 };
 
 const BASE_RECTS: Record<LudoColor, { x: number; y: number; w: number; h: number }> = {
-  [LudoColor.RED]: { x: 0, y: 0, w: 6, h: 6 },
-  [LudoColor.GREEN]: { x: 9, y: 0, w: 6, h: 6 },
+  [LudoColor.RED]:    { x: 0, y: 0, w: 6, h: 6 },
+  [LudoColor.GREEN]:  { x: 9, y: 0, w: 6, h: 6 },
   [LudoColor.YELLOW]: { x: 9, y: 9, w: 6, h: 6 },
-  [LudoColor.BLUE]: { x: 0, y: 9, w: 6, h: 6 },
+  [LudoColor.BLUE]:   { x: 0, y: 9, w: 6, h: 6 },
 };
 
-function getAbsolutePosition(color: LudoColor, stepsFromStart: number): number {
-  if (stepsFromStart <= 0 || stepsFromStart > LUDO_BOARD_SIZE) return -1;
-  const start = LUDO_START_POSITIONS[color];
-  return (start + stepsFromStart - 1) % LUDO_BOARD_SIZE;
+function getAbsPos(color: LudoColor, steps: number): number {
+  if (steps <= 0 || steps > LUDO_BOARD_SIZE) return -1;
+  return (LUDO_START_POSITIONS[color] + steps - 1) % LUDO_BOARD_SIZE;
 }
 
-/** Get pixel position for any step value (exported for hop animation) */
-function getPixelForStep(step: number, color: LudoColor, tokenId: number): [number, number] {
+function pxForStep(step: number, color: LudoColor, tid: number): [number, number] {
   if (step === 0) {
-    const basePos = BASE_POSITIONS[color][tokenId];
-    return [basePos[0] * CELL_SIZE, basePos[1] * CELL_SIZE];
+    const b = BASE_POS[color][tid];
+    return [b[0] * CELL, b[1] * CELL];
   }
   if (step >= LUDO_BOARD_SIZE + 7) {
-    const offsets = [[-0.3,-0.3],[0.3,-0.3],[-0.3,0.3],[0.3,0.3]];
-    const o = offsets[tokenId];
-    return [(7 + o[0]) * CELL_SIZE, (7 + o[1]) * CELL_SIZE];
+    const off = [[-0.3,-0.3],[0.3,-0.3],[-0.3,0.3],[0.3,0.3]];
+    const o = off[tid];
+    return [(7 + o[0]) * CELL, (7 + o[1]) * CELL];
   }
   if (step > LUDO_BOARD_SIZE) {
-    const homeIdx = step - LUDO_BOARD_SIZE - 1;
-    const homeCoords = HOME_COLUMNS[color];
-    if (homeIdx >= 0 && homeIdx < homeCoords.length) {
-      const [cx, cy] = homeCoords[homeIdx];
-      return [(cx + 0.5) * CELL_SIZE, (cy + 0.5) * CELL_SIZE];
+    const hi = step - LUDO_BOARD_SIZE - 1;
+    const hc = HOME_COLS[color];
+    if (hi >= 0 && hi < hc.length) {
+      return [(hc[hi][0] + 0.5) * CELL, (hc[hi][1] + 0.5) * CELL];
     }
   }
-  const absPos = getAbsolutePosition(color, step);
-  if (absPos >= 0 && absPos < TRACK_COORDS.length) {
-    const [cx, cy] = TRACK_COORDS[absPos];
-    return [(cx + 0.5) * CELL_SIZE, (cy + 0.5) * CELL_SIZE];
+  const ap = getAbsPos(color, step);
+  if (ap >= 0 && ap < TRACK.length) {
+    return [(TRACK[ap][0] + 0.5) * CELL, (TRACK[ap][1] + 0.5) * CELL];
   }
-  return [7.5 * CELL_SIZE, 7.5 * CELL_SIZE];
+  return [7.5 * CELL, 7.5 * CELL];
 }
 
-const HOP_STEP_DURATION = 0.1; // seconds per hop step
+// --- Hop-animating token ---
+const HOP_MS = 100;
 
-/** Hopping token component — animates through intermediate squares */
 function HoppingToken({
-  token,
-  color,
-  isMovable,
-  isSelected,
-  colorDef,
-  pawnH,
-  onClick,
+  token, color, isMovable, isSelected, colorDef, pH, onClick,
 }: {
   token: { id: number; stepsFromStart: number; state: string };
   color: LudoColor;
   isMovable: boolean;
   isSelected: boolean;
-  colorDef: typeof COLORS[LudoColor];
-  pawnH: number;
+  colorDef: (typeof COLORS)[LudoColor];
+  pH: number;
   onClick: () => void;
 }) {
-  const prevStepsRef = useRef(token.stepsFromStart);
-  const [animPos, setAnimPos] = useState(() => getPixelForStep(token.stepsFromStart, color, token.id));
-  const animatingRef = useRef(false);
+  const prev = useRef(token.stepsFromStart);
+  const [pos, setPos] = useState<[number, number]>(() =>
+    pxForStep(token.stepsFromStart, color, token.id),
+  );
+  const busy = useRef(false);
 
   useEffect(() => {
-    const prevSteps = prevStepsRef.current;
-    const newSteps = token.stepsFromStart;
-    prevStepsRef.current = newSteps;
+    const p = prev.current;
+    const n = token.stepsFromStart;
+    prev.current = n;
 
-    if (prevSteps === newSteps || animatingRef.current) {
-      // No change or already animating — just jump
-      setAnimPos(getPixelForStep(newSteps, color, token.id));
+    if (p === n || busy.current) {
+      setPos(pxForStep(n, color, token.id));
       return;
     }
-
-    // Token sent back to base (captured)
-    if (newSteps === 0 && prevSteps > 0) {
-      setAnimPos(getPixelForStep(0, color, token.id));
+    if (n === 0 && p > 0) { setPos(pxForStep(0, color, token.id)); return; }
+    if (n > p || (p === 0 && n >= 1)) {
+      const start = p === 0 ? 1 : p + 1;
+      const wps: [number, number][] = [];
+      for (let s = start; s <= n; s++) wps.push(pxForStep(s, color, token.id));
+      hop(wps);
       return;
     }
-
-    // Entering from base: jump from base to step 1 position
-    if (prevSteps === 0 && newSteps >= 1) {
-      // Animate: base → step 1 → ... → newSteps
-      const waypoints: [number, number][] = [];
-      for (let s = 1; s <= newSteps; s++) {
-        waypoints.push(getPixelForStep(s, color, token.id));
-      }
-      animateWaypoints(waypoints);
-      return;
-    }
-
-    // Normal forward movement: step through each cell
-    if (newSteps > prevSteps) {
-      const waypoints: [number, number][] = [];
-      for (let s = prevSteps + 1; s <= newSteps; s++) {
-        waypoints.push(getPixelForStep(s, color, token.id));
-      }
-      animateWaypoints(waypoints);
-      return;
-    }
-
-    // Fallback — just set position
-    setAnimPos(getPixelForStep(newSteps, color, token.id));
+    setPos(pxForStep(n, color, token.id));
   }, [token.stepsFromStart, color, token.id]);
 
-  function animateWaypoints(waypoints: [number, number][]) {
-    if (waypoints.length === 0) return;
-    animatingRef.current = true;
+  function hop(wps: [number, number][]) {
+    if (!wps.length) return;
+    busy.current = true;
     let i = 0;
-    const step = () => {
-      setAnimPos(waypoints[i]);
+    const tick = () => {
+      setPos(wps[i]);
       i++;
-      if (i < waypoints.length) {
-        setTimeout(step, HOP_STEP_DURATION * 1000);
-      } else {
-        animatingRef.current = false;
-      }
+      if (i < wps.length) setTimeout(tick, HOP_MS);
+      else busy.current = false;
     };
-    step();
+    tick();
   }
 
   const c = colorDef;
-
   return (
     <motion.g
       onClick={onClick}
       style={{ cursor: isMovable ? 'pointer' : 'default' }}
-      animate={{ x: animPos[0], y: animPos[1] }}
-      transition={{ type: 'tween', duration: HOP_STEP_DURATION, ease: 'easeOut' }}
+      animate={{ x: pos[0], y: pos[1] }}
+      transition={{ type: 'tween', duration: 0.1, ease: 'easeOut' }}
     >
       {isMovable && (
-        <circle
-          cx={0}
-          cy={pawnH * 0.1}
-          r={CELL_SIZE * 0.48}
-          fill="none"
-          stroke={c.bg}
-          strokeWidth={2.5}
-          opacity={0.7}
-          className="ludo-pulse"
-        />
+        <circle cx={0} cy={pH * 0.1} r={CELL * 0.48}
+          fill="none" stroke="#fff" strokeWidth={2} opacity={0.6}
+          className="ludo-pulse" />
       )}
       {isSelected && (
-        <circle
-          cx={0}
-          cy={pawnH * 0.1}
-          r={CELL_SIZE * 0.5}
-          fill="none"
-          stroke="#fff"
-          strokeWidth={2.5}
-          opacity={0.9}
-          filter="url(#glow)"
-        />
+        <circle cx={0} cy={pH * 0.1} r={CELL * 0.5}
+          fill="none" stroke="#fff" strokeWidth={2.5} opacity={0.9}
+          filter="url(#glow)" />
       )}
       <g filter="url(#tokenShadow)">
-        <ellipse
-          cx={0}
-          cy={pawnH * 0.42}
-          rx={pawnH * 0.38}
-          ry={pawnH * 0.14}
-          fill={c.token}
-        />
-        <path
-          d={`M ${-pawnH * 0.28} ${pawnH * 0.38} Q ${-pawnH * 0.18} ${-pawnH * 0.05} 0 ${-pawnH * 0.15} Q ${pawnH * 0.18} ${-pawnH * 0.05} ${pawnH * 0.28} ${pawnH * 0.38} Z`}
-          fill={c.bg}
-        />
-        <circle
-          cx={0}
-          cy={-pawnH * 0.28}
-          r={pawnH * 0.2}
-          fill={c.bg}
-        />
-        <circle
-          cx={-pawnH * 0.06}
-          cy={-pawnH * 0.34}
-          r={pawnH * 0.07}
-          fill="#fff"
-          opacity={0.4}
-        />
-        <path
-          d={`M ${-pawnH * 0.08} ${pawnH * 0.3} Q ${-pawnH * 0.04} ${pawnH * 0.05} 0 ${-pawnH * 0.1} Q ${pawnH * 0.04} ${pawnH * 0.05} ${pawnH * 0.08} ${pawnH * 0.3} Z`}
-          fill="#fff"
-          opacity={0.15}
-        />
+        <ellipse cx={0} cy={pH * 0.42} rx={pH * 0.38} ry={pH * 0.14} fill={c.token} />
+        <path d={`M ${-pH*0.28} ${pH*0.38} Q ${-pH*0.18} ${-pH*0.05} 0 ${-pH*0.15} Q ${pH*0.18} ${-pH*0.05} ${pH*0.28} ${pH*0.38} Z`} fill={c.bg} />
+        <circle cx={0} cy={-pH * 0.28} r={pH * 0.2} fill={c.bg} />
+        <circle cx={-pH * 0.06} cy={-pH * 0.34} r={pH * 0.07} fill="#fff" opacity={0.5} />
+        <path d={`M ${-pH*0.08} ${pH*0.3} Q ${-pH*0.04} ${pH*0.05} 0 ${-pH*0.1} Q ${pH*0.04} ${pH*0.05} ${pH*0.08} ${pH*0.3} Z`} fill="#fff" opacity={0.18} />
       </g>
-      <text
-        x={0}
-        y={pawnH * 0.2}
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize="11"
-        fontWeight="bold"
-        fill="#fff"
-      >
+      <text x={0} y={pH * 0.2} textAnchor="middle" dominantBaseline="central"
+        fontSize="11" fontWeight="bold" fill="#fff">
         {token.id + 1}
       </text>
     </motion.g>
   );
 }
 
-// ─── Component Props ───
+// --- Component ---
 
 interface LudoBoardProps {
   players: LudoPlayerState[];
@@ -269,233 +189,134 @@ interface LudoBoardProps {
 }
 
 export function LudoBoard({
-  players,
-  myColor,
-  currentTurn,
-  availableMoves,
-  onMoveSelect,
-  lastMove,
-  disabled,
-  selectedTokenId,
-  onTokenSelect,
+  players, myColor, currentTurn, availableMoves, onMoveSelect,
+  lastMove, disabled, selectedTokenId, onTokenSelect,
 }: LudoBoardProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [sz, setSz] = useState(VP);
+
+  useEffect(() => {
+    function measure() {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const pw = containerRef.current?.parentElement?.clientWidth ?? vw;
+      const maxH = vh * 0.82;
+      const maxW = Math.min(pw, vw - 32);
+      setSz(Math.floor(Math.min(maxW, maxH)));
+    }
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+
   const movableTokenIds = useMemo(() => {
     if (!availableMoves || availableMoves.length === 0) return new Set<number>();
     const ids = new Set<number>();
-    for (const combo of availableMoves) {
-      for (const action of combo) ids.add(action.tokenId);
-    }
+    for (const combo of availableMoves) for (const a of combo) ids.add(a.tokenId);
     return ids;
   }, [availableMoves]);
 
   const handleTokenClick = useCallback(
     (playerId: string, tokenId: number) => {
       if (disabled) return;
-      const myPlayer = players.find((p) => p.color === myColor);
-      if (!myPlayer || playerId !== myPlayer.id) return;
+      const mp = players.find((p) => p.color === myColor);
+      if (!mp || playerId !== mp.id) return;
       if (!movableTokenIds.has(tokenId)) return;
-
-      if (selectedTokenId === tokenId) {
-        onTokenSelect?.(null);
-        return;
-      }
+      if (selectedTokenId === tokenId) { onTokenSelect?.(null); return; }
       onTokenSelect?.(tokenId);
-
-      const tokenMoves = availableMoves?.filter((combo) =>
-        combo.some((a) => a.tokenId === tokenId),
-      );
-      if (tokenMoves && tokenMoves.length === 1) {
-        onMoveSelect(tokenMoves[0]);
-        onTokenSelect?.(null);
-      }
+      const tm = availableMoves?.filter((c) => c.some((a) => a.tokenId === tokenId));
+      if (tm && tm.length === 1) { onMoveSelect(tm[0]); onTokenSelect?.(null); }
     },
     [disabled, players, myColor, movableTokenIds, selectedTokenId, onTokenSelect, availableMoves, onMoveSelect],
   );
 
   const myPlayer = players.find((p) => p.color === myColor);
-  // Build a set of active player colors for dimming inactive zones
   const activeColors = useMemo(() => new Set(players.map((p) => p.color)), [players]);
-
-  const pawnH = CELL_SIZE * 0.75;
+  const pH = CELL * 0.75;
 
   return (
-    <div className="inline-block">
-      <svg
-        viewBox={`0 0 ${BOARD_PX} ${BOARD_PX}`}
-        width="100%"
-        style={{ maxWidth: BOARD_PX, maxHeight: BOARD_PX }}
-        className="select-none drop-shadow-2xl"
-      >
+    <div ref={containerRef} className="w-full flex justify-center">
+      <svg viewBox={`0 0 ${VP} ${VP}`} width={sz} height={sz}
+        className="select-none" style={{ maxWidth: '100%', maxHeight: '85vh' }}>
         <defs>
           <filter id="glow">
             <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
           </filter>
           <filter id="tokenShadow">
-            <feDropShadow dx="0" dy="1" stdDeviation="1.5" floodOpacity="0.4" />
+            <feDropShadow dx="0" dy="1.5" stdDeviation="2" floodColor="#000" floodOpacity="0.6" />
           </filter>
         </defs>
 
-        {/* Background */}
-        <rect width={BOARD_PX} height={BOARD_PX} fill="#0f0f1e" rx="12" />
-        <rect width={BOARD_PX} height={BOARD_PX} fill="none" stroke="#ffffff10" strokeWidth="2" rx="12" />
+        <rect width={VP} height={VP} fill="#0a0a0a" rx="14" />
+        <rect width={VP} height={VP} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="2" rx="14" />
 
-        {/* All 4 base areas always shown */}
-        {ALL_COLORS.map((color) => {
-          const c = COLORS[color];
-          const baseRect = BASE_RECTS[color];
-          const isActive = activeColors.has(color);
+        {ALL_COLORS.map((col) => {
+          const c = COLORS[col]; const br = BASE_RECTS[col]; const active = activeColors.has(col);
           return (
-            <g key={color} opacity={isActive ? 1 : 0.3}>
-              <rect
-                x={baseRect.x * CELL_SIZE + 2}
-                y={baseRect.y * CELL_SIZE + 2}
-                width={baseRect.w * CELL_SIZE - 4}
-                height={baseRect.h * CELL_SIZE - 4}
-                fill={c.bg}
-                opacity={0.15}
-                rx="10"
-              />
-              <rect
-                x={(baseRect.x + 0.8) * CELL_SIZE}
-                y={(baseRect.y + 0.8) * CELL_SIZE}
-                width={(baseRect.w - 1.6) * CELL_SIZE}
-                height={(baseRect.h - 1.6) * CELL_SIZE}
-                fill={c.bg}
-                opacity={0.08}
-                rx="8"
-                stroke={c.bg}
-                strokeWidth="1"
-                strokeOpacity={0.3}
-              />
-              {/* Base token slots */}
-              {BASE_POSITIONS[color].map(([bx, by], i) => (
-                <circle
-                  key={i}
-                  cx={bx * CELL_SIZE}
-                  cy={by * CELL_SIZE}
-                  r={CELL_SIZE * 0.35}
-                  fill={c.bg}
-                  opacity={0.12}
-                  stroke={c.bg}
-                  strokeWidth="1"
-                  strokeOpacity={0.2}
-                />
+            <g key={col} opacity={active ? 1 : 0.25}>
+              <rect x={br.x*CELL+2} y={br.y*CELL+2} width={br.w*CELL-4} height={br.h*CELL-4}
+                fill={c.bg} opacity={0.08} rx="10" />
+              <rect x={(br.x+0.8)*CELL} y={(br.y+0.8)*CELL} width={(br.w-1.6)*CELL} height={(br.h-1.6)*CELL}
+                fill={c.bg} opacity={0.05} rx="8" stroke={c.bg} strokeWidth="1" strokeOpacity={0.15} />
+              {BASE_POS[col].map(([bx,by],i) => (
+                <circle key={i} cx={bx*CELL} cy={by*CELL} r={CELL*0.35}
+                  fill={c.bg} opacity={0.1} stroke={c.bg} strokeWidth="1" strokeOpacity={0.15} />
               ))}
             </g>
           );
         })}
 
-        {/* Track squares */}
-        {TRACK_COORDS.map(([cx, cy], i) => {
+        {TRACK.map(([cx,cy],i) => {
           const isSafe = LUDO_SAFE_SQUARES.includes(i);
-          const startColor = Object.entries(LUDO_START_POSITIONS).find(
-            ([, pos]) => pos === i,
-          );
-          const trackColor = startColor ? COLORS[startColor[0] as LudoColor] : null;
-
+          const se = Object.entries(LUDO_START_POSITIONS).find(([,p]) => p === i);
+          const tc = se ? COLORS[se[0] as LudoColor] : null;
           return (
-            <g key={`track-${i}`}>
-              <rect
-                x={cx * CELL_SIZE + 1}
-                y={cy * CELL_SIZE + 1}
-                width={CELL_SIZE - 2}
-                height={CELL_SIZE - 2}
-                fill={trackColor ? trackColor.light : '#1a1a35'}
-                stroke={trackColor ? trackColor.bg : '#252545'}
-                strokeWidth={1}
-                rx="4"
-              />
+            <g key={`t-${i}`}>
+              <rect x={cx*CELL+1} y={cy*CELL+1} width={CELL-2} height={CELL-2}
+                fill={tc ? tc.light : '#111'} stroke={tc ? tc.bg : '#1a1a1a'}
+                strokeWidth={1} strokeOpacity={tc ? 0.3 : 0.6} rx="3" />
               {isSafe && (
-                <text
-                  x={(cx + 0.5) * CELL_SIZE}
-                  y={(cy + 0.5) * CELL_SIZE}
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                  fontSize="16"
-                  fill={trackColor ? trackColor.bg : '#555'}
-                  opacity={0.7}
-                >
-                  ★
-                </text>
+                <text x={(cx+0.5)*CELL} y={(cy+0.5)*CELL} textAnchor="middle"
+                  dominantBaseline="central" fontSize="14" fill={tc ? tc.bg : '#333'} opacity={0.5}>&#9733;</text>
               )}
             </g>
           );
         })}
 
-        {/* All 4 home columns always shown */}
-        {ALL_COLORS.map((color) => {
-          const c = COLORS[color];
-          const cols = HOME_COLUMNS[color];
-          const isActive = activeColors.has(color);
-          return cols.map(([cx, cy], i) => (
-            <rect
-              key={`home-${color}-${i}`}
-              x={cx * CELL_SIZE + 1}
-              y={cy * CELL_SIZE + 1}
-              width={CELL_SIZE - 2}
-              height={CELL_SIZE - 2}
-              fill={c.bg}
-              opacity={isActive ? 0.3 + i * 0.08 : 0.1}
-              rx="4"
-            />
+        {ALL_COLORS.map((col) => {
+          const c = COLORS[col]; const active = activeColors.has(col);
+          return HOME_COLS[col].map(([cx,cy],i) => (
+            <rect key={`h-${col}-${i}`} x={cx*CELL+1} y={cy*CELL+1}
+              width={CELL-2} height={CELL-2} fill={c.bg}
+              opacity={active ? 0.15 + i*0.04 : 0.06} rx="3" />
           ));
         })}
 
-        {/* Center home */}
-        <rect
-          x={6.25 * CELL_SIZE}
-          y={6.25 * CELL_SIZE}
-          width={2.5 * CELL_SIZE}
-          height={2.5 * CELL_SIZE}
-          fill="#1a1a35"
-          stroke="#ffffff15"
-          strokeWidth={2}
-          rx="6"
-        />
-        {ALL_COLORS.map((color, idx) => {
-          const c = COLORS[color];
-          const cx = 7.5 * CELL_SIZE;
-          const cy = 7.5 * CELL_SIZE;
-          const r = 1.1 * CELL_SIZE;
-          const angle = (idx * Math.PI * 2) / 4 - Math.PI / 2;
-          const nextAngle = ((idx + 1) * Math.PI * 2) / 4 - Math.PI / 2;
-          const x1 = cx + r * Math.cos(angle);
-          const y1 = cy + r * Math.sin(angle);
-          const x2 = cx + r * Math.cos(nextAngle);
-          const y2 = cy + r * Math.sin(nextAngle);
+        <rect x={6.25*CELL} y={6.25*CELL} width={2.5*CELL} height={2.5*CELL}
+          fill="#111" stroke="rgba(255,255,255,0.06)" strokeWidth={2} rx="6" />
+        {ALL_COLORS.map((col,idx) => {
+          const c = COLORS[col];
+          const cx = 7.5*CELL; const cy = 7.5*CELL; const r = 1.1*CELL;
+          const a1 = (idx*Math.PI*2)/4 - Math.PI/2;
+          const a2 = ((idx+1)*Math.PI*2)/4 - Math.PI/2;
           return (
-            <polygon
-              key={`center-${color}`}
-              points={`${cx},${cy} ${x1},${y1} ${x2},${y2}`}
-              fill={c.bg}
-              opacity={activeColors.has(color) ? 0.35 : 0.1}
-            />
+            <polygon key={`ctr-${col}`}
+              points={`${cx},${cy} ${cx+r*Math.cos(a1)},${cy+r*Math.sin(a1)} ${cx+r*Math.cos(a2)},${cy+r*Math.sin(a2)}`}
+              fill={c.bg} opacity={activeColors.has(col) ? 0.2 : 0.06} />
           );
         })}
 
-        {/* Tokens — Pawn shapes with hop animation */}
         {players.map((p) => {
           const c = COLORS[p.color];
           return p.tokens.map((token) => {
-            const isMovable =
-              myPlayer?.id === p.id && movableTokenIds.has(token.id) && !disabled;
+            const isMovable = myPlayer?.id === p.id && movableTokenIds.has(token.id) && !disabled;
             const isSelected = selectedTokenId === token.id && myPlayer?.id === p.id;
-
             return (
-              <HoppingToken
-                key={`token-${p.id}-${token.id}`}
-                token={token}
-                color={p.color}
-                isMovable={isMovable}
-                isSelected={isSelected}
-                colorDef={c}
-                pawnH={pawnH}
-                onClick={() => handleTokenClick(p.id, token.id)}
-              />
+              <HoppingToken key={`tok-${p.id}-${token.id}`}
+                token={token} color={p.color} isMovable={isMovable}
+                isSelected={isSelected} colorDef={c} pH={pH}
+                onClick={() => handleTokenClick(p.id, token.id)} />
             );
           });
         })}

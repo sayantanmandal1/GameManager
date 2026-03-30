@@ -117,7 +117,7 @@ export function LobbyChat({ lobbyCode }: LobbyChatProps) {
       {/* Chat toggle button */}
       <button
         onClick={handleOpen}
-        className="w-12 h-12 rounded-full bg-primary text-white flex items-center justify-center shadow-lg hover:bg-primary-dark transition-colors relative"
+        className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center shadow-lg hover:bg-white/90 transition-colors relative"
       >
         💬
         {unread > 0 && (
@@ -129,16 +129,16 @@ export function LobbyChat({ lobbyCode }: LobbyChatProps) {
 
       {/* Chat panel */}
       {isOpen && (
-        <div className="absolute bottom-14 right-0 w-80 h-96 bg-game-card border border-game-border rounded-xl shadow-2xl flex flex-col overflow-hidden">
+        <div className="absolute bottom-14 right-0 w-80 h-96 bg-white/[0.03] border border-white/[0.06] rounded-xl shadow-2xl flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="px-4 py-3 border-b border-game-border">
+          <div className="px-4 py-3 border-b border-white/[0.06]">
             <h3 className="text-sm font-semibold text-white">Lobby Chat</h3>
           </div>
 
           {/* Messages */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2">
             {messages.length === 0 && (
-              <p className="text-xs text-game-muted text-center mt-8">
+              <p className="text-xs text-white/40 text-center mt-8">
                 No messages yet. Say hi! 👋
               </p>
             )}
@@ -149,14 +149,14 @@ export function LobbyChat({ lobbyCode }: LobbyChatProps) {
                   key={`${msg.timestamp}-${i}`}
                   className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
                 >
-                  <span className="text-[10px] text-game-muted mb-0.5">
+                  <span className="text-[10px] text-white/40 mb-0.5">
                     {isMe ? 'You' : msg.username}
                   </span>
                   <div
                     className={`px-3 py-1.5 rounded-xl text-sm max-w-[80%] break-words ${
                       isMe
-                        ? 'bg-primary text-white rounded-br-sm'
-                        : 'bg-game-bg text-game-text border border-game-border rounded-bl-sm'
+                        ? 'bg-white text-black rounded-br-sm'
+                        : 'bg-black text-white/90 border border-white/[0.06] rounded-bl-sm'
                     }`}
                   >
                     {msg.message}
@@ -167,7 +167,7 @@ export function LobbyChat({ lobbyCode }: LobbyChatProps) {
           </div>
 
           {/* Input */}
-          <div className="p-2 border-t border-game-border flex gap-2">
+          <div className="p-2 border-t border-white/[0.06] flex gap-2">
             <input
               type="text"
               value={input}
@@ -175,12 +175,12 @@ export function LobbyChat({ lobbyCode }: LobbyChatProps) {
               onKeyDown={handleKeyDown}
               placeholder="Type a message…"
               maxLength={500}
-              className="flex-1 px-3 py-2 bg-game-bg border border-game-border rounded-lg text-sm text-white placeholder-game-muted focus:outline-none focus:border-primary"
+              className="flex-1 px-3 py-2 bg-black border border-white/[0.06] rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-white/30"
             />
             <button
               onClick={sendMessage}
               disabled={!input.trim()}
-              className="px-3 py-2 bg-primary text-white rounded-lg text-sm font-semibold disabled:opacity-50 hover:bg-primary-dark transition-colors"
+              className="px-3 py-2 bg-white text-black rounded-lg text-sm font-semibold disabled:opacity-50 hover:bg-white/90 transition-colors"
             >
               Send
             </button>

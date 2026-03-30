@@ -25,12 +25,12 @@ function DieFace({ value, isRolling, isSix }: DieFaceProps) {
 
   return (
     <motion.div
-      className={`relative rounded-2xl shadow-xl border border-white/10 ${
+      className={`relative rounded-2xl shadow-xl border ${
         isSix
-          ? 'bg-gradient-to-br from-yellow-400/90 to-amber-500/90 ring-2 ring-yellow-300 shadow-yellow-400/40'
-          : 'bg-gradient-to-br from-white/95 to-gray-100/95'
+          ? 'bg-white border-white/40 shadow-white/20'
+          : 'bg-white/[0.08] backdrop-blur-md border-white/[0.12]'
       }`}
-      style={{ width: size, height: size, backdropFilter: 'blur(8px)' }}
+      style={{ width: size, height: size }}
       animate={
         isRolling
           ? {
@@ -41,7 +41,7 @@ function DieFace({ value, isRolling, isSix }: DieFaceProps) {
       }
       transition={
         isRolling
-          ? { duration: 0.5, repeat: Infinity, ease: 'easeInOut' }
+          ? { duration: 0.4, repeat: Infinity, ease: 'easeInOut' }
           : { type: 'spring', stiffness: 300, damping: 20 }
       }
     >
@@ -52,7 +52,7 @@ function DieFace({ value, isRolling, isSix }: DieFaceProps) {
             cx={cx}
             cy={cy}
             r={0.1}
-            fill={isSix ? '#1a1a2e' : '#1a1a2e'}
+            fill={isSix ? '#000' : '#fff'}
           />
         ))}
       </svg>
@@ -86,7 +86,7 @@ export function LudoDice({
         {dice != null ? (
           <DieFace value={dice} isRolling={isRolling} isSix={dice === 6} />
         ) : (
-          <div className="w-20 h-20 rounded-2xl bg-white/5 backdrop-blur-md border-2 border-dashed border-white/20 flex items-center justify-center text-white/30 text-2xl">
+          <div className="w-20 h-20 rounded-2xl bg-white/[0.04] border-2 border-dashed border-white/[0.12] flex items-center justify-center text-white/20 text-2xl">
             ?
           </div>
         )}
@@ -97,11 +97,11 @@ export function LudoDice({
         <motion.div
           initial={{ opacity: 0, y: -5 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-sm text-white/50"
+          className="text-sm text-white/40"
         >
           Rolled: <span className="text-white font-bold text-base">{dice}</span>
           {dice === 6 && (
-            <span className="ml-2 text-yellow-400 font-bold animate-pulse">Six!</span>
+            <span className="ml-2 text-white font-bold animate-pulse">Six!</span>
           )}
         </motion.div>
       )}

@@ -24,7 +24,7 @@ function FloatingParticle({ delay, seed }: { delay: number; seed: number }) {
 
   return (
     <motion.div
-      className="absolute w-1 h-1 bg-primary/30 rounded-full"
+      className="absolute w-1 h-1 bg-white/30 rounded-full"
       initial={{ x: startX, y: startY }}
       animate={{
         y: -10,
@@ -73,14 +73,14 @@ export default function HomePage() {
         className="text-center z-10"
       >
         <motion.h1
-          className="text-7xl md:text-8xl font-black mb-4 bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent"
+          className="text-7xl md:text-8xl font-black mb-4 bg-gradient-to-r from-white via-white/60 to-white bg-clip-text text-transparent"
           animate={{ backgroundPosition: ['0%', '100%', '0%'] }}
           transition={{ duration: 5, repeat: Infinity }}
           style={{ backgroundSize: '200%' }}
         >
           GAMEVERSE
         </motion.h1>
-        <p className="text-xl text-game-muted mb-12">
+        <p className="text-xl text-white/40 mb-12">
           Play multiplayer games with friends in real-time
         </p>
 
@@ -118,7 +118,7 @@ export default function HomePage() {
           >
             Enter as Guest
           </Button>
-          <p className="text-xs text-center text-game-muted">
+          <p className="text-xs text-center text-white/40">
             No account needed — just pick a name and play!
           </p>
         </div>

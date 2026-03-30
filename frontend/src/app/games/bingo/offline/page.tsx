@@ -155,7 +155,7 @@ export default function OfflineBingoPage() {
         <div className="flex items-center justify-between mb-6">
           <button
             onClick={() => router.push('/games/bingo')}
-            className="text-sm text-game-muted hover:text-white transition-colors"
+            className="text-sm text-white/40 hover:text-white transition-colors"
           >
             ← Back
           </button>
@@ -168,9 +168,9 @@ export default function OfflineBingoPage() {
         {phase === 'setup' && (
           <div className="text-center">
             <h1 className="text-2xl font-black text-white mb-2">Set Up Your Board</h1>
-            <p className="text-game-muted mb-4">
+            <p className="text-white/40 mb-4">
               Click an empty cell to place{' '}
-              <span className="text-primary font-bold">{nextPlaceNumber}</span>
+              <span className="text-white font-bold">{nextPlaceNumber}</span>
             </p>
             <BingoBoard
               board={myBoard}
@@ -188,8 +188,8 @@ export default function OfflineBingoPage() {
               <span
                 className={`inline-block px-4 py-2 rounded-full text-sm font-bold ${
                   isMyTurn
-                    ? 'bg-primary/20 text-primary border border-primary/50'
-                    : 'bg-game-card text-game-muted border border-game-border'
+                    ? 'bg-white/20 text-white border border-white/50'
+                    : 'bg-white/[0.03] text-white/40 border border-white/[0.06]'
                 }`}
               >
                 {isMyTurn ? '🎯 Your Turn — Pick a number!' : "⏳ Bot's Turn…"}
@@ -203,12 +203,12 @@ export default function OfflineBingoPage() {
                 { label: 'Bot', lines: botLines },
               ].map(({ label, lines }) => (
                 <div key={label} className="flex items-center gap-2">
-                  <span className="text-sm text-game-muted">{label}:</span>
+                  <span className="text-sm text-white/40">{label}:</span>
                   {'BINGO'.split('').map((l, i) => (
                     <span
                       key={i}
                       className={`w-6 h-6 rounded text-xs font-black flex items-center justify-center ${
-                        i < lines ? 'bg-primary text-white' : 'bg-game-bg text-game-muted/40 border border-game-border'
+                        i < lines ? 'bg-white text-black' : 'bg-black text-white/30 border border-white/[0.06]'
                       }`}
                     >
                       {l}
@@ -222,8 +222,8 @@ export default function OfflineBingoPage() {
               <BingoBoard board={myBoard} disabled label="Your Board" />
 
               {/* Number picker */}
-              <div className="bg-game-card border border-game-border rounded-xl p-4">
-                <h3 className="text-xs text-game-muted uppercase tracking-wider mb-3 text-center">
+              <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+                <h3 className="text-xs text-white/40 uppercase tracking-wider mb-3 text-center">
                   Choose a Number
                 </h3>
                 <div className="grid grid-cols-5 gap-2">
@@ -237,10 +237,10 @@ export default function OfflineBingoPage() {
                         disabled={!canPick}
                         className={`aspect-square rounded-lg text-sm font-bold transition-all ${
                           used
-                            ? 'bg-game-bg text-game-muted/30 line-through'
+                            ? 'bg-black text-white/20 line-through'
                             : canPick
-                              ? 'bg-primary/20 text-primary border border-primary/50 hover:bg-primary/40 cursor-pointer'
-                              : 'bg-game-bg text-game-muted/60 border border-game-border'
+                              ? 'bg-white/20 text-white border border-white/50 hover:bg-white/40 cursor-pointer'
+                              : 'bg-black text-white/30 border border-white/[0.06]'
                         }`}
                       >
                         {num}
@@ -262,7 +262,7 @@ export default function OfflineBingoPage() {
             animate={{ opacity: 1, scale: 1 }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
           >
-            <div className="text-center p-8 bg-game-card border border-game-border rounded-2xl max-w-sm">
+            <div className="text-center p-8 bg-white/[0.03] border border-white/[0.06] rounded-2xl max-w-sm">
               <div className="text-6xl mb-4">{winner === 'you' ? '🏆' : '🤖'}</div>
               <h2 className="text-3xl font-black text-white mb-2">
                 {winner === 'you' ? 'YOU WON!' : 'Bot Wins!'}

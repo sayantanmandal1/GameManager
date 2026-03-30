@@ -44,7 +44,7 @@ export function BingoBoard({
   return (
     <div className={compact ? 'w-full max-w-xs mx-auto' : 'w-full max-w-sm mx-auto'}>
       {label && (
-        <p className="text-center text-sm text-game-muted uppercase tracking-wider mb-2 font-semibold">
+        <p className="text-center text-sm text-white/40 uppercase tracking-wider mb-2 font-semibold">
           {label}
         </p>
       )}
@@ -95,15 +95,15 @@ export function BingoBoard({
                   ${
                     isEmpty
                       ? canClickSetup
-                        ? 'bg-game-card border-2 border-dashed border-primary/40 text-primary/60 hover:border-primary hover:bg-primary/10 cursor-pointer'
-                        : 'bg-game-card border border-game-border text-game-muted/30'
+                        ? 'bg-white/[0.03] border-2 border-dashed border-white/40 text-white/60 hover:border-white/30 hover:bg-white/10 cursor-pointer'
+                        : 'bg-white/[0.03] border border-white/[0.06] text-white/40/30'
                       : isLastCalled
                         ? 'bg-yellow-500/40 border-2 border-yellow-400 text-white ring-2 ring-yellow-400/50'
                         : isMarked
-                          ? 'bg-primary/30 border-2 border-primary text-white line-through decoration-2'
+                          ? 'bg-white/30 border-2 border-white/30 text-white line-through decoration-2'
                           : canClickPlay
-                            ? 'bg-game-card border-2 border-green-400/50 text-white hover:bg-green-500/20 hover:border-green-400 cursor-pointer'
-                            : 'bg-game-card border border-game-border text-white'
+                            ? 'bg-white/[0.03] border-2 border-green-400/50 text-white hover:bg-green-500/20 hover:border-green-400 cursor-pointer'
+                            : 'bg-white/[0.03] border border-white/[0.06] text-white'
                   }`}
               >
                 {isEmpty

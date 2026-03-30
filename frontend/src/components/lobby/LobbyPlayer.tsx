@@ -15,7 +15,7 @@ export function LobbyPlayerCard({ player, isCurrentUser }: LobbyPlayerProps) {
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 20 }}
       className={`flex items-center gap-3 p-3 rounded-xl border
-        ${isCurrentUser ? 'border-primary bg-primary/10' : 'border-game-border bg-game-card'}`}
+        ${isCurrentUser ? 'border-white/30 bg-white/10' : 'border-white/[0.06] bg-white/[0.03]'}`}
     >
       <span className="text-2xl">{player.avatar}</span>
 
@@ -25,7 +25,7 @@ export function LobbyPlayerCard({ player, isCurrentUser }: LobbyPlayerProps) {
             {player.username}
           </span>
           {isCurrentUser && (
-            <span className="text-xs text-primary">(you)</span>
+            <span className="text-xs text-white">(you)</span>
           )}
           {player.isHost && (
             <span className="text-xs px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded-full">

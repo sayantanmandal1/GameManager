@@ -15,7 +15,7 @@ const GAMES = [
     description: 'Classic number-calling game. Be first to complete a pattern!',
     available: true,
     href: '/games/bingo',
-    gradient: 'from-indigo-500 to-purple-600',
+    gradient: 'from-white/40 to-white/10',
   },
   {
     id: 'chess',
@@ -24,7 +24,7 @@ const GAMES = [
     description: 'The king of strategy games.',
     available: false,
     href: '#',
-    gradient: 'from-amber-500 to-orange-600',
+    gradient: 'from-white/30 to-white/5',
   },
   {
     id: 'ludo',
@@ -33,7 +33,7 @@ const GAMES = [
     description: 'Race your tokens to the finish line!',
     available: true,
     href: '/games/ludo',
-    gradient: 'from-green-500 to-emerald-600',
+    gradient: 'from-white/40 to-white/10',
   },
   {
     id: 'tictactoe',
@@ -42,7 +42,7 @@ const GAMES = [
     description: 'Classic X and O battle.',
     available: false,
     href: '#',
-    gradient: 'from-pink-500 to-rose-600',
+    gradient: 'from-white/30 to-white/5',
   },
   {
     id: 'poker',
@@ -51,7 +51,7 @@ const GAMES = [
     description: 'Texas Hold\'em with friends.',
     available: false,
     href: '#',
-    gradient: 'from-red-500 to-red-700',
+    gradient: 'from-white/30 to-white/5',
   },
   {
     id: 'scrabble',
@@ -60,7 +60,7 @@ const GAMES = [
     description: 'Build words, score points.',
     available: false,
     href: '#',
-    gradient: 'from-teal-500 to-cyan-600',
+    gradient: 'from-white/30 to-white/5',
   },
 ];
 
@@ -80,7 +80,7 @@ export default function GamesPage() {
         <div className="flex items-center justify-between mb-10">
           <div>
             <h1 className="text-3xl font-bold text-white">Choose a Game</h1>
-            <p className="text-game-muted mt-1">
+            <p className="text-white/40 mt-1">
               Welcome back, {user?.avatar} {user?.username}!
             </p>
           </div>
@@ -89,7 +89,7 @@ export default function GamesPage() {
               useAuthStore.getState().logout();
               router.push('/');
             }}
-            className="text-sm text-game-muted hover:text-white transition-colors"
+            className="text-sm text-white/40 hover:text-white transition-colors"
           >
             Sign out
           </button>
@@ -120,10 +120,10 @@ export default function GamesPage() {
                 <h2 className="text-xl font-bold text-white mb-1">
                   {game.name}
                 </h2>
-                <p className="text-sm text-game-muted">{game.description}</p>
+                <p className="text-sm text-white/40">{game.description}</p>
 
                 {!game.available && (
-                  <span className="absolute top-3 right-3 text-xs px-2 py-1 bg-game-border rounded-full text-game-muted">
+                  <span className="absolute top-3 right-3 text-xs px-2 py-1 bg-white/[0.06] rounded-full text-white/40">
                     Coming Soon
                   </span>
                 )}

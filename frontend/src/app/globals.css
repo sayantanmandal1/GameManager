@@ -3,16 +3,16 @@
 @tailwind utilities;
 
 :root {
-  --game-bg: #080810;
-  --game-card: rgba(20, 20, 40, 0.7);
-  --game-border: rgba(255, 255, 255, 0.08);
+  --game-bg: #000000;
+  --game-card: rgba(10, 10, 10, 0.8);
+  --game-border: rgba(255, 255, 255, 0.06);
 }
 
 body {
-  background-color: #080810;
-  background-image: radial-gradient(ellipse at 20% 50%, rgba(88, 28, 135, 0.08) 0%, transparent 50%),
-                    radial-gradient(ellipse at 80% 20%, rgba(30, 64, 175, 0.06) 0%, transparent 50%);
-  color: #e2e8f0;
+  background-color: #000000;
+  background-image: radial-gradient(ellipse at 30% 50%, rgba(255, 255, 255, 0.02) 0%, transparent 60%),
+                    radial-gradient(ellipse at 70% 30%, rgba(255, 255, 255, 0.015) 0%, transparent 60%);
+  color: #e5e5e5;
 }
 
 /* Custom scrollbar */
@@ -34,16 +34,16 @@ body {
   aspect-ratio: 1;
 }
 .bingo-cell.unmarked {
-  @apply bg-game-card border border-game-border hover:border-primary;
+  @apply bg-white/[0.03] border border-white/[0.08] hover:border-white/30;
 }
 .bingo-cell.marked {
-  @apply bg-primary/30 border-2 border-primary text-primary-light;
+  @apply bg-white/20 border-2 border-white/60 text-white;
 }
 .bingo-cell.free {
-  @apply bg-accent/20 border-2 border-accent text-accent;
+  @apply bg-white/10 border-2 border-white/40 text-white/70;
 }
 .bingo-cell.called {
-  @apply ring-2 ring-yellow-400 ring-offset-1 ring-offset-game-bg;
+  @apply ring-2 ring-white/60 ring-offset-1 ring-offset-black;
 }
 
 /* Glow button */
@@ -52,7 +52,7 @@ body {
 }
 .glow-button::before {
   content: '';
-  @apply absolute inset-0 bg-gradient-to-r from-primary to-accent opacity-0
+  @apply absolute inset-0 bg-gradient-to-r from-white/10 to-white/5 opacity-0
     transition-opacity duration-300;
 }
 .glow-button:hover::before {

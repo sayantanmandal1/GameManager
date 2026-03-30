@@ -46,7 +46,7 @@ export default function LudoEntryPage() {
         >
           <span className="text-6xl mb-4 block">🎲</span>
           <h1 className="text-4xl font-black text-white mb-2">Ludo</h1>
-          <p className="text-game-muted">
+          <p className="text-white/40">
             Race your tokens to the finish — strategy meets luck!
           </p>
         </motion.div>
@@ -67,7 +67,7 @@ export default function LudoEntryPage() {
               <h3 className="font-bold text-white mb-1">
                 {isLoading ? 'Creating…' : 'Create Lobby'}
               </h3>
-              <p className="text-xs text-game-muted">
+              <p className="text-xs text-white/40">
                 Host a game and invite friends
               </p>
             </Card>
@@ -85,7 +85,7 @@ export default function LudoEntryPage() {
             >
               <div className="text-3xl mb-2">🔗</div>
               <h3 className="font-bold text-white mb-1">Join Lobby</h3>
-              <p className="text-xs text-game-muted">
+              <p className="text-xs text-white/40">
                 Enter a code to join a game
               </p>
             </Card>
@@ -103,7 +103,7 @@ export default function LudoEntryPage() {
             >
               <div className="text-3xl mb-2">🤖</div>
               <h3 className="font-bold text-white mb-1">Play Offline</h3>
-              <p className="text-xs text-game-muted">
+              <p className="text-xs text-white/40">
                 Play against AI bots
               </p>
             </Card>
@@ -117,7 +117,7 @@ export default function LudoEntryPage() {
         <div className="mt-6 text-center">
           <button
             onClick={() => router.push('/games')}
-            className="text-sm text-game-muted hover:text-white transition-colors"
+            className="text-sm text-white/40 hover:text-white transition-colors"
           >
             ← Back to Games
           </button>

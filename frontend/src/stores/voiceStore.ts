@@ -18,6 +18,7 @@ interface VoiceState {
   addPeer: (peer: Omit<VoicePeer, 'isMuted'>) => void;
   removePeer: (socketId: string) => void;
   setPeerMuted: (socketId: string, isMuted: boolean) => void;
+  clearPeers: () => void;
   reset: () => void;
 }
 
@@ -57,6 +58,8 @@ export const useVoiceStore = create<VoiceState>()((set) => ({
       if (peer) peers.set(socketId, { ...peer, isMuted });
       return { activePeers: peers };
     }),
+
+  clearPeers: () => set({ activePeers: new Map() }),
 
   reset: () =>
     set({ isInVoice: false, isMuted: false, isSpeakerOff: false, activePeers: new Map() }),

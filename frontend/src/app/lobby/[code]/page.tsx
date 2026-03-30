@@ -95,7 +95,7 @@ export default function LobbyPage() {
     return (
       <main className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <div className="w-8 h-8 border-2 border-white/30 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-game-muted">Connecting to lobby…</p>
         </div>
       </main>
@@ -114,7 +114,7 @@ export default function LobbyPage() {
           <p className="text-game-muted text-sm mb-2">LOBBY CODE</p>
           <button
             onClick={copyCode}
-            className="text-4xl font-mono font-black text-white tracking-[0.3em] hover:text-primary transition-colors"
+            className="text-4xl font-mono font-black text-white tracking-[0.3em] hover:text-white transition-colors"
             title="Click to copy"
           >
             {code}

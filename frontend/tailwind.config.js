@@ -5,20 +5,20 @@ module.exports = {
     extend: {
       colors: {
         primary: {
-          DEFAULT: '#6366f1',
-          dark: '#4f46e5',
-          light: '#818cf8',
+          DEFAULT: '#ffffff',
+          dark: '#e0e0e0',
+          light: '#ffffff',
         },
         accent: {
-          DEFAULT: '#ec4899',
-          dark: '#db2777',
-          light: '#f472b6',
+          DEFAULT: '#a0a0a0',
+          dark: '#808080',
+          light: '#c0c0c0',
         },
-        'game-bg': '#0f0f1a',
-        'game-card': '#1a1a2e',
-        'game-border': '#2a2a4a',
-        'game-text': '#e2e8f0',
-        'game-muted': '#94a3b8',
+        'game-bg': '#000000',
+        'game-card': '#0a0a0a',
+        'game-border': '#1a1a1a',
+        'game-text': '#e5e5e5',
+        'game-muted': '#737373',
       },
       animation: {
         'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
@@ -27,8 +27,8 @@ module.exports = {
       },
       keyframes: {
         'pulse-glow': {
-          '0%, 100%': { boxShadow: '0 0 20px rgba(99, 102, 241, 0.4)' },
-          '50%': { boxShadow: '0 0 40px rgba(99, 102, 241, 0.8)' },
+          '0%, 100%': { boxShadow: '0 0 20px rgba(255, 255, 255, 0.15)' },
+          '50%': { boxShadow: '0 0 40px rgba(255, 255, 255, 0.3)' },
         },
         float: {
           '0%, 100%': { transform: 'translateY(0px)' },

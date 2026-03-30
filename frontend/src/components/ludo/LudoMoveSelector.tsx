@@ -28,9 +28,9 @@ export function LudoMoveSelector({
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      className="absolute z-10 bg-game-card border border-game-border rounded-xl p-3 shadow-xl min-w-[180px]"
+      className="absolute z-10 bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 shadow-xl min-w-[180px]"
     >
-      <p className="text-xs text-game-muted mb-2 font-semibold uppercase tracking-wider">
+      <p className="text-xs text-white/40 mb-2 font-semibold uppercase tracking-wider">
         Choose move
       </p>
       <div className="space-y-1.5">
@@ -40,8 +40,8 @@ export function LudoMoveSelector({
             <button
               key={idx}
               onClick={() => onSelect(combo)}
-              className="w-full text-left px-3 py-2 rounded-lg bg-game-bg hover:bg-primary/20 
-                border border-transparent hover:border-primary/50 transition-all
+              className="w-full text-left px-3 py-2 rounded-lg bg-black hover:bg-white/20 
+                border border-transparent hover:border-white/50 transition-all
                 text-sm text-white"
             >
               {description}
@@ -51,7 +51,7 @@ export function LudoMoveSelector({
       </div>
       <button
         onClick={onCancel}
-        className="mt-2 w-full text-xs text-game-muted hover:text-white transition-colors py-1"
+        className="mt-2 w-full text-xs text-white/40 hover:text-white transition-colors py-1"
       >
         Cancel
       </button>

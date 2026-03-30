@@ -15,10 +15,15 @@ const ICE_SERVERS: RTCConfiguration = {
 export function useVoiceChat(roomId: string) {
   const peerConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
   const localStream = useRef<MediaStream | null>(null);
+  /**
+   * Buffer ICE candidates that arrive before remoteDescription is set.
+   * This is the primary fix for the silent-drop race condition.
+   */
+  const pendingCandidates = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
   /** Keep audio elements attached to the DOM for autoplay policy compliance */
   const audioElements = useRef<Map<string, HTMLAudioElement>>(new Map());
   const audioContainerRef = useRef<HTMLDivElement | null>(null);
-  const { isInVoice, isMuted, isSpeakerOff, addPeer, removePeer, setPeerMuted } =
+  const { isInVoice, isMuted, isSpeakerOff, addPeer, removePeer, setPeerMuted, clearPeers } =
     useVoiceStore();
 
   // Create a hidden container for audio elements on mount
@@ -90,12 +95,32 @@ export function useVoiceChat(roomId: string) {
       pc.close();
       peerConnections.current.delete(socketId);
     }
+    pendingCandidates.current.delete(socketId);
     const audio = audioElements.current.get(socketId);
     if (audio) {
       audio.pause();
       audio.srcObject = null;
       audio.remove();
       audioElements.current.delete(socketId);
+    }
+  }, []);
+
+  /**
+   * Flush any ICE candidates that were buffered while waiting for
+   * remoteDescription to be set. Must be called immediately after
+   * every setRemoteDescription() call.
+   */
+  const flushPendingCandidates = useCallback(async (socketId: string) => {
+    const pc = peerConnections.current.get(socketId);
+    if (!pc) return;
+    const candidates = pendingCandidates.current.get(socketId) ?? [];
+    pendingCandidates.current.delete(socketId);
+    for (const candidate of candidates) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (err) {
+        console.warn('Voice: failed to add buffered ICE candidate', err);
+      }
     }
   }, []);
 
@@ -178,15 +203,19 @@ export function useVoiceChat(roomId: string) {
     });
     peerConnections.current.clear();
     audioElements.current.clear();
+    pendingCandidates.current.clear();
 
     // Stop local stream
     localStream.current?.getTracks().forEach((t) => t.stop());
     localStream.current = null;
 
+    // Clear peer list from the store so there are no ghost entries on rejoin
+    clearPeers();
+
     if (socket) {
       socket.emit(VOICE_EVENTS.LEAVE, { roomId });
     }
-  }, [roomId]);
+  }, [roomId, clearPeers]);
 
   // Toggle mute for local mic
   useEffect(() => {
@@ -252,6 +281,8 @@ export function useVoiceChat(roomId: string) {
         }
 
         await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+        // Flush any ICE candidates that arrived before remoteDescription was set
+        await flushPendingCandidates(data.socketId);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         socket.emit(VOICE_EVENTS.ANSWER, {
@@ -271,6 +302,8 @@ export function useVoiceChat(roomId: string) {
         const pc = peerConnections.current.get(data.socketId);
         if (pc && pc.signalingState === 'have-local-offer') {
           await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+          // Flush any ICE candidates that arrived before remoteDescription was set
+          await flushPendingCandidates(data.socketId);
         }
       } catch (err) {
         console.warn('Voice: failed to handle answer', err);
@@ -283,8 +316,15 @@ export function useVoiceChat(roomId: string) {
     }) => {
       try {
         const pc = peerConnections.current.get(data.socketId);
-        if (pc && pc.remoteDescription) {
+        if (!pc) return;
+        if (pc.remoteDescription) {
+          // Remote description already set — add immediately
           await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+        } else {
+          // Buffer the candidate until setRemoteDescription is called
+          const buf = pendingCandidates.current.get(data.socketId) ?? [];
+          buf.push(data.candidate);
+          pendingCandidates.current.set(data.socketId, buf);
         }
       } catch (err) {
         console.warn('Voice: failed to add ICE candidate', err);
@@ -313,7 +353,7 @@ export function useVoiceChat(roomId: string) {
       socket.off(VOICE_EVENTS.ICE_CANDIDATE, onIceCandidate);
       socket.off(VOICE_EVENTS.MUTE_STATUS, onMuteStatus);
     };
-  }, [createPeerConnection, cleanupPeer, addPeer, removePeer, setPeerMuted]);
+  }, [createPeerConnection, cleanupPeer, addPeer, removePeer, setPeerMuted, flushPendingCandidates]);
 
   return { joinVoice, leaveVoice, isInVoice };
 }

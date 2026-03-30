@@ -14,11 +14,11 @@ interface ButtonProps extends HTMLMotionProps<'button'> {
 
 const variantClasses: Record<Variant, string> = {
   primary:
-    'bg-primary hover:bg-primary-dark text-white shadow-lg shadow-primary/25',
+    'bg-white hover:bg-white/90 text-black shadow-lg shadow-white/10',
   secondary:
-    'bg-game-card hover:bg-game-border text-game-text border border-game-border',
-  danger: 'bg-red-600 hover:bg-red-700 text-white',
-  ghost: 'bg-transparent hover:bg-white/5 text-game-muted hover:text-white',
+    'bg-white/[0.06] hover:bg-white/[0.1] text-white/80 border border-white/[0.1]',
+  danger: 'bg-white/10 hover:bg-white/15 text-red-400 border border-red-500/30',
+  ghost: 'bg-transparent hover:bg-white/[0.05] text-white/50 hover:text-white',
 };
 
 const sizeClasses: Record<Size, string> = {

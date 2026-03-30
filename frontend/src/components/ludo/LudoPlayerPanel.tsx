@@ -4,11 +4,11 @@ import { motion } from 'framer-motion';
 import type { LudoPlayerState } from '@/shared';
 import { LudoColor, LUDO_TOKENS_PER_PLAYER } from '@/shared';
 
-const COLOR_MAP: Record<LudoColor, { bg: string; text: string; label: string }> = {
-  [LudoColor.RED]: { bg: 'bg-red-500/20', text: 'text-red-400', label: 'Red' },
-  [LudoColor.GREEN]: { bg: 'bg-green-500/20', text: 'text-green-400', label: 'Green' },
-  [LudoColor.YELLOW]: { bg: 'bg-yellow-500/20', text: 'text-yellow-400', label: 'Yellow' },
-  [LudoColor.BLUE]: { bg: 'bg-blue-500/20', text: 'text-blue-400', label: 'Blue' },
+const COLOR_MAP: Record<LudoColor, { bg: string; text: string; label: string; dot: string }> = {
+  [LudoColor.RED]: { bg: 'bg-white/[0.06]', text: 'text-white/80', label: 'Red', dot: '#FF4C4C' },
+  [LudoColor.GREEN]: { bg: 'bg-white/[0.06]', text: 'text-white/80', label: 'Green', dot: '#4CAF50' },
+  [LudoColor.YELLOW]: { bg: 'bg-white/[0.06]', text: 'text-white/80', label: 'Yellow', dot: '#FFC107' },
+  [LudoColor.BLUE]: { bg: 'bg-white/[0.06]', text: 'text-white/80', label: 'Blue', dot: '#2196F3' },
 };
 
 const RANK_LABELS = ['🏆 1st', '🥈 2nd', '🥉 3rd', '4th'];
@@ -28,7 +28,7 @@ export function LudoPlayerPanel({
 }: LudoPlayerPanelProps) {
   return (
     <div className="space-y-2">
-      <h3 className="text-xs font-semibold text-game-muted uppercase tracking-wider mb-3">
+      <h3 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-3">
         Players
       </h3>
       {players.map((player) => {
@@ -49,10 +49,10 @@ export function LudoPlayerPanel({
             key={player.id}
             className={`flex items-center gap-3 px-3 py-2 rounded-xl border transition-all ${
               isCurrent
-                ? `${color.bg} border-current ${color.text} backdrop-blur-md`
+                ? `${color.bg} border-white/20 ${color.text} backdrop-blur-md`
                 : isFinished
-                ? 'bg-white/[0.02] border-white/[0.04] opacity-70'
-                : 'bg-white/[0.03] border-white/[0.06]'
+                ? 'bg-white/[0.01] border-white/[0.03] opacity-70'
+                : 'bg-white/[0.02] border-white/[0.05]'
             }`}
             animate={isCurrent ? { scale: [1, 1.02, 1] } : {}}
             transition={{ repeat: Infinity, duration: 2 }}
@@ -62,16 +62,7 @@ export function LudoPlayerPanel({
               className={`w-3 h-3 rounded-full ${
                 isCurrent ? 'animate-pulse' : ''
               }`}
-              style={{
-                backgroundColor:
-                  player.color === LudoColor.RED
-                    ? '#FF4C4C'
-                    : player.color === LudoColor.GREEN
-                    ? '#4CAF50'
-                    : player.color === LudoColor.YELLOW
-                    ? '#FFC107'
-                    : '#2196F3',
-              }}
+              style={{ backgroundColor: color.dot }}
             />
 
             {/* Player info */}
@@ -81,10 +72,10 @@ export function LudoPlayerPanel({
                   {player.username}
                 </span>
                 {isMe && (
-                  <span className="text-[10px] text-game-muted">(you)</span>
+                  <span className="text-[10px] text-white/30">(you)</span>
                 )}
                 {player.isBot && (
-                  <span className="text-[10px] px-1 py-0.5 bg-game-border rounded text-game-muted">
+                  <span className="text-[10px] px-1 py-0.5 bg-white/[0.06] rounded text-white/40">
                     🤖
                   </span>
                 )}
@@ -93,17 +84,17 @@ export function LudoPlayerPanel({
               {/* Token progress */}
               <div className="flex items-center gap-2 mt-0.5">
                 {tokensInBase > 0 && (
-                  <span className="text-[10px] text-game-muted">
+                  <span className="text-[10px] text-white/30">
                     🏠{tokensInBase}
                   </span>
                 )}
                 {tokensActive > 0 && (
-                  <span className="text-[10px] text-game-muted">
+                  <span className="text-[10px] text-white/30">
                     🏃{tokensActive}
                   </span>
                 )}
                 {tokensHome > 0 && (
-                  <span className="text-[10px] text-green-400">
+                  <span className="text-[10px] text-white/60">
                     ✅{tokensHome}
                   </span>
                 )}
@@ -117,7 +108,7 @@ export function LudoPlayerPanel({
                   {RANK_LABELS[rankIdx]}
                 </span>
               ) : isCurrent ? (
-                <span className={`text-xs font-bold ${color.text}`}>
+                <span className="text-xs font-bold text-white">
                   ▶
                 </span>
               ) : null}
