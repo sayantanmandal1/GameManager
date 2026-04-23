@@ -22,9 +22,9 @@ const GAMES = [
     name: 'Chess',
     emoji: '♟️',
     description: 'The king of strategy games.',
-    available: false,
-    href: '#',
-    gradient: 'from-white/30 to-white/5',
+    available: true,
+    href: '/games/chess',
+    gradient: 'from-white/40 to-white/10',
   },
   {
     id: 'ludo',
