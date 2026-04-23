@@ -411,4 +411,53 @@ describe('LobbyService', () => {
       expect(result!.players.every((p) => p.isReady === false)).toBe(true);
     });
   });
+
+  describe('chess lobbies — timeControl', () => {
+    beforeEach(() => {
+      mockUserService.findById!.mockResolvedValue(fakeUser);
+    });
+
+    it('persists timeControl on a chess lobby and forces maxPlayers=2', async () => {
+      const lobby = await service.createLobby('user1', GameType.CHESS, undefined, {
+        baseMs: 300_000,
+        incrementMs: 2_000,
+      });
+      expect(lobby.gameType).toBe(GameType.CHESS);
+      expect(lobby.maxPlayers).toBe(2);
+      expect(lobby.timeControl).toEqual({ baseMs: 300_000, incrementMs: 2_000 });
+      const saveArg = mockLobbyRepo.save!.mock.calls[0][0];
+      expect(saveArg.timeControl).toEqual({ baseMs: 300_000, incrementMs: 2_000 });
+    });
+
+    it('allows null timeControl (untimed chess)', async () => {
+      const lobby = await service.createLobby('user1', GameType.CHESS, undefined, null);
+      expect(lobby.timeControl).toBeNull();
+    });
+
+    it('rejects negative baseMs', async () => {
+      await expect(
+        service.createLobby('user1', GameType.CHESS, undefined, {
+          baseMs: -1,
+          incrementMs: 0,
+        }),
+      ).rejects.toThrow('invalid_time_control');
+    });
+
+    it('rejects non-integer incrementMs', async () => {
+      await expect(
+        service.createLobby('user1', GameType.CHESS, undefined, {
+          baseMs: 60_000,
+          incrementMs: 1.5,
+        }),
+      ).rejects.toThrow('invalid_time_control');
+    });
+
+    it('ignores timeControl for non-chess game types', async () => {
+      const lobby = await service.createLobby('user1', GameType.BINGO, undefined, {
+        baseMs: 60_000,
+        incrementMs: 0,
+      });
+      expect(lobby.timeControl).toBeNull();
+    });
+  });
 });

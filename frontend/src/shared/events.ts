@@ -36,6 +36,27 @@ export const LUDO_EVENTS = {
   REMOVE_BOT: 'ludo:remove_bot',
 } as const;
 
+// ─── Chess-Specific Events ───
+// Client → Server: move, resign, draw_offer, draw_response, rejoin, spectate.
+// Server → Room / Sender: state, move_applied, move_rejected, clock_tick,
+//   draw_offer (broadcast), draw_declined, game_over.
+export const CHESS_EVENTS = {
+  // client → server
+  MOVE: 'chess:move',
+  RESIGN: 'chess:resign',
+  DRAW_OFFER: 'chess:draw_offer',
+  DRAW_RESPONSE: 'chess:draw_response',
+  REJOIN: 'chess:rejoin',
+  SPECTATE: 'chess:spectate',
+  // server → client/room
+  STATE: 'chess:state',
+  MOVE_APPLIED: 'chess:move_applied',
+  MOVE_REJECTED: 'chess:move_rejected',
+  CLOCK_TICK: 'chess:clock_tick',
+  DRAW_DECLINED: 'chess:draw_declined',
+  GAME_OVER: 'chess:game_over',
+} as const;
+
 export const VOICE_EVENTS = {
   JOIN: 'voice:join',
   LEAVE: 'voice:leave',

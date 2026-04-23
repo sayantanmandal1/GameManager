@@ -43,11 +43,27 @@ export {
   LUDO_SAFE_SQUARES,
   LUDO_COLOR_ASSIGNMENTS,
 } from './types/ludo';
+export type {
+  TimeControl,
+  ChessClocks,
+  ChessResult,
+  ChessStatus,
+  ChessTermination,
+  ChessMove,
+  ChessGameState,
+  ChessPlayerView,
+} from './types/chess';
+export {
+  CHESS_SPECTATOR_CAP,
+  CHESS_MOVE_RATE_CAPACITY,
+  CHESS_MOVE_RATE_REFILL_PER_SEC,
+} from './types/chess';
 export {
   LOBBY_EVENTS,
   GAME_EVENTS,
   BINGO_EVENTS,
   LUDO_EVENTS,
+  CHESS_EVENTS,
   VOICE_EVENTS,
   AUTH_EVENTS,
 } from './events';

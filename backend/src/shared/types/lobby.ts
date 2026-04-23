@@ -7,6 +7,7 @@ export enum LobbyStatus {
 export enum GameType {
   BINGO = 'bingo',
   LUDO = 'ludo',
+  CHESS = 'chess',
 }
 
 export interface LobbyPlayer {
@@ -27,11 +28,15 @@ export interface Lobby {
   status: LobbyStatus;
   maxPlayers: number;
   createdAt: Date;
+  /** Only populated for chess lobbies. null ⇒ untimed. */
+  timeControl?: import('./chess').TimeControl | null;
 }
 
 export interface CreateLobbyPayload {
   gameType: GameType;
   maxPlayers?: number;
+  /** Only honored when gameType === 'chess'. null or undefined ⇒ untimed. */
+  timeControl?: import('./chess').TimeControl | null;
 }
 
 export interface JoinLobbyPayload {

@@ -179,4 +179,50 @@ describe('GameService', () => {
       expect(service.getGameIdForLobby('unknown')).toBeUndefined();
     });
   });
+
+  describe('chess game-over persistence', () => {
+    // Covers AC-14: Completed chess games are persisted: the GameEntity row is
+    // updated on game end with final result, termination reason, PGN, and
+    // timestamps. Exercised via the resign path (shortest route to finalize).
+    const chessLobby = {
+      ...fakeLobby,
+      gameType: GameType.CHESS,
+      maxPlayers: 2,
+      timeControl: null,
+      players: [
+        { id: 'white1', username: 'White', avatar: '♔', isReady: true, isHost: true, joinedAt: new Date() },
+        { id: 'black1', username: 'Black', avatar: '♚', isReady: true, isHost: false, joinedAt: new Date() },
+      ],
+    };
+
+    it('updates GameEntity with result/termination/pgn/finalFen/finishedAt/winnerId on resign', async () => {
+      mockLobbyService.getLobby!.mockResolvedValue(chessLobby);
+      const { gameId } = await service.startChessGame('123456');
+
+      mockGameRepo.update!.mockClear();
+
+      const res = await service.chessResign(gameId, 'white1', '123456');
+      expect(res.ok).toBe(true);
+
+      expect(mockGameRepo.update).toHaveBeenCalledTimes(1);
+      const [updateId, patch] = mockGameRepo.update!.mock.calls[0];
+      expect(updateId).toBe(gameId);
+      expect(patch).toEqual(
+        expect.objectContaining({
+          status: GameStatus.FINISHED,
+          result: '0-1', // white resigned → black wins
+          termination: 'resignation',
+          winnerId: 'black1',
+          pgn: expect.any(String),
+          finalFen: expect.any(String),
+          finishedAt: expect.any(Date),
+        }),
+      );
+      // Lobby transitions back to WAITING so players can start another game.
+      expect(mockLobbyService.setStatus).toHaveBeenCalledWith(
+        '123456',
+        LobbyStatus.WAITING,
+      );
+    });
+  });
 });

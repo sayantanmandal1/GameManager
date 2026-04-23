@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { LobbyStatus } from '../shared';
+import type { TimeControl } from '../shared';
 
 @Entity('lobbies')
 export class LobbyEntity {
@@ -29,6 +30,11 @@ export class LobbyEntity {
 
   @Column({ default: 8 })
   maxPlayers: number;
+
+  // SECURITY_NOTE: nullable jsonb so adding this column is a safe additive
+  // migration; null ⇒ untimed. Only read for chess lobbies.
+  @Column({ type: 'jsonb', nullable: true })
+  timeControl: TimeControl | null;
 
   @CreateDateColumn()
   createdAt: Date;

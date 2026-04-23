@@ -31,4 +31,21 @@ export class GameEntity {
 
   @Column({ type: 'timestamp', nullable: true })
   finishedAt: Date | null;
+
+  // ─── Chess-specific optional columns (nullable for all game types) ───
+
+  @Column({ type: 'varchar', length: 8, nullable: true })
+  result: string | null;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  termination: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  pgn: string | null;
+
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  finalFen: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  startedAt: Date | null;
 }

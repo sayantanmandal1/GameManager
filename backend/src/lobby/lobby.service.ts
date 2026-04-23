@@ -13,6 +13,7 @@ import {
   LobbyStatus,
   GameType,
   GAME_CONSTANTS,
+  TimeControl,
 } from '../shared';
 
 @Injectable()
@@ -36,15 +37,27 @@ export class LobbyService {
     hostId: string,
     gameType: GameType,
     maxPlayers?: number,
+    timeControl?: TimeControl | null,
   ): Promise<Lobby> {
     const host = await this.userService.findById(hostId);
     if (!host) throw new Error('User not found');
 
     const code = this.generateCode();
-    const max = Math.min(
-      maxPlayers || GAME_CONSTANTS.DEFAULT_MAX_PLAYERS,
-      GAME_CONSTANTS.DEFAULT_MAX_PLAYERS,
-    );
+    // Chess is strictly 2-player; ignore any client-provided override.
+    const requestedMax =
+      gameType === GameType.CHESS
+        ? 2
+        : Math.min(
+            maxPlayers || GAME_CONSTANTS.DEFAULT_MAX_PLAYERS,
+            GAME_CONSTANTS.DEFAULT_MAX_PLAYERS,
+          );
+
+    // SECURITY_NOTE: validate timeControl shape server-side; only honor it
+    // for chess lobbies (design §9, security). Reject bogus values.
+    const tc =
+      gameType === GameType.CHESS
+        ? LobbyService.validateTimeControl(timeControl ?? null)
+        : null;
 
     const hostPlayer: LobbyPlayer = {
       id: host.id,
@@ -62,8 +75,9 @@ export class LobbyService {
       gameType,
       players: [hostPlayer],
       status: LobbyStatus.WAITING,
-      maxPlayers: max,
+      maxPlayers: requestedMax,
       createdAt: new Date(),
+      timeControl: tc,
     };
 
     // Persist to DB
@@ -75,6 +89,7 @@ export class LobbyService {
       playerIds: [hostId],
       status: lobby.status,
       maxPlayers: lobby.maxPlayers,
+      timeControl: tc,
     });
     await this.lobbyRepo.save(entity);
 
@@ -82,6 +97,29 @@ export class LobbyService {
     await this.saveLobby(lobby);
 
     return lobby;
+  }
+
+  /**
+   * Validate a client-supplied TimeControl. Returns a clean object or null.
+   * Rejects negative/non-integer/non-finite values to prevent clock abuse.
+   */
+  static validateTimeControl(raw: TimeControl | null | undefined): TimeControl | null {
+    if (raw === null || raw === undefined) return null;
+    if (typeof raw !== 'object') {
+      throw new Error('invalid_time_control');
+    }
+    const { baseMs, incrementMs } = raw as TimeControl;
+    if (
+      !Number.isInteger(baseMs) ||
+      !Number.isInteger(incrementMs) ||
+      baseMs < 0 ||
+      incrementMs < 0 ||
+      baseMs > 7 * 24 * 60 * 60 * 1000 ||
+      incrementMs > 60 * 60 * 1000
+    ) {
+      throw new Error('invalid_time_control');
+    }
+    return { baseMs, incrementMs };
   }
 
   async getLobby(code: string): Promise<Lobby | null> {

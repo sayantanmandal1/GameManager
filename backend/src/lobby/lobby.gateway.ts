@@ -17,6 +17,7 @@ import { getSocketUser } from '../auth/ws-jwt.guard';
 import {
   LOBBY_EVENTS,
   GAME_EVENTS,
+  CHESS_EVENTS,
   GameType,
   CreateLobbyPayload,
   JoinLobbyPayload,
@@ -80,13 +81,24 @@ export class LobbyGateway
         user.sub,
         data.gameType || GameType.BINGO,
         data.maxPlayers,
+        data.timeControl ?? null,
       );
       client.join(`lobby:${lobby.code}`);
       this.socketLobbyMap.set(client.id, lobby.code);
       client.emit(LOBBY_EVENTS.STATE, { lobby });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to create lobby';
-      client.emit(LOBBY_EVENTS.ERROR, { message, code: 'CREATE_FAILED' });
+      const raw = err instanceof Error ? err.message : 'Failed to create lobby';
+      // SECURITY_NOTE: map internal error strings to public codes; never leak
+      // arbitrary error text that could carry internal detail.
+      const code =
+        raw === 'invalid_time_control'
+          ? 'INVALID_TIME_CONTROL'
+          : 'CREATE_FAILED';
+      const message =
+        raw === 'invalid_time_control'
+          ? 'baseMs and incrementMs must be non-negative integers within allowed range'
+          : 'Failed to create lobby';
+      client.emit(LOBBY_EVENTS.ERROR, { message, code });
     }
   }
 
@@ -103,6 +115,15 @@ export class LobbyGateway
       client.join(`lobby:${lobby.code}`);
       this.socketLobbyMap.set(client.id, lobby.code);
       this.server.to(`lobby:${lobby.code}`).emit(LOBBY_EVENTS.STATE, { lobby });
+
+      // Chess auto-start: exactly 2 players in a chess lobby triggers game creation.
+      if (
+        lobby.gameType === GameType.CHESS &&
+        lobby.players.length === 2 &&
+        lobby.status !== 'in_progress'
+      ) {
+        await this.autoStartChess(lobby.code);
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to join lobby';
       client.emit(LOBBY_EVENTS.ERROR, { message, code: 'JOIN_FAILED' });
@@ -186,6 +207,9 @@ export class LobbyGateway
       if (lobby.gameType === GameType.LUDO) {
         const result = await this.gameService.startLudoGame(code);
         gameId = result.gameId;
+      } else if (lobby.gameType === GameType.CHESS) {
+        const result = await this.gameService.startChessGame(code);
+        gameId = result.gameId;
       } else {
         const result = await this.gameService.startBingoGame(code);
         gameId = result.gameId;
@@ -200,18 +224,21 @@ export class LobbyGateway
         s.join(gameRoom);
         const sUser = s.data?.user;
         if (sUser) {
-          let view;
           if (lobby.gameType === GameType.LUDO) {
-            view = this.gameService.getLudoPlayerView(gameId, sUser.sub);
+            const view = this.gameService.getLudoPlayerView(gameId, sUser.sub);
+            if (view) {
+              s.emit(GAME_EVENTS.STATE, { gameId, view, gameType: GameType.LUDO });
+            }
+          } else if (lobby.gameType === GameType.CHESS) {
+            const view = this.gameService.getChessView(gameId, sUser.sub);
+            if (view) {
+              s.emit(CHESS_EVENTS.STATE, { gameId, role: view.role, view });
+            }
           } else {
-            view = this.gameService.getPlayerView(gameId, sUser.sub);
-          }
-          if (view) {
-            s.emit(GAME_EVENTS.STATE, {
-              gameId,
-              view,
-              ...(lobby.gameType === GameType.LUDO ? { gameType: GameType.LUDO } : {}),
-            });
+            const view = this.gameService.getPlayerView(gameId, sUser.sub);
+            if (view) {
+              s.emit(GAME_EVENTS.STATE, { gameId, view });
+            }
           }
         }
       }
@@ -270,5 +297,38 @@ export class LobbyGateway
 
   getSocketLobbyMap(): Map<string, string> {
     return this.socketLobbyMap;
+  }
+
+  /**
+   * Auto-start a chess game when exactly 2 players are present in the
+   * lobby. Emits lobby:game_starting, joins the game room, and sends the
+   * initial chess:state to each seat.
+   */
+  private async autoStartChess(code: string): Promise<void> {
+    try {
+      const result = await this.gameService.startChessGame(code);
+      const gameId = result.gameId;
+
+      const lobbyRoom = `lobby:${code}`;
+      const gameRoom = `game:${code}`;
+      const sockets = await this.server.in(lobbyRoom).fetchSockets();
+
+      for (const s of sockets) {
+        s.join(gameRoom);
+        const sUser = s.data?.user;
+        if (sUser) {
+          const view = this.gameService.getChessView(gameId, sUser.sub);
+          if (view) {
+            s.emit(CHESS_EVENTS.STATE, { gameId, role: view.role, view });
+          }
+        }
+      }
+      this.server
+        .to(lobbyRoom)
+        .emit(LOBBY_EVENTS.GAME_STARTING, { lobbyCode: code });
+    } catch {
+      // Never surface internal errors to the room. Join handler already
+      // broadcast lobby:state so clients can retry via lobby:start_game.
+    }
   }
 }

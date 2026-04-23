@@ -5,6 +5,7 @@ import {
   GAME_EVENTS,
   LOBBY_EVENTS,
   BINGO_EVENTS,
+  CHESS_EVENTS,
   VOICE_EVENTS,
   AUTH_EVENTS,
   LobbyStatus,
@@ -13,6 +14,16 @@ import {
   BingoGamePhase,
   BINGO_BOARD_SIZE,
   BINGO_TOTAL_NUMBERS,
+  CHESS_SPECTATOR_CAP,
+  CHESS_MOVE_RATE_CAPACITY,
+  CHESS_MOVE_RATE_REFILL_PER_SEC,
+} from './index';
+import type {
+  TimeControl,
+  ChessClocks,
+  ChessMove,
+  ChessPlayerView,
+  ChessTermination,
 } from './index';
 
 describe('Frontend Shared Constants', () => {
@@ -97,6 +108,14 @@ describe('Frontend Shared Enums', () => {
     it('should have BINGO', () => {
       expect(GameType.BINGO).toBe('bingo');
     });
+
+    it('should have LUDO', () => {
+      expect(GameType.LUDO).toBe('ludo');
+    });
+
+    it('should have CHESS', () => {
+      expect(GameType.CHESS).toBe('chess');
+    });
   });
 
   describe('GameStatus', () => {
@@ -163,5 +182,72 @@ describe('Frontend Event Constants', () => {
         expect(event).toMatch(/^auth:/);
       });
     });
+  });
+});
+
+describe('Frontend Chess Parity', () => {
+  it('exports CHESS_EVENTS with the expected client/server names', () => {
+    expect(CHESS_EVENTS.MOVE).toBe('chess:move');
+    expect(CHESS_EVENTS.RESIGN).toBe('chess:resign');
+    expect(CHESS_EVENTS.DRAW_OFFER).toBe('chess:draw_offer');
+    expect(CHESS_EVENTS.DRAW_RESPONSE).toBe('chess:draw_response');
+    expect(CHESS_EVENTS.REJOIN).toBe('chess:rejoin');
+    expect(CHESS_EVENTS.SPECTATE).toBe('chess:spectate');
+    expect(CHESS_EVENTS.STATE).toBe('chess:state');
+    expect(CHESS_EVENTS.MOVE_APPLIED).toBe('chess:move_applied');
+    expect(CHESS_EVENTS.MOVE_REJECTED).toBe('chess:move_rejected');
+    expect(CHESS_EVENTS.CLOCK_TICK).toBe('chess:clock_tick');
+    expect(CHESS_EVENTS.DRAW_DECLINED).toBe('chess:draw_declined');
+    expect(CHESS_EVENTS.GAME_OVER).toBe('chess:game_over');
+  });
+
+  it('has all chess events with the chess: prefix', () => {
+    Object.values(CHESS_EVENTS).forEach((ev) => {
+      expect(ev).toMatch(/^chess:/);
+    });
+  });
+
+  it('exports the spectator cap and rate-limit constants', () => {
+    expect(CHESS_SPECTATOR_CAP).toBe(50);
+    expect(CHESS_MOVE_RATE_CAPACITY).toBe(10);
+    expect(CHESS_MOVE_RATE_REFILL_PER_SEC).toBe(10);
+  });
+
+  it('chess types are importable from the shared barrel', () => {
+    // Pure type-level import smoke test — body uses literals that must
+    // structurally satisfy the types.
+    const tc: TimeControl = { baseMs: 300_000, incrementMs: 0 };
+    const clocks: ChessClocks = { whiteMs: 1, blackMs: 1, lastTickAt: 1 };
+    const move: ChessMove = {
+      from: 'e2',
+      to: 'e4',
+      promotion: null,
+      san: 'e4',
+      color: 'w',
+      captured: null,
+    };
+    const term: ChessTermination = 'checkmate';
+    const view: ChessPlayerView = {
+      gameId: 'g',
+      lobbyCode: '123456',
+      role: 'white',
+      fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+      pgn: '',
+      turn: 'w',
+      history: [move],
+      clocks,
+      timeControl: tc,
+      whitePlayerId: 'u1',
+      blackPlayerId: 'u2',
+      whiteName: 'w',
+      blackName: 'b',
+      status: 'in_progress',
+      drawOffer: null,
+      result: null,
+      termination: null,
+      spectatorCount: 0,
+    };
+    expect(view.clocks.whiteMs).toBe(1);
+    expect(term).toBe('checkmate');
   });
 });

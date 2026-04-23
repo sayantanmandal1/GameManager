@@ -1,6 +1,16 @@
 # GameVerse — Multiplayer Gaming Platform
 
-A production-grade, real-time multiplayer gaming platform built with **Next.js**, **NestJS**, **Socket.IO**, **PostgreSQL**, and **Redis**. Bingo is the first game; the architecture is designed to support many future games.
+A production-grade, real-time multiplayer gaming platform built with **Next.js**, **NestJS**, **Socket.IO**, **PostgreSQL**, and **Redis**. The architecture is designed to support many games; Bingo, Ludo, and Chess ship in v1.
+
+---
+
+## Supported Games
+
+| Game  | Players | Notes                                                                                  |
+|-------|---------|----------------------------------------------------------------------------------------|
+| Bingo | 2–8     | Classic 5×5 boards; server draws numbers on a fixed interval.                          |
+| Ludo  | 2–4     | Standard rules with bot fill for open seats; server-authoritative dice and turns.      |
+| Chess | 2       | Standard rules via `chess.js`; optional time controls (Blitz 5+0 / Rapid 10+0 / Classical 15+10 / untimed); read-only spectators; resign and draw-offer flows. See `.context/chess-game/` for feature docs. |
 
 ---
 
@@ -127,7 +137,9 @@ multiplayer-games/
 │   │       ├── lobby/        # Lobby REST + WebSocket gateway
 │   │       ├── game/         # Game orchestration + engines
 │   │       │   └── engines/
-│   │       │       └── bingo/  # Bingo engine + utils + tests
+│   │       │       ├── bingo/  # Bingo engine + utils + tests
+│   │       │       ├── ludo/   # Ludo engine + utils + tests
+│   │       │       └── chess/  # Chess engine (chess.js) + utils + tests
 │   │       ├── voice/        # WebRTC signaling gateway
 │   │       └── redis/        # Redis provider module
 │   └── frontend/             # Next.js 14 (App Router)
