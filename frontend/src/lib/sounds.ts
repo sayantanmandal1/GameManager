@@ -91,3 +91,29 @@ export function playTurnSkip() {
   playTone(300, 0.2, 'triangle', 0.08);
   setTimeout(() => playTone(200, 0.3, 'triangle', 0.06), 150);
 }
+
+// ─── UNO sound cues ───
+export function playUnoPlay() {
+  playTone(660, 0.06, 'triangle', 0.1);
+  setTimeout(() => playNoise(0.05, 0.04), 20);
+}
+
+export function playUnoDraw() {
+  playNoise(0.08, 0.05);
+  setTimeout(() => playTone(440, 0.07, 'sine', 0.07), 20);
+}
+
+export function playUnoReverse() {
+  playTone(500, 0.1, 'sine', 0.1);
+  setTimeout(() => playTone(700, 0.12, 'sine', 0.1), 90);
+}
+
+export function playUnoCall() {
+  playTone(784, 0.12, 'square', 0.12);
+  setTimeout(() => playTone(1047, 0.2, 'square', 0.14), 110);
+}
+
+export function playUnoPenalty() {
+  playTone(320, 0.14, 'sawtooth', 0.1);
+  setTimeout(() => playTone(220, 0.22, 'sawtooth', 0.09), 120);
+}
