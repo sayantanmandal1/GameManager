@@ -1,6 +1,6 @@
 # GameVerse — Multiplayer Gaming Platform
 
-A production-grade, real-time multiplayer gaming platform built with **Next.js**, **NestJS**, **Socket.IO**, **PostgreSQL**, and **Redis**. The architecture is designed to support many games; Bingo, Ludo, and Chess ship in v1.
+A production-grade, real-time multiplayer gaming platform built with **Next.js**, **NestJS**, **Socket.IO**, and **PostgreSQL**. The architecture is designed to support many games; Bingo, Ludo, and Chess ship in v1.
 
 ---
 
@@ -21,14 +21,13 @@ A production-grade, real-time multiplayer gaming platform built with **Next.js**
 │   Next.js 14       │◄────►│   NestJS 10        │
 │   (App Router)     │ WS   │   (REST + WS)      │
 │   Port 3000        │      │   Port 8000         │
-└────────────────────┘      └──────┬───────┬──────┘
-                                   │       │
-                             ┌─────┘       └─────┐
-                             ▼                   ▼
-                      ┌────────────┐      ┌────────────┐
-                      │  PostgreSQL│      │   Redis    │
-                      │  Port 5432 │      │  Port 6379 │
-                      └────────────┘      └────────────┘
+└────────────────────┘      └──────────┬─────────┘
+                                       │
+                                       ▼
+                                ┌────────────┐
+                                │  PostgreSQL│
+                                │  Port 5432 │
+                                └────────────┘
 ```
 
 - **Server-authoritative**: All game state lives on the server; clients receive only their own view.
@@ -71,8 +70,8 @@ docker compose up -d
 # 1. Install dependencies (from project root)
 npm install
 
-# 2. Start infrastructure (Postgres + Redis)
-docker compose up -d postgres redis
+# 2. Start infrastructure (Postgres)
+docker compose up -d postgres
 
 # 3. Copy env file
 cp .env.example .env
@@ -115,8 +114,6 @@ Copy `.env.example` to `.env` at the project root. Key variables:
 | `DB_USERNAME`         | `gameverse`           | PostgreSQL user               |
 | `DB_PASSWORD`         | `gameverse_secret`    | PostgreSQL password            |
 | `DB_DATABASE`         | `gameverse`           | PostgreSQL database name      |
-| `REDIS_HOST`          | `localhost`           | Redis host                    |
-| `REDIS_PORT`          | `6379`                | Redis port                    |
 | `JWT_SECRET`          | *(change in prod)*    | JWT signing secret            |
 | `JWT_EXPIRATION`      | `24h`                 | Token lifetime                |
 | `BINGO_DRAW_INTERVAL` | `4000`                | ms between number draws       |
@@ -141,7 +138,7 @@ multiplayer-games/
 │   │       │       ├── ludo/   # Ludo engine + utils + tests
 │   │       │       └── chess/  # Chess engine (chess.js) + utils + tests
 │   │       ├── voice/        # WebRTC signaling gateway
-│   │       └── redis/        # Redis provider module
+│   │       └── cache/        # In-memory cache module
 │   └── frontend/             # Next.js 14 (App Router)
 │       └── src/
 │           ├── app/          # Pages (home, games, lobby, play)
@@ -204,8 +201,8 @@ npm test --workspace=apps/backend -- --watch
 | Layer      | Technology                                       |
 |------------|--------------------------------------------------|
 | Frontend   | Next.js 14, React 18, TypeScript, TailwindCSS, Zustand, Framer Motion |
-| Backend    | NestJS 10, TypeORM, Socket.IO, ioredis           |
-| Database   | PostgreSQL 16, Redis 7                           |
+| Backend    | NestJS 10, TypeORM, Socket.IO                    |
+| Database   | PostgreSQL 16                                    |
 | Voice      | WebRTC (mesh), Socket.IO signaling               |
 | Build      | Turborepo, Docker Compose                        |
 | Security   | Helmet, CORS, JWT, rate limiting, input validation|
