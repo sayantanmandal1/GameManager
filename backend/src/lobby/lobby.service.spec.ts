@@ -3,7 +3,7 @@ import { LobbyEntity } from './lobby.entity';
 import { UserService } from '../user/user.service';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
+import { CacheClient } from '../cache/cache.module';
 import { LobbyStatus, GameType, Lobby, GAME_CONSTANTS } from '../shared';
 
 describe('LobbyService', () => {
@@ -43,7 +43,7 @@ describe('LobbyService', () => {
 
     service = new LobbyService(
       mockLobbyRepo as unknown as Repository<LobbyEntity>,
-      mockRedis as unknown as Redis,
+      mockRedis as unknown as CacheClient,
       mockUserService as unknown as UserService,
       mockConfigService as unknown as ConfigService,
     );

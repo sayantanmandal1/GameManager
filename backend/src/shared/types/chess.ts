@@ -45,7 +45,7 @@ export interface ChessMove {
 }
 
 /**
- * Authoritative server-side state. JSON-serializable (safe to snapshot to Redis).
+ * Authoritative server-side state. JSON-serializable (safe to snapshot to cache).
  * The `chess.js` instance is reconstructed on demand from `pgn` / `fen`.
  */
 export interface ChessGameState {

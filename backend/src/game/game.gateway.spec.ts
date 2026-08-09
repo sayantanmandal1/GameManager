@@ -2,9 +2,10 @@ import { GameGateway } from './game.gateway';
 import { GameService } from './game.service';
 import { JwtService } from '@nestjs/jwt';
 import { ChessMoveDto, ChessResignDto, ChessRejoinDto } from './dto/chess.dto';
+import { PhotoboothCaptureDto } from './dto/photobooth.dto';
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
-import { CHESS_EVENTS } from '../shared';
+import { CHESS_EVENTS, GAME_EVENTS } from '../shared';
 
 // ─── DTO-level validation tests (exercise the actual validators the
 // ValidationPipe uses at runtime). Gateway-level rate-limit + auth tests
@@ -106,6 +107,7 @@ describe('GameGateway — chess handlers', () => {
       chessRejoin: jest.fn(),
       chessSpectate: jest.fn(),
       chessRemoveSpectator: jest.fn(),
+      photoboothCapture: jest.fn().mockReturnValue({ ok: true }),
     };
     jwtService = {
       verify: jest.fn(),
@@ -177,6 +179,24 @@ describe('GameGateway — chess handlers', () => {
       } as ChessResignDto,
     );
     expect(gameService.chessResign).toHaveBeenCalledTimes(1);
+  });
+
+  it('rate-limits repeated photobooth capture payloads per socket', async () => {
+    const sock = mkSocket({ sub: 'user1', username: 'A' });
+    const dto = {
+      gameId: '123e4567-e89b-12d3-a456-426614174000',
+      lobbyCode: '123456',
+      image: 'data:image/png;base64,AAAA',
+    } as PhotoboothCaptureDto;
+
+    for (let index = 0; index < 5; index += 1) {
+      await gateway.handlePhotoboothCapture(sock as never, dto);
+    }
+
+    expect(gameService.photoboothCapture).toHaveBeenCalledTimes(4);
+    expect(sock.emit).toHaveBeenCalledWith(GAME_EVENTS.ERROR, {
+      message: 'Capture rate limit exceeded',
+    });
   });
 
   it('drops chess:rejoin without auth', () => {

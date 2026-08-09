@@ -38,7 +38,7 @@ export interface ChessTickResult {
 /**
  * Pure, injectable chess engine. Mirrors BingoEngine/LudoEngine API:
  *   - no I/O, no DI
- *   - state is JSON-serializable (safe for Redis snapshot)
+ *   - state is JSON-serializable (safe for cache snapshot)
  *   - `chess.js` Chess instances are constructed per call from state.pgn
  */
 export class ChessEngine {

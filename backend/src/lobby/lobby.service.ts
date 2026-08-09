@@ -2,9 +2,8 @@ import { Injectable, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
 import * as crypto from 'crypto';
-import { REDIS_CLIENT } from '../redis/redis.module';
+import { CACHE_CLIENT, CacheClient } from '../cache/cache.module';
 import { LobbyEntity } from './lobby.entity';
 import { UserService } from '../user/user.service';
 import {
@@ -14,6 +13,10 @@ import {
   GameType,
   GAME_CONSTANTS,
   TimeControl,
+  UnoRules,
+  UnoMode,
+  UNO_MODES,
+  UNO_CONSTANTS,
 } from '../shared';
 
 @Injectable()
@@ -23,7 +26,7 @@ export class LobbyService {
   constructor(
     @InjectRepository(LobbyEntity)
     private readonly lobbyRepo: Repository<LobbyEntity>,
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Inject(CACHE_CLIENT) private readonly redis: CacheClient,
     private readonly userService: UserService,
     private readonly config: ConfigService,
   ) {
@@ -38,25 +41,40 @@ export class LobbyService {
     gameType: GameType,
     maxPlayers?: number,
     timeControl?: TimeControl | null,
+    unoRules?: UnoRules | null,
   ): Promise<Lobby> {
     const host = await this.userService.findById(hostId);
     if (!host) throw new Error('User not found');
 
     const code = this.generateCode();
-    // Chess is strictly 2-player; ignore any client-provided override.
-    const requestedMax =
-      gameType === GameType.CHESS
-        ? 2
-        : Math.min(
-            maxPlayers || GAME_CONSTANTS.DEFAULT_MAX_PLAYERS,
-            GAME_CONSTANTS.DEFAULT_MAX_PLAYERS,
-          );
+    // Chess and Photobooth are strictly 2-player; UNO is 2–4; ignore bogus
+    // client overrides in every case.
+    let requestedMax: number;
+    if (gameType === GameType.CHESS || gameType === GameType.PHOTOBOOTH) {
+      requestedMax = 2;
+    } else if (gameType === GameType.UNO) {
+      requestedMax = Math.min(
+        Math.max(maxPlayers || UNO_CONSTANTS.MAX_PLAYERS, UNO_CONSTANTS.MIN_PLAYERS),
+        UNO_CONSTANTS.MAX_PLAYERS,
+      );
+    } else {
+      requestedMax = Math.min(
+        maxPlayers || GAME_CONSTANTS.DEFAULT_MAX_PLAYERS,
+        GAME_CONSTANTS.DEFAULT_MAX_PLAYERS,
+      );
+    }
 
     // SECURITY_NOTE: validate timeControl shape server-side; only honor it
     // for chess lobbies (design §9, security). Reject bogus values.
     const tc =
       gameType === GameType.CHESS
         ? LobbyService.validateTimeControl(timeControl ?? null)
+        : null;
+    // SECURITY_NOTE: validate UNO rules against an allow-list (target score,
+    // boolean stacking) so a crafted payload can't smuggle arbitrary config.
+    const uno =
+      gameType === GameType.UNO
+        ? LobbyService.validateUnoRules(unoRules ?? null)
         : null;
 
     const hostPlayer: LobbyPlayer = {
@@ -78,6 +96,7 @@ export class LobbyService {
       maxPlayers: requestedMax,
       createdAt: new Date(),
       timeControl: tc,
+      unoRules: uno,
     };
 
     // Persist to DB
@@ -93,7 +112,7 @@ export class LobbyService {
     });
     await this.lobbyRepo.save(entity);
 
-    // Cache in Redis
+    // Cache in memory
     await this.saveLobby(lobby);
 
     return lobby;
@@ -120,6 +139,36 @@ export class LobbyService {
       throw new Error('invalid_time_control');
     }
     return { baseMs, incrementMs };
+  }
+
+  /**
+   * Validate client-supplied UNO rules. Only Custom mode exposes house-rule
+   * toggles; Classic runs pure official rules, and No Mercy / Flip apply their
+   * own fixed rule-sets in the engine. Target score is allow-listed.
+   */
+  static validateUnoRules(raw: UnoRules | null | undefined): UnoRules {
+    const mode: UnoMode = UNO_MODES.includes(raw?.mode as UnoMode)
+      ? (raw!.mode as UnoMode)
+      : 'classic';
+    const target = raw?.targetScore ?? null;
+    if (
+      target !== null &&
+      (!Number.isInteger(target) || !UNO_CONSTANTS.TARGET_SCORES.includes(target))
+    ) {
+      throw new Error('invalid_uno_rules');
+    }
+    const custom = mode === 'custom';
+    const on = (v: unknown) => custom && v === true;
+    return {
+      mode,
+      targetScore: mode === 'noMercy' ? null : target,
+      stacking: on(raw?.stacking),
+      drawToMatch: on(raw?.drawToMatch),
+      jumpIn: on(raw?.jumpIn),
+      sevenZero: on(raw?.sevenZero),
+      forcePlay: on(raw?.forcePlay),
+      noBluffing: on(raw?.noBluffing),
+    };
   }
 
   async getLobby(code: string): Promise<Lobby | null> {

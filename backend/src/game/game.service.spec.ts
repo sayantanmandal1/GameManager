@@ -2,12 +2,13 @@ import { GameService } from './game.service';
 import { GameEntity } from './game.entity';
 import { LobbyService } from '../lobby/lobby.service';
 import { Repository } from 'typeorm';
-import Redis from 'ioredis';
+import { CacheClient } from '../cache/cache.module';
 import {
   GameType,
   GameStatus,
   LobbyStatus,
   BingoGamePhase,
+  PHOTOBOOTH_MAX_ACTIVE_GAMES,
 } from '../shared';
 
 describe('GameService', () => {
@@ -48,7 +49,7 @@ describe('GameService', () => {
 
     service = new GameService(
       mockGameRepo as unknown as Repository<GameEntity>,
-      mockRedis as unknown as Redis,
+      mockRedis as unknown as CacheClient,
       mockLobbyService as unknown as LobbyService,
     );
   });
@@ -177,6 +178,60 @@ describe('GameService', () => {
 
     it('should return undefined for unknown lobby', () => {
       expect(service.getGameIdForLobby('unknown')).toBeUndefined();
+    });
+  });
+
+  describe('authoritative lobby binding', () => {
+    it('rejects a photobooth mutation paired with another lobby code', async () => {
+      mockLobbyService.getLobby!.mockResolvedValue({
+        ...fakeLobby,
+        gameType: GameType.PHOTOBOOTH,
+      });
+      const { gameId } = await service.startPhotoboothGame('123456');
+      const onStateChanged = jest.fn();
+      service.onPhotoboothStateChanged = onStateChanged;
+
+      const result = service.photoboothConfigure(
+        gameId,
+        'player1',
+        'grid-2x2',
+        'denim',
+        '654321',
+      );
+
+      expect(result).toEqual({ ok: false, error: 'Game not found' });
+      expect(onStateChanged).not.toHaveBeenCalled();
+    });
+
+    it('rejects a UNO mutation paired with another lobby code', async () => {
+      mockLobbyService.getLobby!.mockResolvedValue({
+        ...fakeLobby,
+        gameType: GameType.UNO,
+      });
+      const { gameId } = await service.startUnoGame('123456');
+      const onStateChanged = jest.fn();
+      service.onUnoStateChanged = onStateChanged;
+
+      const result = await service.unoDraw(gameId, 'player1', '654321');
+
+      expect(result).toEqual({ ok: false, error: 'Game not found' });
+      expect(onStateChanged).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('photobooth resource limits', () => {
+    it('rejects new sessions after the process-wide cap', async () => {
+      mockLobbyService.getLobby!.mockResolvedValue({
+        ...fakeLobby,
+        gameType: GameType.PHOTOBOOTH,
+      });
+      for (let index = 0; index < PHOTOBOOTH_MAX_ACTIVE_GAMES; index += 1) {
+        await service.startPhotoboothGame(String(index).padStart(6, '0'));
+      }
+
+      await expect(service.startPhotoboothGame('999999')).rejects.toThrow(
+        'Photobooth capacity reached',
+      );
     });
   });
 

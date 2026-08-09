@@ -61,6 +61,51 @@ export const CHESS_EVENTS = {
   GAME_OVER: 'chess:game_over',
 } as const;
 
+// ─── UNO-Specific Events ───
+// Client → Server: play (card, chosen colour), draw, pass, take (accept pending
+//   draw), challenge (a Wild Draw Four), call_uno, catch (an opponent), rejoin,
+//   spectate.
+// Server → Room: state (per-player redacted view), event (transient cues),
+//   round_over, game_over.
+export const UNO_EVENTS = {
+  // client → server
+  PLAY: 'uno:play',
+  DRAW: 'uno:draw',
+  PASS: 'uno:pass',
+  TAKE: 'uno:take',
+  CHALLENGE: 'uno:challenge',
+  CALL_UNO: 'uno:call_uno',
+  CATCH: 'uno:catch',
+  SURRENDER: 'uno:surrender',
+  CHOOSE_SEVEN: 'uno:choose_seven',
+  JUMP_IN: 'uno:jump_in',
+  REJOIN: 'uno:rejoin',
+  SPECTATE: 'uno:spectate',
+  // server → client/room
+  STATE: 'uno:state',
+  EVENT: 'uno:event',
+  ROUND_OVER: 'uno:round_over',
+  GAME_OVER: 'uno:game_over',
+  ERROR: 'uno:error',
+} as const;
+
+// ─── Photobooth-Specific Events ───
+// Client → Server: configure (host picks layout+theme), start_capture (host),
+//   capture (send a half-photo), confirm ("continue"), retake, set_filter.
+// Server → Room: state (per-player view), complete (strip finished → reveal).
+export const PHOTOBOOTH_EVENTS = {
+  // client → server
+  CONFIGURE: 'photobooth:configure',
+  START_CAPTURE: 'photobooth:start_capture',
+  CAPTURE: 'photobooth:capture',
+  CONFIRM: 'photobooth:confirm',
+  RETAKE: 'photobooth:retake',
+  SET_FILTER: 'photobooth:set_filter',
+  // server → client/room
+  STATE: 'photobooth:state',
+  COMPLETE: 'photobooth:complete',
+} as const;
+
 // ─── Voice Chat Events (WebRTC Signaling) ───
 export const VOICE_EVENTS = {
   JOIN: 'voice:join',

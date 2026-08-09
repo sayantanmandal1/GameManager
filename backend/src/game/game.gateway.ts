@@ -22,10 +22,14 @@ import {
   BINGO_EVENTS,
   LUDO_EVENTS,
   CHESS_EVENTS,
+  PHOTOBOOTH_EVENTS,
+  UNO_EVENTS,
   GameType,
   LudoMoveAction,
   CHESS_MOVE_RATE_CAPACITY,
   CHESS_MOVE_RATE_REFILL_PER_SEC,
+  PHOTOBOOTH_CAPTURE_RATE_CAPACITY,
+  PHOTOBOOTH_CAPTURE_RATE_REFILL_PER_SEC,
 } from '../shared';
 import {
   ChessMoveDto,
@@ -35,6 +39,18 @@ import {
   ChessRejoinDto,
   ChessSpectateDto,
 } from './dto/chess.dto';
+import {
+  PhotoboothConfigureDto,
+  PhotoboothActionDto,
+  PhotoboothCaptureDto,
+  PhotoboothFilterDto,
+} from './dto/photobooth.dto';
+import {
+  UnoPlayDto,
+  UnoActionDto,
+  UnoCatchDto,
+  UnoRejoinDto,
+} from './dto/uno.dto';
 
 /**
  * Token-bucket rate limiter state held per socket.
@@ -47,6 +63,13 @@ interface RateBucket {
 
 const CHESS_TICK_INTERVAL_MS = 500;
 
+const UNO_TICK_INTERVAL_MS = 1000;
+
+// Grace period before an empty photobooth room is dissolved. Prevents a
+// transient drop (e.g. both partners refreshing at once) from wiping an
+// in-progress strip, while still guaranteeing teardown once both truly leave.
+const PHOTOBOOTH_CLEANUP_GRACE_MS = 20_000;
+
 // WebSocket handlers validate their DTOs explicitly via @UsePipes because
 // the app-wide ValidationPipe in main.ts does not cover @MessageBody().
 const WS_VALIDATION = new ValidationPipe({
@@ -55,7 +78,12 @@ const WS_VALIDATION = new ValidationPipe({
   transform: true,
 });
 
-@WebSocketGateway({ cors: { origin: '*' } })
+@WebSocketGateway({
+  cors: {
+    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+    credentials: true,
+  },
+})
 export class GameGateway
   implements OnGatewayInit, OnGatewayDisconnect, OnModuleDestroy
 {
@@ -70,7 +98,18 @@ export class GameGateway
   /** socket.id → chess move rate-limit bucket */
   private chessMoveBuckets = new Map<string, RateBucket>();
 
+  /** socket.id → photobooth capture rate-limit bucket */
+  private photoboothCaptureBuckets = new Map<string, RateBucket>();
+
+  /** photobooth gameId → pending room-teardown timer (grace period). */
+  private photoboothCleanupTimers = new Map<string, NodeJS.Timeout>();
+
+  /** uno gameId → pending room-teardown timer (grace period). */
+  private unoCleanupTimers = new Map<string, NodeJS.Timeout>();
+
   private chessTickTimer: NodeJS.Timeout | null = null;
+
+  private unoTickTimer: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly gameService: GameService,
@@ -161,17 +200,55 @@ export class GameGateway
       this.server.to(`game:${lobbyCode}`).emit(CHESS_EVENTS.GAME_OVER, payload);
     };
 
+    // ─── Photobooth callbacks ───
+    this.gameService.onPhotoboothStateChanged = (gameId, lobbyCode) => {
+      this.broadcastPhotoboothPlayerViews(gameId, lobbyCode);
+    };
+    this.gameService.onPhotoboothFinished = (gameId, lobbyCode) => {
+      this.broadcastPhotoboothPlayerViews(gameId, lobbyCode);
+      this.server
+        .to(`game:${lobbyCode}`)
+        .emit(PHOTOBOOTH_EVENTS.COMPLETE, { gameId });
+    };
+
+    // ─── UNO callbacks ───
+    this.gameService.onUnoStateChanged = (gameId, lobbyCode) => {
+      this.broadcastUnoPlayerViews(gameId, lobbyCode);
+    };
+    this.gameService.onUnoRoundOver = (gameId, lobbyCode, result) => {
+      this.broadcastUnoPlayerViews(gameId, lobbyCode);
+      this.server.to(`game:${lobbyCode}`).emit(UNO_EVENTS.ROUND_OVER, {
+        gameId,
+        result,
+      });
+    };
+    this.gameService.onUnoGameOver = (gameId, lobbyCode, result) => {
+      this.broadcastUnoPlayerViews(gameId, lobbyCode);
+      this.server.to(`game:${lobbyCode}`).emit(UNO_EVENTS.GAME_OVER, {
+        gameId,
+        result,
+      });
+    };
+
     // Clock-tick loop (server-authoritative, ≤1Hz broadcast per game).
     this.chessTickTimer = setInterval(() => {
       this.gameService.chessTick().catch((err) => {
         this.logger.error(`chess.tick_error: ${err instanceof Error ? err.message : String(err)}`);
       });
     }, CHESS_TICK_INTERVAL_MS);
+
+    // UNO turn-timer / round-pacing loop.
+    this.unoTickTimer = setInterval(() => {
+      this.gameService.unoTick().catch((err) => {
+        this.logger.error(`uno.tick_error: ${err instanceof Error ? err.message : String(err)}`);
+      });
+    }, UNO_TICK_INTERVAL_MS);
   }
 
   async handleDisconnect(client: Socket): Promise<void> {
     // Clean up rate-limit bucket regardless of game type
     this.chessMoveBuckets.delete(client.id);
+    this.photoboothCaptureBuckets.delete(client.id);
 
     const tracked = this.socketGameMap.get(client.id);
     if (!tracked) return;
@@ -193,6 +270,38 @@ export class GameGateway
       // Per design §7 we do NOT auto-forfeit chess on disconnect; the clock
       // is authoritative. Just unregister spectators.
       this.gameService.chessRemoveSpectator(tracked.gameId, tracked.userId);
+    } else if (tracked.gameType === GameType.PHOTOBOOTH) {
+      // Flag presence so the partner sees "reconnecting…". Photos survive in
+      // memory for the session so a refresh/rejoin restores everything.
+      this.gameService.photoboothSetConnected(
+        tracked.gameId,
+        tracked.userId,
+        false,
+        tracked.lobbyCode,
+      );
+      // If nobody remains in the room, schedule teardown after a grace period
+      // so the ephemeral session (and its photos) is deleted once both truly
+      // leave — but a quick double-refresh won't wipe an in-progress strip.
+      const remaining = await this.server
+        .in(`game:${tracked.lobbyCode}`)
+        .fetchSockets();
+      if (remaining.length === 0) {
+        this.schedulePhotoboothCleanup(tracked.gameId, tracked.lobbyCode);
+      }
+    } else if (tracked.gameType === GameType.UNO) {
+      // Keep the seat — the turn timer auto-plays for a dropped player, and a
+      // refresh/rejoin restores their hand. Dissolve only once the room empties.
+      this.gameService.unoHandleDisconnect(
+        tracked.gameId,
+        tracked.userId,
+        tracked.lobbyCode,
+      );
+      const remaining = await this.server
+        .in(`game:${tracked.lobbyCode}`)
+        .fetchSockets();
+      if (remaining.length === 0) {
+        this.scheduleUnoCleanup(tracked.gameId, tracked.lobbyCode);
+      }
     }
   }
 
@@ -201,6 +310,20 @@ export class GameGateway
       clearInterval(this.chessTickTimer);
       this.chessTickTimer = null;
     }
+    if (this.unoTickTimer) {
+      clearInterval(this.unoTickTimer);
+      this.unoTickTimer = null;
+    }
+    for (const timer of this.photoboothCleanupTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.photoboothCleanupTimers.clear();
+    for (const timer of this.unoCleanupTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.unoCleanupTimers.clear();
+    this.chessMoveBuckets.clear();
+    this.photoboothCaptureBuckets.clear();
   }
 
   /** Client requests current game state (e.g. after navigating to play page) */
@@ -237,6 +360,20 @@ export class GameGateway
       const view = this.gameService.getLudoPlayerView(gameId, user.sub);
       if (view) {
         client.emit(GAME_EVENTS.STATE, { gameId, view, gameType: GameType.LUDO });
+      }
+    } else if (gameType === GameType.PHOTOBOOTH) {
+      // Reconnect: cancel any pending teardown, clear the "disconnected" flag
+      // (broadcasts presence to the partner) and replay the current view.
+      this.cancelPhotoboothCleanup(gameId);
+      this.gameService.photoboothSetConnected(
+        gameId,
+        user.sub,
+        true,
+        data.lobbyCode,
+      );
+      const view = this.gameService.getPhotoboothPlayerView(gameId, user.sub);
+      if (view) {
+        client.emit(PHOTOBOOTH_EVENTS.STATE, { gameId, view });
       }
     } else {
       const view = this.gameService.getPlayerView(gameId, user.sub);
@@ -611,17 +748,40 @@ export class GameGateway
    * consumed), false if the bucket is empty.
    */
   private consumeChessMoveToken(socketId: string): boolean {
+    return this.consumeToken(
+      this.chessMoveBuckets,
+      socketId,
+      CHESS_MOVE_RATE_CAPACITY,
+      CHESS_MOVE_RATE_REFILL_PER_SEC,
+    );
+  }
+
+  private consumePhotoboothCaptureToken(socketId: string): boolean {
+    return this.consumeToken(
+      this.photoboothCaptureBuckets,
+      socketId,
+      PHOTOBOOTH_CAPTURE_RATE_CAPACITY,
+      PHOTOBOOTH_CAPTURE_RATE_REFILL_PER_SEC,
+    );
+  }
+
+  private consumeToken(
+    buckets: Map<string, RateBucket>,
+    socketId: string,
+    capacity: number,
+    refillPerSecond: number,
+  ): boolean {
     const now = Date.now();
-    let b = this.chessMoveBuckets.get(socketId);
+    let b = buckets.get(socketId);
     if (!b) {
-      b = { tokens: CHESS_MOVE_RATE_CAPACITY - 1, lastRefillMs: now };
-      this.chessMoveBuckets.set(socketId, b);
+      b = { tokens: capacity - 1, lastRefillMs: now };
+      buckets.set(socketId, b);
       return true;
     }
     const elapsed = Math.max(0, now - b.lastRefillMs);
     if (elapsed > 0) {
-      const refill = (elapsed / 1000) * CHESS_MOVE_RATE_REFILL_PER_SEC;
-      b.tokens = Math.min(CHESS_MOVE_RATE_CAPACITY, b.tokens + refill);
+      const refill = (elapsed / 1000) * refillPerSecond;
+      b.tokens = Math.min(capacity, b.tokens + refill);
       b.lastRefillMs = now;
     }
     if (b.tokens < 1) return false;
@@ -642,6 +802,400 @@ export class GameGateway
       if (view) {
         s.emit(CHESS_EVENTS.STATE, { gameId, role: view.role, view });
       }
+    }
+  }
+
+  // ─── Photobooth-Specific Handlers ──────────────────────────────────
+
+  @SubscribeMessage(PHOTOBOOTH_EVENTS.CONFIGURE)
+  @UsePipes(WS_VALIDATION)
+  handlePhotoboothConfigure(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: PhotoboothConfigureDto,
+  ): void {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const result = this.gameService.photoboothConfigure(
+      data.gameId,
+      user.sub,
+      data.layout,
+      data.theme,
+      data.lobbyCode,
+    );
+    if (!result.ok) {
+      client.emit(GAME_EVENTS.ERROR, { message: result.error });
+    }
+  }
+
+  @SubscribeMessage(PHOTOBOOTH_EVENTS.START_CAPTURE)
+  @UsePipes(WS_VALIDATION)
+  handlePhotoboothStartCapture(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: PhotoboothActionDto,
+  ): void {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const result = this.gameService.photoboothStartCapture(
+      data.gameId,
+      user.sub,
+      data.lobbyCode,
+    );
+    if (!result.ok) {
+      client.emit(GAME_EVENTS.ERROR, { message: result.error });
+    }
+  }
+
+  @SubscribeMessage(PHOTOBOOTH_EVENTS.CAPTURE)
+  @UsePipes(WS_VALIDATION)
+  async handlePhotoboothCapture(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: PhotoboothCaptureDto,
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    if (!this.consumePhotoboothCaptureToken(client.id)) {
+      client.emit(GAME_EVENTS.ERROR, { message: 'Capture rate limit exceeded' });
+      return;
+    }
+    const result = await this.gameService.photoboothCapture(
+      data.gameId,
+      user.sub,
+      data.image,
+      data.lobbyCode,
+    );
+    if (!result.ok) {
+      client.emit(GAME_EVENTS.ERROR, { message: result.error });
+    }
+  }
+
+  @SubscribeMessage(PHOTOBOOTH_EVENTS.RETAKE)
+  @UsePipes(WS_VALIDATION)
+  handlePhotoboothRetake(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: PhotoboothActionDto,
+  ): void {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const result = this.gameService.photoboothRetake(
+      data.gameId,
+      user.sub,
+      data.lobbyCode,
+    );
+    if (!result.ok) {
+      client.emit(GAME_EVENTS.ERROR, { message: result.error });
+    }
+  }
+
+  @SubscribeMessage(PHOTOBOOTH_EVENTS.CONFIRM)
+  @UsePipes(WS_VALIDATION)
+  async handlePhotoboothConfirm(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: PhotoboothActionDto,
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const result = await this.gameService.photoboothConfirm(
+      data.gameId,
+      user.sub,
+      data.lobbyCode,
+    );
+    if (!result.ok) {
+      client.emit(GAME_EVENTS.ERROR, { message: result.error });
+    }
+  }
+
+  @SubscribeMessage(PHOTOBOOTH_EVENTS.SET_FILTER)
+  @UsePipes(WS_VALIDATION)
+  handlePhotoboothSetFilter(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: PhotoboothFilterDto,
+  ): void {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const result = this.gameService.photoboothSetFilter(
+      data.gameId,
+      user.sub,
+      data.filter,
+      data.lobbyCode,
+    );
+    if (!result.ok) {
+      client.emit(GAME_EVENTS.ERROR, { message: result.error });
+    }
+  }
+
+  private async broadcastPhotoboothPlayerViews(
+    gameId: string,
+    lobbyCode: string,
+  ): Promise<void> {
+    const gameRoom = `game:${lobbyCode}`;
+    const sockets = await this.server.in(gameRoom).fetchSockets();
+    for (const s of sockets) {
+      const sUser = s.data?.user;
+      if (!sUser) continue;
+      const view = this.gameService.getPhotoboothPlayerView(gameId, sUser.sub);
+      if (view) {
+        s.emit(PHOTOBOOTH_EVENTS.STATE, { gameId, view });
+      }
+    }
+  }
+
+  /**
+   * Schedule an empty photobooth room for teardown after a grace period. If a
+   * partner reconnects in the meantime the timer is cancelled; otherwise the
+   * callback re-checks emptiness before deleting so nothing is lost while
+   * either partner is still present.
+   */
+  private schedulePhotoboothCleanup(gameId: string, lobbyCode: string): void {
+    const existing = this.photoboothCleanupTimers.get(gameId);
+    if (existing) clearTimeout(existing);
+
+    const timer = setTimeout(() => {
+      this.photoboothCleanupTimers.delete(gameId);
+      this.server
+        .in(`game:${lobbyCode}`)
+        .fetchSockets()
+        .then((sockets) => {
+          if (sockets.length === 0) {
+            this.gameService.photoboothCleanup(gameId, lobbyCode);
+          }
+        })
+        .catch(() => {
+          // On error, err on the side of cleanup (session is ephemeral).
+          this.gameService.photoboothCleanup(gameId, lobbyCode);
+        });
+    }, PHOTOBOOTH_CLEANUP_GRACE_MS);
+
+    // Don't keep the event loop alive solely for this timer.
+    timer.unref?.();
+    this.photoboothCleanupTimers.set(gameId, timer);
+  }
+
+  private cancelPhotoboothCleanup(gameId: string): void {
+    const timer = this.photoboothCleanupTimers.get(gameId);
+    if (timer) {
+      clearTimeout(timer);
+      this.photoboothCleanupTimers.delete(gameId);
+    }
+  }
+
+  // ─── UNO-Specific Handlers ─────────────────────────────────────────
+
+  @SubscribeMessage(UNO_EVENTS.PLAY)
+  @UsePipes(WS_VALIDATION)
+  async handleUnoPlay(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: UnoPlayDto,
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const res = await this.gameService.unoPlay(
+      data.gameId,
+      user.sub,
+      data.cardId,
+      data.chosenColor,
+      data.lobbyCode,
+    );
+    if (!res.ok) client.emit(UNO_EVENTS.ERROR, { message: res.error });
+  }
+
+  @SubscribeMessage(UNO_EVENTS.DRAW)
+  @UsePipes(WS_VALIDATION)
+  async handleUnoDraw(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: UnoActionDto,
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const res = await this.gameService.unoDraw(data.gameId, user.sub, data.lobbyCode);
+    if (!res.ok) client.emit(UNO_EVENTS.ERROR, { message: res.error });
+  }
+
+  @SubscribeMessage(UNO_EVENTS.PASS)
+  @UsePipes(WS_VALIDATION)
+  async handleUnoPass(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: UnoActionDto,
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const res = await this.gameService.unoPass(data.gameId, user.sub, data.lobbyCode);
+    if (!res.ok) client.emit(UNO_EVENTS.ERROR, { message: res.error });
+  }
+
+  @SubscribeMessage(UNO_EVENTS.TAKE)
+  @UsePipes(WS_VALIDATION)
+  async handleUnoTake(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: UnoActionDto,
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const res = await this.gameService.unoTake(data.gameId, user.sub, data.lobbyCode);
+    if (!res.ok) client.emit(UNO_EVENTS.ERROR, { message: res.error });
+  }
+
+  @SubscribeMessage(UNO_EVENTS.CHALLENGE)
+  @UsePipes(WS_VALIDATION)
+  async handleUnoChallenge(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: UnoActionDto,
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const res = await this.gameService.unoChallenge(data.gameId, user.sub, data.lobbyCode);
+    if (!res.ok) client.emit(UNO_EVENTS.ERROR, { message: res.error });
+  }
+
+  @SubscribeMessage(UNO_EVENTS.CALL_UNO)
+  @UsePipes(WS_VALIDATION)
+  async handleUnoCallUno(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: UnoActionDto,
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const res = await this.gameService.unoCallUno(data.gameId, user.sub, data.lobbyCode);
+    if (!res.ok) client.emit(UNO_EVENTS.ERROR, { message: res.error });
+  }
+
+  @SubscribeMessage(UNO_EVENTS.CATCH)
+  @UsePipes(WS_VALIDATION)
+  async handleUnoCatch(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: UnoCatchDto,
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const res = await this.gameService.unoCatch(
+      data.gameId,
+      user.sub,
+      data.targetId,
+      data.lobbyCode,
+    );
+    if (!res.ok) client.emit(UNO_EVENTS.ERROR, { message: res.error });
+  }
+
+  @SubscribeMessage(UNO_EVENTS.SURRENDER)
+  @UsePipes(WS_VALIDATION)
+  async handleUnoSurrender(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: UnoActionDto,
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const res = await this.gameService.unoSurrender(data.gameId, user.sub, data.lobbyCode);
+    if (!res.ok) client.emit(UNO_EVENTS.ERROR, { message: res.error });
+  }
+
+  @SubscribeMessage(UNO_EVENTS.CHOOSE_SEVEN)
+  @UsePipes(WS_VALIDATION)
+  async handleUnoChooseSeven(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: UnoCatchDto,
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const res = await this.gameService.unoChooseSeven(
+      data.gameId,
+      user.sub,
+      data.targetId,
+      data.lobbyCode,
+    );
+    if (!res.ok) client.emit(UNO_EVENTS.ERROR, { message: res.error });
+  }
+
+  @SubscribeMessage(UNO_EVENTS.JUMP_IN)
+  @UsePipes(WS_VALIDATION)
+  async handleUnoJumpIn(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: UnoPlayDto,
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const res = await this.gameService.unoJumpIn(
+      data.gameId,
+      user.sub,
+      data.cardId,
+      data.chosenColor,
+      data.lobbyCode,
+    );
+    if (!res.ok) client.emit(UNO_EVENTS.ERROR, { message: res.error });
+  }
+
+  @SubscribeMessage(UNO_EVENTS.REJOIN)
+  @UsePipes(WS_VALIDATION)
+  handleUnoRejoin(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: UnoRejoinDto,
+  ): void {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const res = this.gameService.unoRejoin(data.lobbyCode, user.sub);
+    if (!res.ok || !res.view || !res.gameId) {
+      client.emit(UNO_EVENTS.ERROR, { message: 'No active UNO game' });
+      return;
+    }
+    this.cancelUnoCleanup(res.gameId);
+    client.join(`game:${data.lobbyCode}`);
+    this.socketGameMap.set(client.id, {
+      userId: user.sub,
+      gameId: res.gameId,
+      lobbyCode: data.lobbyCode,
+      gameType: GameType.UNO,
+    });
+    client.emit(UNO_EVENTS.STATE, { gameId: res.gameId, view: res.view });
+    // Refresh presence for everyone (this player just (re)connected).
+    this.broadcastUnoPlayerViews(res.gameId, data.lobbyCode);
+  }
+
+  @SubscribeMessage(UNO_EVENTS.SPECTATE)
+  @UsePipes(WS_VALIDATION)
+  handleUnoSpectate(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: UnoRejoinDto,
+  ): void {
+    // Spectating shares the same rejoin path — the service seats non-players as
+    // spectators, and getPlayerView redacts every hand for them.
+    this.handleUnoRejoin(client, data);
+  }
+
+  private async broadcastUnoPlayerViews(
+    gameId: string,
+    lobbyCode: string,
+  ): Promise<void> {
+    const gameRoom = `game:${lobbyCode}`;
+    const sockets = await this.server.in(gameRoom).fetchSockets();
+    for (const s of sockets) {
+      const sUser = s.data?.user;
+      if (!sUser) continue;
+      const view = this.gameService.getUnoPlayerView(gameId, sUser.sub);
+      if (view) s.emit(UNO_EVENTS.STATE, { gameId, view });
+    }
+  }
+
+  private scheduleUnoCleanup(gameId: string, lobbyCode: string): void {
+    const existing = this.unoCleanupTimers.get(gameId);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      this.unoCleanupTimers.delete(gameId);
+      this.server
+        .in(`game:${lobbyCode}`)
+        .fetchSockets()
+        .then((sockets) => {
+          if (sockets.length === 0)
+            this.gameService.unoCleanup(gameId, lobbyCode);
+        })
+        .catch(() => this.gameService.unoCleanup(gameId, lobbyCode));
+    }, PHOTOBOOTH_CLEANUP_GRACE_MS);
+    timer.unref?.();
+    this.unoCleanupTimers.set(gameId, timer);
+  }
+
+  private cancelUnoCleanup(gameId: string): void {
+    const timer = this.unoCleanupTimers.get(gameId);
+    if (timer) {
+      clearTimeout(timer);
+      this.unoCleanupTimers.delete(gameId);
     }
   }
 }

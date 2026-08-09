@@ -18,6 +18,8 @@ import {
   LOBBY_EVENTS,
   GAME_EVENTS,
   CHESS_EVENTS,
+  PHOTOBOOTH_EVENTS,
+  UNO_EVENTS,
   GameType,
   CreateLobbyPayload,
   JoinLobbyPayload,
@@ -82,6 +84,7 @@ export class LobbyGateway
         data.gameType || GameType.BINGO,
         data.maxPlayers,
         data.timeControl ?? null,
+        data.unoRules ?? null,
       );
       client.join(`lobby:${lobby.code}`);
       this.socketLobbyMap.set(client.id, lobby.code);
@@ -90,14 +93,16 @@ export class LobbyGateway
       const raw = err instanceof Error ? err.message : 'Failed to create lobby';
       // SECURITY_NOTE: map internal error strings to public codes; never leak
       // arbitrary error text that could carry internal detail.
-      const code =
-        raw === 'invalid_time_control'
-          ? 'INVALID_TIME_CONTROL'
-          : 'CREATE_FAILED';
-      const message =
-        raw === 'invalid_time_control'
-          ? 'baseMs and incrementMs must be non-negative integers within allowed range'
-          : 'Failed to create lobby';
+      let code = 'CREATE_FAILED';
+      let message = 'Failed to create lobby';
+      if (raw === 'invalid_time_control') {
+        code = 'INVALID_TIME_CONTROL';
+        message =
+          'baseMs and incrementMs must be non-negative integers within allowed range';
+      } else if (raw === 'invalid_uno_rules') {
+        code = 'INVALID_UNO_RULES';
+        message = 'Invalid UNO rules';
+      }
       client.emit(LOBBY_EVENTS.ERROR, { message, code });
     }
   }
@@ -210,6 +215,12 @@ export class LobbyGateway
       } else if (lobby.gameType === GameType.CHESS) {
         const result = await this.gameService.startChessGame(code);
         gameId = result.gameId;
+      } else if (lobby.gameType === GameType.PHOTOBOOTH) {
+        const result = await this.gameService.startPhotoboothGame(code);
+        gameId = result.gameId;
+      } else if (lobby.gameType === GameType.UNO) {
+        const result = await this.gameService.startUnoGame(code);
+        gameId = result.gameId;
       } else {
         const result = await this.gameService.startBingoGame(code);
         gameId = result.gameId;
@@ -233,6 +244,19 @@ export class LobbyGateway
             const view = this.gameService.getChessView(gameId, sUser.sub);
             if (view) {
               s.emit(CHESS_EVENTS.STATE, { gameId, role: view.role, view });
+            }
+          } else if (lobby.gameType === GameType.PHOTOBOOTH) {
+            const view = this.gameService.getPhotoboothPlayerView(
+              gameId,
+              sUser.sub,
+            );
+            if (view) {
+              s.emit(PHOTOBOOTH_EVENTS.STATE, { gameId, view });
+            }
+          } else if (lobby.gameType === GameType.UNO) {
+            const view = this.gameService.getUnoPlayerView(gameId, sUser.sub);
+            if (view) {
+              s.emit(UNO_EVENTS.STATE, { gameId, view });
             }
           } else {
             const view = this.gameService.getPlayerView(gameId, sUser.sub);

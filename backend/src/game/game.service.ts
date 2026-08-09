@@ -1,13 +1,15 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import Redis from 'ioredis';
-import { REDIS_CLIENT } from '../redis/redis.module';
+import { randomUUID } from 'crypto';
+import { CACHE_CLIENT, CacheClient } from '../cache/cache.module';
 import { GameEntity } from './game.entity';
 import { LobbyService } from '../lobby/lobby.service';
 import { BingoEngine } from './engines/bingo/bingo.engine';
 import { LudoEngine } from './engines/ludo/ludo.engine';
 import { ChessEngine } from './engines/chess/chess.engine';
+import { PhotoboothEngine } from './engines/photobooth/photobooth.engine';
+import { UnoEngine, UnoActionResult } from './engines/uno/uno.engine';
 import {
   GameType,
   GameStatus,
@@ -25,6 +27,18 @@ import {
   ChessMove,
   TimeControl,
   CHESS_SPECTATOR_CAP,
+  PhotoboothGameState,
+  PhotoboothPlayerView,
+  PhotoboothLayout,
+  PhotoboothThemeId,
+  PhotoboothFilter,
+  PHOTOBOOTH_MAX_ACTIVE_GAMES,
+  UnoGameState,
+  UnoPlayerView,
+  UnoColor,
+  UnoRoundResult,
+  UnoRules,
+  UnoPhase,
 } from '../shared';
 
 export interface ChessMoveApplied {
@@ -54,6 +68,10 @@ export class GameService {
   private gameStates = new Map<string, BingoGameState>();
   private ludoGameStates = new Map<string, LudoGameState>();
   private chessGameStates = new Map<string, ChessGameState>();
+  private photoboothGameStates = new Map<string, PhotoboothGameState>();
+  private unoGameStates = new Map<string, UnoGameState>();
+  /** uno gameId → epoch ms to auto-start the next round (ROUND_OVER interstitial). */
+  private unoNextRoundAt = new Map<string, number>();
   /** lobbyCode → gameId lookup */
   private lobbyGameMap = new Map<string, string>();
   /** lobbyCode → gameType lookup */
@@ -61,6 +79,8 @@ export class GameService {
   private engine = new BingoEngine();
   private ludoEngine = new LudoEngine();
   private chessEngine = new ChessEngine();
+  private photoboothEngine = new PhotoboothEngine();
+  private unoEngine = new UnoEngine();
 
   /** Callbacks set by the gateway to broadcast state */
   onStateChanged: ((gameId: string, lobbyCode: string) => void) | null = null;
@@ -91,10 +111,25 @@ export class GameService {
     | ((gameId: string, lobbyCode: string, payload: ChessGameOverPayload) => void)
     | null = null;
 
+  /** Photobooth-specific callbacks */
+  onPhotoboothStateChanged: ((gameId: string, lobbyCode: string) => void) | null =
+    null;
+  onPhotoboothFinished: ((gameId: string, lobbyCode: string) => void) | null =
+    null;
+
+  /** UNO-specific callbacks */
+  onUnoStateChanged: ((gameId: string, lobbyCode: string) => void) | null = null;
+  onUnoRoundOver:
+    | ((gameId: string, lobbyCode: string, result: UnoRoundResult) => void)
+    | null = null;
+  onUnoGameOver:
+    | ((gameId: string, lobbyCode: string, result: UnoRoundResult) => void)
+    | null = null;
+
   constructor(
     @InjectRepository(GameEntity)
     private readonly gameRepo: Repository<GameEntity>,
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Inject(CACHE_CLIENT) private readonly redis: CacheClient,
     private readonly lobbyService: LobbyService,
   ) {}
 
@@ -126,7 +161,7 @@ export class GameService {
     this.lobbyGameMap.set(lobbyCode, gameId);
     this.lobbyGameTypeMap.set(lobbyCode, GameType.BINGO);
 
-    // Cache in Redis for resilience
+    // Cache for resilience
     await this.redis.set(`game:${gameId}`, JSON.stringify(state), 'EX', 3600);
 
     // Update lobby status
@@ -464,7 +499,7 @@ export class GameService {
    * Start a chess game for a 2-player lobby. Creates the `GameEntity` row,
    * seats the first joiner as white and the second as black, initializes
    * the engine with the lobby's optional `timeControl`, and caches state
-   * in memory + Redis. Throws if the lobby is missing or does not have
+   * in memory + cache. Throws if the lobby is missing or does not have
    * exactly two players.
    */
   async startChessGame(
@@ -832,5 +867,539 @@ export class GameService {
       }
     }
     return null;
+  }
+
+  // ─── Photobooth Game Methods ───────────────────────────────────────
+  //
+  // Photobooth is intentionally EPHEMERAL: state (including the base64 photo
+  // blobs) lives only in memory for the lifetime of the session. Nothing is
+  // written to the database or Redis, and the whole session is torn down when
+  // the room dissolves (see photoboothCleanup). There is no winner/loser.
+
+  async startPhotoboothGame(
+    lobbyCode: string,
+  ): Promise<{ gameId: string; state: PhotoboothGameState }> {
+    const lobby = await this.lobbyService.getLobby(lobbyCode);
+    if (!lobby) throw new Error('Lobby not found');
+    if (lobby.players.length < 2) throw new Error('Photobooth needs two players');
+
+    const [host, guest] = lobby.players;
+
+    // Fresh start: drop any stale in-memory session bound to this lobby.
+    const prior = this.lobbyGameMap.get(lobbyCode);
+    if (prior) this.photoboothGameStates.delete(prior);
+    if (!prior && this.photoboothGameStates.size >= PHOTOBOOTH_MAX_ACTIVE_GAMES) {
+      throw new Error('Photobooth capacity reached');
+    }
+
+    const gameId = randomUUID();
+    const state = this.photoboothEngine.initGame(
+      gameId,
+      lobbyCode,
+      host.id,
+      guest.id,
+      host.username,
+      guest.username,
+    );
+
+    this.photoboothGameStates.set(gameId, state);
+    this.lobbyGameMap.set(lobbyCode, gameId);
+    this.lobbyGameTypeMap.set(lobbyCode, GameType.PHOTOBOOTH);
+
+    await this.lobbyService.setStatus(lobbyCode, LobbyStatus.IN_PROGRESS);
+
+    return { gameId, state };
+  }
+
+  getPhotoboothState(gameId: string): PhotoboothGameState | undefined {
+    return this.photoboothGameStates.get(gameId);
+  }
+
+  getPhotoboothPlayerView(
+    gameId: string,
+    playerId: string,
+  ): PhotoboothPlayerView | null {
+    const state = this.photoboothGameStates.get(gameId);
+    if (!state) return null;
+    return this.photoboothEngine.getPlayerView(state, playerId);
+  }
+
+  photoboothConfigure(
+    gameId: string,
+    playerId: string,
+    layout: PhotoboothLayout,
+    theme: PhotoboothThemeId,
+    lobbyCode: string,
+  ): { ok: boolean; error?: string } {
+    const state = this.photoboothGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+    if (state.lobbyCode !== lobbyCode)
+      return { ok: false, error: 'Game not found' };
+
+    const result = this.photoboothEngine.configure(state, playerId, layout, theme);
+    if (!result.valid) return { ok: false, error: result.reason };
+
+    this.onPhotoboothStateChanged?.(gameId, state.lobbyCode);
+    return { ok: true };
+  }
+
+  photoboothStartCapture(
+    gameId: string,
+    playerId: string,
+    lobbyCode: string,
+  ): { ok: boolean; error?: string } {
+    const state = this.photoboothGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+    if (state.lobbyCode !== lobbyCode)
+      return { ok: false, error: 'Game not found' };
+
+    const result = this.photoboothEngine.startCapture(state, playerId);
+    if (!result.valid) return { ok: false, error: result.reason };
+
+    this.onPhotoboothStateChanged?.(gameId, state.lobbyCode);
+    return { ok: true };
+  }
+
+  async photoboothCapture(
+    gameId: string,
+    playerId: string,
+    image: string,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const state = this.photoboothGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+    if (state.lobbyCode !== lobbyCode)
+      return { ok: false, error: 'Game not found' };
+
+    const result = await this.photoboothEngine.capture(state, playerId, image);
+    if (!result.valid) return { ok: false, error: result.reason };
+
+    // Intentionally NOT broadcast: a partner's half stays hidden until both
+    // confirm (the synchronized reveal), so the capturer's local preview is
+    // the only thing that changes here. Skipping the broadcast also avoids a
+    // broadcast-amplification vector from rapid re-captures.
+    return { ok: true };
+  }
+
+  photoboothRetake(
+    gameId: string,
+    playerId: string,
+    lobbyCode: string,
+  ): { ok: boolean; error?: string } {
+    const state = this.photoboothGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+    if (state.lobbyCode !== lobbyCode)
+      return { ok: false, error: 'Game not found' };
+
+    const result = this.photoboothEngine.retake(state, playerId);
+    if (!result.valid) return { ok: false, error: result.reason };
+
+    this.onPhotoboothStateChanged?.(gameId, state.lobbyCode);
+    return { ok: true };
+  }
+
+  async photoboothConfirm(
+    gameId: string,
+    playerId: string,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const state = this.photoboothGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+    if (state.lobbyCode !== lobbyCode)
+      return { ok: false, error: 'Game not found' };
+
+    const result = this.photoboothEngine.confirm(state, playerId);
+    if (!result.valid) return { ok: false, error: result.reason };
+
+    if (result.finished) {
+      // No DB record — just free the lobby for a rematch and fire the reveal.
+      await this.lobbyService
+        .setStatus(state.lobbyCode, LobbyStatus.WAITING)
+        .catch(() => {});
+      this.onPhotoboothStateChanged?.(gameId, state.lobbyCode);
+      this.onPhotoboothFinished?.(gameId, state.lobbyCode);
+    } else {
+      this.onPhotoboothStateChanged?.(gameId, state.lobbyCode);
+    }
+
+    return { ok: true };
+  }
+
+  photoboothSetFilter(
+    gameId: string,
+    playerId: string,
+    filter: PhotoboothFilter,
+    lobbyCode: string,
+  ): { ok: boolean; error?: string } {
+    const state = this.photoboothGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+    if (state.lobbyCode !== lobbyCode)
+      return { ok: false, error: 'Game not found' };
+
+    const result = this.photoboothEngine.setFilter(state, playerId, filter);
+    if (!result.valid) return { ok: false, error: result.reason };
+
+    this.onPhotoboothStateChanged?.(gameId, state.lobbyCode);
+    return { ok: true };
+  }
+
+  /** Mark a partner disconnected/reconnected and broadcast presence. */
+  photoboothSetConnected(
+    gameId: string,
+    playerId: string,
+    connected: boolean,
+    lobbyCode: string,
+  ): void {
+    const state = this.photoboothGameStates.get(gameId);
+    if (!state) return;
+    if (state.lobbyCode !== lobbyCode) return;
+    this.photoboothEngine.setConnected(state, playerId, connected);
+    this.onPhotoboothStateChanged?.(gameId, state.lobbyCode);
+  }
+
+  /**
+   * Tear down all in-memory photobooth state once the room dissolves (both
+   * partners gone). Guarantees the photos are deleted and the next session
+   * starts from scratch — nothing lingers anywhere.
+   */
+  photoboothCleanup(gameId: string, lobbyCode: string): void {
+    const state = this.photoboothGameStates.get(gameId);
+    if (!state || state.lobbyCode !== lobbyCode) return;
+    this.photoboothGameStates.delete(gameId);
+    if (this.lobbyGameMap.get(state.lobbyCode) === gameId) {
+      this.lobbyGameMap.delete(state.lobbyCode);
+      this.lobbyGameTypeMap.delete(state.lobbyCode);
+    }
+  }
+
+  // ─── UNO Game Methods ──────────────────────────────────────────────
+
+  private readonly UNO_NEXT_ROUND_DELAY_MS = 6000;
+
+  async startUnoGame(
+    lobbyCode: string,
+  ): Promise<{ gameId: string; state: UnoGameState }> {
+    const lobby = await this.lobbyService.getLobby(lobbyCode);
+    if (!lobby) throw new Error('Lobby not found');
+    const playerIds = lobby.players.map((p) => p.id);
+    if (playerIds.length < 2) throw new Error('UNO needs at least 2 players');
+
+    const names: Record<string, string> = {};
+    const connected: Record<string, boolean> = {};
+    for (const p of lobby.players) {
+      names[p.id] = p.username;
+      connected[p.id] = true;
+    }
+    const rules: UnoRules = lobby.unoRules ?? {
+      mode: 'classic',
+      targetScore: null,
+      stacking: false,
+      drawToMatch: false,
+      jumpIn: false,
+      sevenZero: false,
+      forcePlay: false,
+      noBluffing: false,
+    };
+
+    const entity = this.gameRepo.create({
+      lobbyId: lobby.id,
+      gameType: GameType.UNO,
+      playerIds,
+      status: GameStatus.IN_PROGRESS,
+    });
+    const saved = await this.gameRepo.save(entity);
+    const gameId = saved.id;
+
+    const state = this.unoEngine.initRound(
+      gameId,
+      lobbyCode,
+      playerIds,
+      names,
+      rules,
+      {},
+      connected,
+    );
+
+    this.unoGameStates.set(gameId, state);
+    this.lobbyGameMap.set(lobbyCode, gameId);
+    this.lobbyGameTypeMap.set(lobbyCode, GameType.UNO);
+    await this.lobbyService.setStatus(lobbyCode, LobbyStatus.IN_PROGRESS);
+
+    return { gameId, state };
+  }
+
+  getUnoState(gameId: string): UnoGameState | undefined {
+    return this.unoGameStates.get(gameId);
+  }
+
+  getUnoPlayerView(gameId: string, recipientId: string): UnoPlayerView | null {
+    const state = this.unoGameStates.get(gameId);
+    if (!state) return null;
+    const isPlayer = state.players.some((player) => player.id === recipientId);
+    if (!isPlayer && !state.spectators.includes(recipientId)) return null;
+    return this.unoEngine.getPlayerView(state, recipientId);
+  }
+
+  async unoPlay(
+    gameId: string,
+    playerId: string,
+    cardId: string,
+    chosenColor: UnoColor | undefined,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const state = this.unoGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+    if (state.lobbyCode !== lobbyCode)
+      return { ok: false, error: 'Game not found' };
+    return this.handleUnoResult(
+      gameId,
+      state.lobbyCode,
+      this.unoEngine.play(state, playerId, cardId, chosenColor),
+    );
+  }
+
+  async unoDraw(
+    gameId: string,
+    playerId: string,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const state = this.unoGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+    if (state.lobbyCode !== lobbyCode)
+      return { ok: false, error: 'Game not found' };
+    return this.handleUnoResult(
+      gameId,
+      state.lobbyCode,
+      this.unoEngine.draw(state, playerId),
+    );
+  }
+
+  async unoPass(
+    gameId: string,
+    playerId: string,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const state = this.unoGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+    if (state.lobbyCode !== lobbyCode)
+      return { ok: false, error: 'Game not found' };
+    return this.handleUnoResult(
+      gameId,
+      state.lobbyCode,
+      this.unoEngine.pass(state, playerId),
+    );
+  }
+
+  async unoTake(
+    gameId: string,
+    playerId: string,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const state = this.unoGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+    if (state.lobbyCode !== lobbyCode)
+      return { ok: false, error: 'Game not found' };
+    return this.handleUnoResult(
+      gameId,
+      state.lobbyCode,
+      this.unoEngine.take(state, playerId),
+    );
+  }
+
+  async unoChallenge(
+    gameId: string,
+    playerId: string,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const state = this.unoGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+    if (state.lobbyCode !== lobbyCode)
+      return { ok: false, error: 'Game not found' };
+    return this.handleUnoResult(
+      gameId,
+      state.lobbyCode,
+      this.unoEngine.challenge(state, playerId),
+    );
+  }
+
+  async unoCallUno(
+    gameId: string,
+    playerId: string,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const state = this.unoGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+    if (state.lobbyCode !== lobbyCode)
+      return { ok: false, error: 'Game not found' };
+    return this.handleUnoResult(
+      gameId,
+      state.lobbyCode,
+      this.unoEngine.callUno(state, playerId),
+    );
+  }
+
+  async unoCatch(
+    gameId: string,
+    catcherId: string,
+    targetId: string,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const state = this.unoGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+    if (state.lobbyCode !== lobbyCode)
+      return { ok: false, error: 'Game not found' };
+    return this.handleUnoResult(
+      gameId,
+      state.lobbyCode,
+      this.unoEngine.catchPlayer(state, catcherId, targetId),
+    );
+  }
+
+  async unoSurrender(
+    gameId: string,
+    playerId: string,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const state = this.unoGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+    if (state.lobbyCode !== lobbyCode)
+      return { ok: false, error: 'Game not found' };
+    return this.handleUnoResult(
+      gameId,
+      state.lobbyCode,
+      this.unoEngine.surrender(state, playerId),
+    );
+  }
+
+  async unoChooseSeven(
+    gameId: string,
+    playerId: string,
+    targetId: string,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const state = this.unoGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+    if (state.lobbyCode !== lobbyCode)
+      return { ok: false, error: 'Game not found' };
+    return this.handleUnoResult(
+      gameId,
+      state.lobbyCode,
+      this.unoEngine.chooseSeven(state, playerId, targetId),
+    );
+  }
+
+  async unoJumpIn(
+    gameId: string,
+    playerId: string,
+    cardId: string,
+    chosenColor: UnoColor | undefined,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const state = this.unoGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+    if (state.lobbyCode !== lobbyCode)
+      return { ok: false, error: 'Game not found' };
+    return this.handleUnoResult(
+      gameId,
+      state.lobbyCode,
+      this.unoEngine.jumpIn(state, playerId, cardId, chosenColor),
+    );
+  }
+
+  unoRejoin(
+    lobbyCode: string,
+    userId: string,
+  ): { ok: boolean; error?: string; gameId?: string; view?: UnoPlayerView } {
+    const gameId = this.lobbyGameMap.get(lobbyCode);
+    if (!gameId || this.lobbyGameTypeMap.get(lobbyCode) !== GameType.UNO)
+      return { ok: false, error: 'no_active_game' };
+    const state = this.unoGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'no_active_game' };
+
+    if (state.players.some((p) => p.id === userId)) {
+      this.unoEngine.setConnected(state, userId, true);
+    } else {
+      if (!this.unoEngine.addSpectator(state, userId))
+        return { ok: false, error: 'spectator_cap' };
+    }
+    return { ok: true, gameId, view: this.unoEngine.getPlayerView(state, userId) };
+  }
+
+  unoHandleDisconnect(gameId: string, userId: string, lobbyCode: string): void {
+    const state = this.unoGameStates.get(gameId);
+    if (!state) return;
+    if (state.lobbyCode !== lobbyCode) return;
+    if (state.players.some((p) => p.id === userId)) {
+      this.unoEngine.setConnected(state, userId, false);
+    } else {
+      this.unoEngine.removeSpectator(state, userId);
+    }
+    this.onUnoStateChanged?.(gameId, state.lobbyCode);
+  }
+
+  unoCleanup(gameId: string, lobbyCode: string): void {
+    const state = this.unoGameStates.get(gameId);
+    if (!state || state.lobbyCode !== lobbyCode) return;
+    this.unoGameStates.delete(gameId);
+    this.unoNextRoundAt.delete(gameId);
+    if (this.lobbyGameMap.get(state.lobbyCode) === gameId) {
+      this.lobbyGameMap.delete(state.lobbyCode);
+      this.lobbyGameTypeMap.delete(state.lobbyCode);
+    }
+  }
+
+  /** Driven ~1 Hz by the gateway: enforce turn timers and round pacing. */
+  async unoTick(): Promise<void> {
+    const now = Date.now();
+    for (const [gameId, state] of this.unoGameStates) {
+      const lobbyCode = state.lobbyCode;
+      if (state.phase === UnoPhase.PLAYING) {
+        if (now >= state.turnEndsAt) {
+          const r = this.unoEngine.timeout(state);
+          if (r.ok) await this.handleUnoResult(gameId, lobbyCode, r);
+        }
+      } else if (state.phase === UnoPhase.ROUND_OVER) {
+        const at = this.unoNextRoundAt.get(gameId);
+        if (at && now >= at) {
+          this.unoNextRoundAt.delete(gameId);
+          this.unoEngine.startNextRound(state);
+          this.onUnoStateChanged?.(gameId, lobbyCode);
+        }
+      }
+    }
+  }
+
+  private async handleUnoResult(
+    gameId: string,
+    lobbyCode: string,
+    result: UnoActionResult,
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (!result.ok) return { ok: false, error: result.error };
+
+    this.onUnoStateChanged?.(gameId, lobbyCode);
+
+    const rr = result.roundResult;
+    if (rr) {
+      if (rr.matchOver) {
+        await this.gameRepo
+          .update(gameId, {
+            winnerId: rr.matchWinnerId,
+            status: GameStatus.FINISHED,
+            finishedAt: new Date(),
+          })
+          .catch(() => {});
+        await this.lobbyService
+          .setStatus(lobbyCode, LobbyStatus.WAITING)
+          .catch(() => {});
+        this.onUnoGameOver?.(gameId, lobbyCode, rr);
+      } else {
+        this.unoNextRoundAt.set(
+          gameId,
+          Date.now() + this.UNO_NEXT_ROUND_DELAY_MS,
+        );
+        this.onUnoRoundOver?.(gameId, lobbyCode, rr);
+      }
+    }
+    return { ok: true };
   }
 }
