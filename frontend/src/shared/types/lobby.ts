@@ -8,6 +8,8 @@ export enum GameType {
   BINGO = 'bingo',
   LUDO = 'ludo',
   CHESS = 'chess',
+  PHOTOBOOTH = 'photobooth',
+  UNO = 'uno',
 }
 
 export interface LobbyPlayer {
@@ -30,6 +32,8 @@ export interface Lobby {
   createdAt: Date;
   /** Only populated for chess lobbies. null ⇒ untimed. */
   timeControl?: import('./chess').TimeControl | null;
+  /** Only populated for UNO lobbies. */
+  unoRules?: import('./uno').UnoRules | null;
 }
 
 export interface CreateLobbyPayload {
@@ -37,6 +41,8 @@ export interface CreateLobbyPayload {
   maxPlayers?: number;
   /** Only honored when gameType === 'chess'. null or undefined ⇒ untimed. */
   timeControl?: import('./chess').TimeControl | null;
+  /** Only honored when gameType === 'uno'. */
+  unoRules?: import('./uno').UnoRules | null;
 }
 
 export interface JoinLobbyPayload {
