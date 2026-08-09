@@ -2,13 +2,14 @@ node_modules/
 dist/
 .next/
 .turbo/
+next-env.d.ts
+*.tsbuildinfo
 *.env.local
 .env
 *.log
 coverage/
 .DS_Store
 __pycache__/
-Add-Content .gitignore @'
 
 .github/agents/
 .github/instructions/
