@@ -53,6 +53,10 @@ export default function LobbyPage() {
       const gameType = lobby?.gameType;
       if (gameType === GameType.LUDO) {
         router.push(`/games/ludo/play?lobby=${code}`);
+      } else if (gameType === GameType.PHOTOBOOTH) {
+        router.push(`/games/photobooth/play/${code}`);
+      } else if (gameType === GameType.UNO) {
+        router.push(`/games/uno/play/${code}`);
       } else {
         router.push(`/games/bingo/play?lobby=${code}`);
       }
@@ -86,6 +90,10 @@ export default function LobbyPage() {
     const gameType = lobby?.gameType;
     if (gameType === GameType.LUDO) {
       router.push('/games/ludo');
+    } else if (gameType === GameType.PHOTOBOOTH) {
+      router.push('/games/photobooth');
+    } else if (gameType === GameType.UNO) {
+      router.push('/games/uno');
     } else {
       router.push('/games/bingo');
     }
