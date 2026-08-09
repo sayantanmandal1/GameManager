@@ -3,7 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
-import { RedisModule } from './redis/redis.module';
+import { CacheModule } from './cache/cache.module';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { LobbyModule } from './lobby/lobby.module';
@@ -21,13 +21,24 @@ import { VoiceModule } from './voice/voice.module';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const databaseUrl = config.get<string>('DATABASE_URL');
+        const isProduction = config.get('NODE_ENV') === 'production';
+        const databaseSslCa = config.get<string>('DATABASE_SSL_CA');
+        if (isProduction && !databaseSslCa) {
+          throw new Error('DATABASE_SSL_CA is required in production');
+        }
+        const ssl = isProduction
+          ? {
+              ca: databaseSslCa!.replace(/\\n/g, '\n'),
+              rejectUnauthorized: true,
+            }
+          : false;
         if (databaseUrl) {
           return {
             type: 'postgres',
             url: databaseUrl,
-            ssl: config.get('NODE_ENV') === 'production' ? { rejectUnauthorized: false } : false,
+            ssl,
             autoLoadEntities: true,
-            synchronize: config.get('NODE_ENV') !== 'production',
+            synchronize: !isProduction,
           };
         }
         return {
@@ -37,15 +48,16 @@ import { VoiceModule } from './voice/voice.module';
           username: config.get('DATABASE_USER', 'postgres'),
           password: config.get('DATABASE_PASSWORD', 'postgres_dev'),
           database: config.get('DATABASE_NAME', 'multiplayer_games'),
+          ssl,
           autoLoadEntities: true,
-          synchronize: config.get('NODE_ENV') !== 'production',
+          synchronize: !isProduction,
         };
       },
     }),
 
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 30 }]),
 
-    RedisModule,
+    CacheModule,
     AuthModule,
     UserModule,
     LobbyModule,

@@ -11,13 +11,18 @@ import { UserModule } from '../user/user.module';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        // SECURITY_NOTE: JWT_SECRET must be a strong, unique value in production
-        secret: config.get('JWT_SECRET', 'dev-jwt-secret-change-in-prod'),
-        signOptions: {
-          expiresIn: config.get('JWT_EXPIRATION', '7d'),
-        },
-      }),
+      useFactory: (config: ConfigService) => {
+        const secret = config.get<string>('JWT_SECRET');
+        if (!secret || secret === '<REPLACE_ME>' || secret.length < 32) {
+          throw new Error('JWT_SECRET must contain at least 32 characters');
+        }
+        return {
+          secret,
+          signOptions: {
+            expiresIn: config.get('JWT_EXPIRATION', '7d'),
+          },
+        };
+      },
     }),
   ],
   controllers: [AuthController],

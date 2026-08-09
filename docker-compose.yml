@@ -4,26 +4,13 @@ services:
     environment:
       POSTGRES_DB: multiplayer_games
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-postgres_dev}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?DATABASE_PASSWORD is required}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:7-alpine
-    command: redis-server --requirepass redis_dev
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a redis_dev ping | grep PONG"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -40,17 +27,12 @@ services:
       DATABASE_PORT: 5432
       DATABASE_NAME: multiplayer_games
       DATABASE_USER: postgres
-      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-postgres_dev}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: redis_dev
-      JWT_SECRET: ${JWT_SECRET:-dev_jwt_secret_change_in_production}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:?DATABASE_PASSWORD is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
       BACKEND_PORT: 8000
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
 
   frontend:
@@ -67,4 +49,3 @@ services:
 
 volumes:
   postgres_data:
-  redis_data:
