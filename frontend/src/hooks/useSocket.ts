@@ -10,12 +10,12 @@ interface UseSocketReturn {
 }
 
 export function useSocket(): UseSocketReturn {
-  const { token, isAuthenticated } = useAuthStore();
+  const { token, isAuthenticated, hasHydrated } = useAuthStore();
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated || !token) {
+    if (!hasHydrated || !isAuthenticated || !token) {
       setIsConnected(false);
       setIsConnecting(false);
       return;
@@ -60,7 +60,7 @@ export function useSocket(): UseSocketReturn {
       socket.off('connect_error', onConnectError);
       // Don't disconnect on unmount — keep socket alive across pages
     };
-  }, [isAuthenticated, token]);
+  }, [hasHydrated, isAuthenticated, token]);
 
   return { isConnected, isConnecting };
 }

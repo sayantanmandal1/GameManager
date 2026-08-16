@@ -19,13 +19,15 @@ jest.mock('framer-motion', () => {
   };
 });
 
-const mockJoinVoice = jest.fn().mockResolvedValue(undefined);
+const mockJoinVoice = jest.fn().mockResolvedValue(true);
 const mockLeaveVoice = jest.fn();
+const mockResumeAudio = jest.fn();
 
 jest.mock('@/hooks/useVoiceChat', () => ({
   useVoiceChat: () => ({
     joinVoice: mockJoinVoice,
     leaveVoice: mockLeaveVoice,
+    resumeAudio: mockResumeAudio,
   }),
 }));
 
@@ -33,12 +35,16 @@ describe('VoiceChat Component', () => {
   beforeEach(() => {
     useVoiceStore.setState({
       isInVoice: false,
+      isJoining: false,
       isMuted: false,
       isSpeakerOff: false,
+      connectionError: null,
+      needsAudioResume: false,
       activePeers: new Map(),
     });
     mockJoinVoice.mockClear();
     mockLeaveVoice.mockClear();
+    mockResumeAudio.mockClear();
   });
 
   it('renders Voice Chat heading', () => {
@@ -100,5 +106,18 @@ describe('VoiceChat Component', () => {
     render(<VoiceChat roomId="room1" />);
     fireEvent.click(screen.getByText('Leave'));
     expect(mockLeaveVoice).toHaveBeenCalled();
+  });
+
+  it('shows a recoverable audio playback error', () => {
+    useVoiceStore.setState({
+      isInVoice: true,
+      connectionError: 'Remote audio is paused by the browser.',
+      needsAudioResume: true,
+    });
+    render(<VoiceChat roomId="room1" />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Remote audio is paused');
+    fireEvent.click(screen.getByText('Enable audio'));
+    expect(mockResumeAudio).toHaveBeenCalled();
   });
 });

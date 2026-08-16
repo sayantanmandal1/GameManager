@@ -109,6 +109,30 @@ export {
   UNO_MODES,
   UNO_CONSTANTS,
 } from './types/uno';
+export type {
+  TicTacToeMark,
+  TicTacToeCell,
+  TicTacToePlayer,
+  TicTacToeAction,
+  TicTacToeGameState,
+  TicTacToePlayerView,
+  TicTacToeResult,
+} from './types/tictactoe';
+export { TicTacToeMode, TicTacToePhase } from './types/tictactoe';
+export type {
+  ConnectFourDisc,
+  ConnectFourCell,
+  ConnectFourPlayer,
+  ConnectFourMove,
+  ConnectFourGameState,
+  ConnectFourPlayerView,
+  ConnectFourResult,
+} from './types/connectfour';
+export {
+  ConnectFourPhase,
+  CONNECT_FOUR_ROWS,
+  CONNECT_FOUR_COLUMNS,
+} from './types/connectfour';
 export {
   LOBBY_EVENTS,
   GAME_EVENTS,
@@ -117,6 +141,8 @@ export {
   CHESS_EVENTS,
   PHOTOBOOTH_EVENTS,
   UNO_EVENTS,
+  TICTACTOE_EVENTS,
+  CONNECTFOUR_EVENTS,
   VOICE_EVENTS,
   AUTH_EVENTS,
 } from './events';

@@ -6,7 +6,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { LobbyStatus } from '../shared';
-import type { TimeControl } from '../shared';
+import type { TicTacToeMode, TimeControl } from '../shared';
 
 @Entity('lobbies')
 export class LobbyEntity {
@@ -35,6 +35,9 @@ export class LobbyEntity {
   // migration; null ⇒ untimed. Only read for chess lobbies.
   @Column({ type: 'jsonb', nullable: true })
   timeControl: TimeControl | null;
+
+  @Column({ type: 'varchar', length: 16, nullable: true })
+  tictactoeMode: TicTacToeMode | null;
 
   @CreateDateColumn()
   createdAt: Date;

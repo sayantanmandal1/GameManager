@@ -27,6 +27,7 @@ describe('AuthStore', () => {
       user: null,
       token: null,
       isAuthenticated: false,
+      hasHydrated: true,
       isLoading: false,
       error: null,
     });
@@ -47,6 +48,13 @@ describe('AuthStore', () => {
 
     it('should have null error', () => {
       expect(useAuthStore.getState().error).toBeNull();
+    });
+
+    it('can record completion of persisted-state hydration', () => {
+      useAuthStore.getState().setHasHydrated(false);
+      expect(useAuthStore.getState().hasHydrated).toBe(false);
+      useAuthStore.getState().setHasHydrated(true);
+      expect(useAuthStore.getState().hasHydrated).toBe(true);
     });
   });
 

@@ -8,14 +8,14 @@ import { useUnoStore } from '@/stores/unoStore';
  * rejoin (or spectate) on mount. Components read state via useUnoStore(selector)
  * and mutate only through the store's typed actions.
  */
-export function useUnoSocket(lobbyCode: string): void {
+export function useUnoSocket(lobbyCode: string, isConnected: boolean): void {
   const setLobbyCode = useUnoStore((s) => s.setLobbyCode);
   const initListeners = useUnoStore((s) => s.initListeners);
 
   useEffect(() => {
-    if (!lobbyCode) return;
+    if (!lobbyCode || !isConnected) return;
     setLobbyCode(lobbyCode);
     const cleanup = initListeners();
     return cleanup;
-  }, [lobbyCode, setLobbyCode, initListeners]);
+  }, [lobbyCode, isConnected, setLobbyCode, initListeners]);
 }

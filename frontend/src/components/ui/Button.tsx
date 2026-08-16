@@ -14,17 +14,17 @@ interface ButtonProps extends HTMLMotionProps<'button'> {
 
 const variantClasses: Record<Variant, string> = {
   primary:
-    'bg-white hover:bg-white/90 text-black shadow-lg shadow-white/10',
+    'bg-[#f4f1e8] hover:bg-white text-[#171912] shadow-lg shadow-black/20',
   secondary:
-    'bg-white/[0.06] hover:bg-white/[0.1] text-white/80 border border-white/[0.1]',
-  danger: 'bg-white/10 hover:bg-white/15 text-red-400 border border-red-500/30',
-  ghost: 'bg-transparent hover:bg-white/[0.05] text-white/50 hover:text-white',
+    'bg-[#252923] hover:bg-[#30352d] text-[#f4f1e8] border border-white/[0.14]',
+  danger: 'bg-[#3a211f] hover:bg-[#4a2724] text-[#ff9b8a] border border-[#ff684d]/35',
+  ghost: 'bg-transparent hover:bg-white/[0.07] text-[#b9beb5] hover:text-white',
 };
 
 const sizeClasses: Record<Size, string> = {
-  sm: 'px-3 py-1.5 text-sm rounded-lg',
-  md: 'px-5 py-2.5 text-base rounded-xl',
-  lg: 'px-8 py-3.5 text-lg rounded-xl',
+  sm: 'min-h-9 px-3 py-1.5 text-sm rounded-lg',
+  md: 'min-h-11 px-5 py-2.5 text-base rounded-lg',
+  lg: 'min-h-12 px-8 py-3 text-lg rounded-lg',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(

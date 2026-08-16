@@ -16,10 +16,10 @@ export function TableCenter({ view, onDrawPile }: TableCenterProps) {
   const canDraw = view.canDraw;
 
   return (
-    <div className="flex flex-col items-center gap-4">
+    <div className="flex flex-col items-center gap-5">
       {/* Round + direction + stacking */}
-      <div className="flex items-center gap-3 text-xs font-semibold text-white/50">
-        <span>{S.hud.round(view.roundNumber)}</span>
+      <div className="flex flex-wrap items-center justify-center gap-2 text-xs font-semibold text-white/70">
+        <span className="rounded-full bg-black/25 px-3 py-1">{S.hud.round(view.roundNumber)}</span>
         <motion.span
           key={view.direction}
           initial={{ rotate: -40, opacity: 0 }}
@@ -46,7 +46,7 @@ export function TableCenter({ view, onDrawPile }: TableCenterProps) {
         )}
       </div>
 
-      <div className="flex items-center gap-8">
+      <div className="flex items-center gap-9 sm:gap-12">
         {/* Draw pile */}
         <div className="flex flex-col items-center gap-2">
           <button
@@ -57,12 +57,12 @@ export function TableCenter({ view, onDrawPile }: TableCenterProps) {
             aria-label={S.hud.drawPile}
           >
             <div className="absolute left-1 top-1 opacity-60">
-              <UnoCard faceDown width={72} side={view.side} />
+              <UnoCard faceDown width={78} side={view.side} />
             </div>
             <div className="absolute left-0.5 top-0.5 opacity-80">
-              <UnoCard faceDown width={72} side={view.side} />
+              <UnoCard faceDown width={78} side={view.side} />
             </div>
-            <UnoCard faceDown width={72} side={view.side} />
+            <UnoCard faceDown width={78} side={view.side} />
             <span className="absolute -bottom-1 -right-1 rounded-full bg-black/80 px-1.5 text-[11px] font-bold text-white ring-1 ring-white/20">
               {view.drawPileCount}
             </span>
@@ -93,7 +93,7 @@ export function TableCenter({ view, onDrawPile }: TableCenterProps) {
                 transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                 className="relative"
               >
-                <UnoCard card={view.topCard} width={82} side={view.side} />
+                <UnoCard card={view.topCard} width={88} side={view.side} />
               </motion.div>
             )}
           </AnimatePresence>

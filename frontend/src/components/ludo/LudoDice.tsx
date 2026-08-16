@@ -27,8 +27,8 @@ function DieFace({ value, isRolling, isSix }: DieFaceProps) {
     <motion.div
       className={`relative rounded-2xl shadow-xl border ${
         isSix
-          ? 'bg-white border-white/40 shadow-white/20'
-          : 'bg-white/[0.08] backdrop-blur-md border-white/[0.12]'
+          ? 'border-game-sun bg-gradient-to-br from-[#fff7c7] to-game-sun shadow-game-sun/30'
+          : 'border-white/50 bg-gradient-to-br from-white to-[#dfe6df] shadow-black/30'
       }`}
       style={{ width: size, height: size }}
       animate={
@@ -52,7 +52,7 @@ function DieFace({ value, isRolling, isSix }: DieFaceProps) {
             cx={cx}
             cy={cy}
             r={0.1}
-            fill={isSix ? '#000' : '#fff'}
+            fill="#17201a"
           />
         ))}
       </svg>
@@ -97,11 +97,11 @@ export function LudoDice({
         <motion.div
           initial={{ opacity: 0, y: -5 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-sm text-white/40"
+          className="rounded-full bg-black/20 px-3 py-1 text-sm text-game-muted"
         >
           Rolled: <span className="text-white font-bold text-base">{dice}</span>
           {dice === 6 && (
-            <span className="ml-2 text-white font-bold animate-pulse">Six!</span>
+            <span className="ml-2 inline-block animate-bounce font-black text-game-sun">Six!</span>
           )}
         </motion.div>
       )}

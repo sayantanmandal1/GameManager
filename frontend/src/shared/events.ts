@@ -74,6 +74,20 @@ export const PHOTOBOOTH_EVENTS = {
   COMPLETE: 'photobooth:complete',
 } as const;
 
+export const TICTACTOE_EVENTS = {
+  MOVE: 'tictactoe:move',
+  STATE: 'tictactoe:state',
+  RESULT: 'tictactoe:result',
+  ERROR: 'tictactoe:error',
+} as const;
+
+export const CONNECTFOUR_EVENTS = {
+  DROP: 'connectfour:drop',
+  STATE: 'connectfour:state',
+  RESULT: 'connectfour:result',
+  ERROR: 'connectfour:error',
+} as const;
+
 export const UNO_EVENTS = {
   // client → server
   PLAY: 'uno:play',

@@ -8,8 +8,11 @@ describe('VoiceStore', () => {
     // Reset store between tests
     useVoiceStore.setState({
       isInVoice: false,
+      isJoining: false,
       isMuted: false,
       isSpeakerOff: false,
+      connectionError: null,
+      needsAudioResume: false,
       activePeers: new Map(),
     });
   });
@@ -21,6 +24,11 @@ describe('VoiceStore', () => {
 
     it('should start unmuted', () => {
       expect(useVoiceStore.getState().isMuted).toBe(false);
+    });
+
+    it('should start idle without a connection error', () => {
+      expect(useVoiceStore.getState().isJoining).toBe(false);
+      expect(useVoiceStore.getState().connectionError).toBeNull();
     });
 
     it('should start with speaker on', () => {
@@ -53,6 +61,9 @@ describe('VoiceStore', () => {
   describe('toggleSpeaker', () => {
     it('should toggle isSpeakerOff', () => {
       useVoiceStore.getState().toggleSpeaker();
+      useVoiceStore.getState().setVoiceJoining(true);
+      useVoiceStore.getState().setConnectionError('failed');
+      useVoiceStore.getState().setAudioResumeRequired(true);
       expect(useVoiceStore.getState().isSpeakerOff).toBe(true);
       useVoiceStore.getState().toggleSpeaker();
       expect(useVoiceStore.getState().isSpeakerOff).toBe(false);
@@ -117,6 +128,9 @@ describe('VoiceStore', () => {
       expect(state.isInVoice).toBe(false);
       expect(state.isMuted).toBe(false);
       expect(state.isSpeakerOff).toBe(false);
+      expect(state.isJoining).toBe(false);
+      expect(state.connectionError).toBeNull();
+      expect(state.needsAudioResume).toBe(false);
       expect(state.activePeers.size).toBe(0);
     });
   });

@@ -9,8 +9,10 @@ import { UserModule } from './user/user.module';
 import { LobbyModule } from './lobby/lobby.module';
 import { GameModule } from './game/game.module';
 import { VoiceModule } from './voice/voice.module';
+import { HealthController } from './health.controller';
 
 @Module({
+  controllers: [HealthController],
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
 

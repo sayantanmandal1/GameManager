@@ -1,2 +1,12 @@
 {
+	"chat.agentFilesLocations": {
+		".github/agents": false
+	},
+	"chat.instructionsFilesLocations": {
+		".github/instructions": false
+	},
+	"chat.useCustomizationsInParentRepositories": false,
+	"files.associations": {
+		"**/backend/migrations/*.sql": "plaintext"
+	}
 }

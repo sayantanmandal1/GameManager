@@ -29,10 +29,10 @@ interface ChessPlayClientProps {
 
 export default function ChessPlayClient({ code }: ChessPlayClientProps) {
   const router = useRouter();
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, hasHydrated, user } = useAuthStore();
   const { isConnected } = useSocket();
 
-  useChessSocket(code);
+  useChessSocket(code, isConnected);
 
   const view = useChessStore((s) => s.view);
   const clocks = useChessStore((s) => s.clocks);
@@ -56,10 +56,10 @@ export default function ChessPlayClient({ code }: ChessPlayClientProps) {
   >(null);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (hasHydrated && !isAuthenticated) {
       router.push('/');
     }
-  }, [isAuthenticated, router]);
+  }, [hasHydrated, isAuthenticated, router]);
 
   useEffect(() => {
     if (!code) {
@@ -171,10 +171,10 @@ export default function ChessPlayClient({ code }: ChessPlayClientProps) {
   const lastTickAt = clocks?.lastTickAt ?? Date.now();
 
   return (
-    <main className="min-h-screen p-4 md:p-6">
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <main className="min-h-screen bg-[#161813] p-3 sm:p-4 md:p-6">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-5 lg:grid-cols-12">
         {/* Board column */}
-        <div className="lg:col-span-8 flex flex-col items-center gap-3">
+        <div className="flex flex-col items-center gap-3 lg:col-span-8">
           <ChessClock
             label={orientation === 'white' ? 'black' : 'white'}
             remainingMs={orientation === 'white' ? blackRemaining : whiteRemaining}
@@ -215,16 +215,18 @@ export default function ChessPlayClient({ code }: ChessPlayClientProps) {
         </div>
 
         {/* Sidebar */}
-        <div className="lg:col-span-4 space-y-4">
+        <div className="space-y-4 lg:col-span-4">
           <Card>
-            <div className="flex items-center justify-between">
-              <div className="text-sm">
-                <div className="text-white/60">♔ {view.whiteName}</div>
-                <div className="text-white/60">♚ {view.blackName}</div>
+            <div className="space-y-2">
+              <div className={`flex min-h-12 items-center justify-between rounded-md border px-3 ${view.turn === 'w' && view.status === 'in_progress' ? 'border-[#d3a85d] bg-[#d3a85d]/10' : 'border-white/10 bg-[#eee8d7]/5'}`}>
+                <span className="flex min-w-0 items-center gap-3"><span className="text-2xl text-[#eee8d7]">♔</span><span className="truncate font-semibold text-white">{view.whiteName}</span></span>
+                {view.turn === 'w' && view.status === 'in_progress' && <span className="text-xs font-bold text-[#d3a85d]">MOVE</span>}
               </div>
-              <div className="text-xs text-white/40">
-                {view.spectatorCount > 0 && `👁 ${view.spectatorCount}`}
+              <div className={`flex min-h-12 items-center justify-between rounded-md border px-3 ${view.turn === 'b' && view.status === 'in_progress' ? 'border-[#d3a85d] bg-[#d3a85d]/10' : 'border-white/10 bg-black/20'}`}>
+                <span className="flex min-w-0 items-center gap-3"><span className="text-2xl text-[#9ca394]">♚</span><span className="truncate font-semibold text-white">{view.blackName}</span></span>
+                {view.turn === 'b' && view.status === 'in_progress' && <span className="text-xs font-bold text-[#d3a85d]">MOVE</span>}
               </div>
+              {view.spectatorCount > 0 && <p className="text-right text-xs text-game-muted">{view.spectatorCount} watching</p>}
             </div>
           </Card>
 
@@ -265,7 +267,7 @@ export default function ChessPlayClient({ code }: ChessPlayClientProps) {
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-              className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-8 text-center max-w-md mx-4"
+              className="mx-4 max-w-md rounded-lg border border-white/12 bg-[#25271f] p-8 text-center"
             >
               <div className="text-6xl mb-4">
                 {result.result === '1/2-1/2'

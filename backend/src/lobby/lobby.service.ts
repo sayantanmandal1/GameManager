@@ -17,6 +17,7 @@ import {
   UnoMode,
   UNO_MODES,
   UNO_CONSTANTS,
+  TicTacToeMode,
 } from '../shared';
 
 @Injectable()
@@ -42,6 +43,7 @@ export class LobbyService {
     maxPlayers?: number,
     timeControl?: TimeControl | null,
     unoRules?: UnoRules | null,
+    tictactoeMode?: TicTacToeMode | null,
   ): Promise<Lobby> {
     const host = await this.userService.findById(hostId);
     if (!host) throw new Error('User not found');
@@ -50,7 +52,12 @@ export class LobbyService {
     // Chess and Photobooth are strictly 2-player; UNO is 2–4; ignore bogus
     // client overrides in every case.
     let requestedMax: number;
-    if (gameType === GameType.CHESS || gameType === GameType.PHOTOBOOTH) {
+    if (
+      gameType === GameType.CHESS ||
+      gameType === GameType.PHOTOBOOTH ||
+      gameType === GameType.TICTACTOE ||
+      gameType === GameType.CONNECTFOUR
+    ) {
       requestedMax = 2;
     } else if (gameType === GameType.UNO) {
       requestedMax = Math.min(
@@ -76,6 +83,10 @@ export class LobbyService {
       gameType === GameType.UNO
         ? LobbyService.validateUnoRules(unoRules ?? null)
         : null;
+    const tttMode =
+      gameType === GameType.TICTACTOE
+        ? LobbyService.validateTicTacToeMode(tictactoeMode)
+        : null;
 
     const hostPlayer: LobbyPlayer = {
       id: host.id,
@@ -97,6 +108,7 @@ export class LobbyService {
       createdAt: new Date(),
       timeControl: tc,
       unoRules: uno,
+      tictactoeMode: tttMode,
     };
 
     // Persist to DB
@@ -109,6 +121,7 @@ export class LobbyService {
       status: lobby.status,
       maxPlayers: lobby.maxPlayers,
       timeControl: tc,
+      tictactoeMode: tttMode,
     });
     await this.lobbyRepo.save(entity);
 
@@ -139,6 +152,14 @@ export class LobbyService {
       throw new Error('invalid_time_control');
     }
     return { baseMs, incrementMs };
+  }
+
+  static validateTicTacToeMode(raw: TicTacToeMode | null | undefined): TicTacToeMode {
+    if (raw === null || raw === undefined) return TicTacToeMode.CLASSIC;
+    if (!Object.values(TicTacToeMode).includes(raw)) {
+      throw new Error('invalid_tictactoe_mode');
+    }
+    return raw;
   }
 
   /**

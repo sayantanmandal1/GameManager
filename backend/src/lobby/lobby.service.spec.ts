@@ -4,7 +4,13 @@ import { UserService } from '../user/user.service';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { CacheClient } from '../cache/cache.module';
-import { LobbyStatus, GameType, Lobby, GAME_CONSTANTS } from '../shared';
+import {
+  LobbyStatus,
+  GameType,
+  Lobby,
+  GAME_CONSTANTS,
+  TicTacToeMode,
+} from '../shared';
 
 describe('LobbyService', () => {
   let service: LobbyService;
@@ -69,6 +75,43 @@ describe('LobbyService', () => {
     it('should throw if user not found', async () => {
       mockUserService.findById!.mockResolvedValue(null);
       await expect(service.createLobby('nonexistent', GameType.BINGO)).rejects.toThrow('User not found');
+    });
+
+    it('forces Tic Tac Toe to two seats and persists its allow-listed mode', async () => {
+      mockUserService.findById!.mockResolvedValue(fakeUser);
+
+      const lobby = await service.createLobby(
+        'user1',
+        GameType.TICTACTOE,
+        99,
+        null,
+        null,
+        TicTacToeMode.LIMITED,
+      );
+
+      expect(lobby.maxPlayers).toBe(2);
+      expect(lobby.tictactoeMode).toBe(TicTacToeMode.LIMITED);
+      expect(mockLobbyRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          maxPlayers: 2,
+          tictactoeMode: TicTacToeMode.LIMITED,
+        }),
+      );
+    });
+
+    it('rejects a forged Tic Tac Toe mode', async () => {
+      mockUserService.findById!.mockResolvedValue(fakeUser);
+
+      await expect(
+        service.createLobby(
+          'user1',
+          GameType.TICTACTOE,
+          2,
+          null,
+          null,
+          'anything' as TicTacToeMode,
+        ),
+      ).rejects.toThrow('invalid_tictactoe_mode');
     });
   });
 

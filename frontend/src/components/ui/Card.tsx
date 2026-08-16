@@ -17,9 +17,9 @@ export function Card({
   return (
     <motion.div
       whileHover={hoverable ? { scale: 1.02, y: -4 } : undefined}
-      className={`bg-white/[0.03] backdrop-blur-xl border border-white/[0.06] rounded-2xl p-6
-        ${glowing ? 'shadow-lg shadow-white/[0.05]' : ''}
-        ${hoverable ? 'cursor-pointer transition-shadow hover:shadow-xl hover:shadow-white/[0.08] hover:bg-white/[0.05]' : ''}
+      className={`bg-[#1c1f1b]/95 backdrop-blur-xl border border-white/[0.14] rounded-lg p-6
+        ${glowing ? 'shadow-xl shadow-black/20' : ''}
+        ${hoverable ? 'cursor-pointer transition-shadow hover:shadow-xl hover:shadow-black/30 hover:bg-[#232720]' : ''}
         ${className}`}
       {...props}
     >

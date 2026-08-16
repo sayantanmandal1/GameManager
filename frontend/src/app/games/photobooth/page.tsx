@@ -11,7 +11,7 @@ import { photoboothStrings as S } from '@/components/photobooth';
 
 export default function PhotoboothLandingPage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, hasHydrated } = useAuthStore();
   const { lobby, isLoading, createLobby, joinLobby, initListeners, error, reset } =
     useLobbyStore();
   const { isConnected } = useSocket();
@@ -19,6 +19,7 @@ export default function PhotoboothLandingPage() {
   const [joinCode, setJoinCode] = useState('');
 
   useEffect(() => {
+    if (!hasHydrated) return;
     if (!isAuthenticated) {
       router.push('/');
       return;
@@ -26,7 +27,7 @@ export default function PhotoboothLandingPage() {
     if (!isConnected) return;
     const cleanup = initListeners();
     return cleanup;
-  }, [isAuthenticated, isConnected, router, initListeners]);
+  }, [hasHydrated, isAuthenticated, isConnected, router, initListeners]);
 
   useEffect(() => {
     if (lobby) router.push(`/lobby/${lobby.code}`);

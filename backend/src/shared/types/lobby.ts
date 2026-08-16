@@ -10,6 +10,9 @@ export enum GameType {
   CHESS = 'chess',
   PHOTOBOOTH = 'photobooth',
   UNO = 'uno',
+  TICTACTOE = 'tictactoe',
+  CONNECTFOUR = 'connectfour',
+  SUDOKU = 'sudoku',
 }
 
 export interface LobbyPlayer {
@@ -34,6 +37,8 @@ export interface Lobby {
   timeControl?: import('./chess').TimeControl | null;
   /** Only populated for UNO lobbies. */
   unoRules?: import('./uno').UnoRules | null;
+  /** Only populated for Tic Tac Toe lobbies. */
+  tictactoeMode?: import('./tictactoe').TicTacToeMode | null;
 }
 
 export interface CreateLobbyPayload {
@@ -43,6 +48,8 @@ export interface CreateLobbyPayload {
   timeControl?: import('./chess').TimeControl | null;
   /** Only honored when gameType === 'uno'. */
   unoRules?: import('./uno').UnoRules | null;
+  /** Only honored when gameType === 'tictactoe'. */
+  tictactoeMode?: import('./tictactoe').TicTacToeMode | null;
 }
 
 export interface JoinLobbyPayload {

@@ -23,7 +23,7 @@ function LudoPlayContent() {
   const searchParams = useSearchParams();
   const lobbyCode = searchParams.get('lobby') || '';
 
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, hasHydrated, user } = useAuthStore();
   const {
     gameId,
     view,
@@ -40,6 +40,7 @@ function LudoPlayContent() {
   const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
 
   useEffect(() => {
+    if (!hasHydrated) return;
     if (!isAuthenticated) {
       router.push('/');
       return;
@@ -52,7 +53,7 @@ function LudoPlayContent() {
     return () => {
       cleanup();
     };
-  }, [isAuthenticated, isConnected, lobbyCode, router, setLobbyCode, initListeners]);
+  }, [hasHydrated, isAuthenticated, isConnected, lobbyCode, router, setLobbyCode, initListeners]);
 
   // Win confetti
   useEffect(() => {
@@ -91,10 +92,10 @@ function LudoPlayContent() {
   const isFinished = view.phase === LudoGamePhase.FINISHED;
 
   return (
-    <main className="min-h-screen p-4 md:p-6">
-      <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-6">
+    <main className="min-h-screen bg-[#101915] p-3 sm:p-4 md:p-6">
+      <div className="mx-auto flex max-w-[90rem] flex-col gap-5 lg:flex-row">
         {/* Left: Game Board */}
-        <div className="flex-1 flex flex-col items-center">
+        <div className="flex min-w-0 flex-1 flex-col items-center rounded-lg border border-white/10 bg-[#17211c] p-2 sm:p-4">
           {/* Turn indicator */}
           <motion.div
             key={view.currentTurn}
@@ -105,8 +106,8 @@ function LudoPlayContent() {
             <span
               className={`inline-block px-4 py-2 rounded-full text-sm font-bold ${
                 isMyTurn
-                  ? 'bg-white/20 text-white border border-white/50'
-                  : 'bg-white/[0.03] text-white/40 border border-white/[0.06]'
+                  ? 'border border-game-sun/60 bg-game-sun/15 text-white'
+                  : 'border border-white/10 bg-black/15 text-game-muted'
               }`}
             >
               {isMyTurn
@@ -133,7 +134,7 @@ function LudoPlayContent() {
             {/* Move selector popup */}
             <AnimatePresence>
               {selectedTokenId != null && view.availableMoves && (
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                <div className="fixed bottom-5 left-1/2 z-40 -translate-x-1/2 lg:absolute lg:bottom-auto lg:top-1/2 lg:-translate-y-1/2">
                   <LudoMoveSelector
                     moves={view.availableMoves}
                     tokenId={selectedTokenId}
@@ -151,9 +152,9 @@ function LudoPlayContent() {
         </div>
 
         {/* Right: Sidebar */}
-        <div className="w-full lg:w-80 space-y-4">
+        <div className="w-full space-y-4 lg:w-80">
           {/* Dice */}
-          <Card>
+          <Card className="bg-[#202820]">
             <LudoDice
               dice={view.dice}
               isRolling={diceRolling}
@@ -165,7 +166,7 @@ function LudoPlayContent() {
           </Card>
 
           {/* Players */}
-          <Card>
+          <Card className="bg-[#202820]">
             <LudoPlayerPanel
               players={view.players}
               currentTurn={view.currentTurn}
@@ -195,7 +196,7 @@ function LudoPlayContent() {
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-              className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-8 text-center max-w-md mx-4"
+              className="mx-4 max-w-md rounded-lg border border-white/12 bg-[#202820] p-8 text-center"
             >
               <div className="text-6xl mb-4">
                 {result.winnerId === user?.id ? '🏆' : '🎮'}

@@ -1,7 +1,6 @@
 ﻿'use client';
 
 import { useMemo, useCallback, useRef, useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 import type { LudoPlayerState, LudoMoveAction, LudoMoveRecord } from '@/shared';
 import { LudoColor, LUDO_START_POSITIONS, LUDO_SAFE_SQUARES, LUDO_BOARD_SIZE } from '@/shared';
 
@@ -12,12 +11,11 @@ const VP = CELL * CELLS;
 
 const ALL_COLORS: LudoColor[] = [LudoColor.RED, LudoColor.GREEN, LudoColor.YELLOW, LudoColor.BLUE];
 
-// Tokens keep their classic colors for identification on the dark board
 const COLORS: Record<LudoColor, { bg: string; light: string; token: string }> = {
-  [LudoColor.RED]:    { bg: '#FF4C4C', light: '#2a1515', token: '#cc3333' },
-  [LudoColor.GREEN]:  { bg: '#4CAF50', light: '#152a15', token: '#338a33' },
-  [LudoColor.YELLOW]: { bg: '#FFC107', light: '#2a2515', token: '#cc9900' },
-  [LudoColor.BLUE]:   { bg: '#2196F3', light: '#151f2a', token: '#1a6fcc' },
+  [LudoColor.RED]:    { bg: '#e34242', light: '#f9b8b8', token: '#b91c2b' },
+  [LudoColor.GREEN]:  { bg: '#34a853', light: '#b9e7c5', token: '#16753a' },
+  [LudoColor.YELLOW]: { bg: '#f6c945', light: '#fce9a7', token: '#c58a08' },
+  [LudoColor.BLUE]:   { bg: '#3587d4', light: '#b9d9f5', token: '#175ea8' },
 };
 
 // --- Track coordinates ---
@@ -46,10 +44,10 @@ const HOME_COLS: Record<LudoColor, [number, number][]> = {
 };
 
 const BASE_POS: Record<LudoColor, [number, number][]> = {
-  [LudoColor.RED]:    [[1.5,1.5],[4.5,1.5],[1.5,4.5],[4.5,4.5]],
-  [LudoColor.GREEN]:  [[10.5,1.5],[13.5,1.5],[10.5,4.5],[13.5,4.5]],
-  [LudoColor.YELLOW]: [[10.5,10.5],[13.5,10.5],[10.5,13.5],[13.5,13.5]],
-  [LudoColor.BLUE]:   [[1.5,10.5],[4.5,10.5],[1.5,13.5],[4.5,13.5]],
+  [LudoColor.RED]:    [[2,2],[4,2],[2,4],[4,4]],
+  [LudoColor.GREEN]:  [[11,2],[13,2],[11,4],[13,4]],
+  [LudoColor.YELLOW]: [[11,11],[13,11],[11,13],[13,13]],
+  [LudoColor.BLUE]:   [[2,11],[4,11],[2,13],[4,13]],
 };
 
 const BASE_RECTS: Record<LudoColor, { x: number; y: number; w: number; h: number }> = {
@@ -143,11 +141,11 @@ function HoppingToken({
 
   const c = colorDef;
   return (
-    <motion.g
+    <g
+      data-ludo-token={`${color}-${token.id}`}
+      transform={`translate(${pos[0]} ${pos[1]})`}
       onClick={onClick}
       style={{ cursor: isMovable ? 'pointer' : 'default' }}
-      animate={{ x: pos[0], y: pos[1] }}
-      transition={{ type: 'tween', duration: 0.1, ease: 'easeOut' }}
     >
       {isMovable && (
         <circle cx={0} cy={pH * 0.1} r={CELL * 0.48}
@@ -170,7 +168,7 @@ function HoppingToken({
         fontSize="11" fontWeight="bold" fill="#fff">
         {token.id + 1}
       </text>
-    </motion.g>
+    </g>
   );
 }
 
@@ -248,20 +246,20 @@ export function LudoBoard({
           </filter>
         </defs>
 
-        <rect width={VP} height={VP} fill="#0a0a0a" rx="14" />
-        <rect width={VP} height={VP} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="2" rx="14" />
+        <rect width={VP} height={VP} fill="#f8fafc" rx="10" />
+        <rect width={VP} height={VP} fill="none" stroke="#cbd5e1" strokeWidth="3" rx="10" />
 
         {ALL_COLORS.map((col) => {
           const c = COLORS[col]; const br = BASE_RECTS[col]; const active = activeColors.has(col);
           return (
-            <g key={col} opacity={active ? 1 : 0.25}>
+            <g key={col} opacity={active ? 1 : 0.82}>
               <rect x={br.x*CELL+2} y={br.y*CELL+2} width={br.w*CELL-4} height={br.h*CELL-4}
-                fill={c.bg} opacity={0.08} rx="10" />
+                fill={c.bg} rx="8" />
               <rect x={(br.x+0.8)*CELL} y={(br.y+0.8)*CELL} width={(br.w-1.6)*CELL} height={(br.h-1.6)*CELL}
-                fill={c.bg} opacity={0.05} rx="8" stroke={c.bg} strokeWidth="1" strokeOpacity={0.15} />
+                fill="#fffdf8" rx="8" stroke="#ffffff" strokeWidth="3" />
               {BASE_POS[col].map(([bx,by],i) => (
                 <circle key={i} cx={bx*CELL} cy={by*CELL} r={CELL*0.35}
-                  fill={c.bg} opacity={0.1} stroke={c.bg} strokeWidth="1" strokeOpacity={0.15} />
+                  fill={c.light} stroke={c.bg} strokeWidth="3" />
               ))}
             </g>
           );
@@ -274,11 +272,11 @@ export function LudoBoard({
           return (
             <g key={`t-${i}`}>
               <rect x={cx*CELL+1} y={cy*CELL+1} width={CELL-2} height={CELL-2}
-                fill={tc ? tc.light : '#111'} stroke={tc ? tc.bg : '#1a1a1a'}
-                strokeWidth={1} strokeOpacity={tc ? 0.3 : 0.6} rx="3" />
+                fill={tc ? tc.bg : '#fffdf8'} stroke={tc ? tc.token : '#cbd5e1'}
+                strokeWidth={1.5} rx="2" />
               {isSafe && (
                 <text x={(cx+0.5)*CELL} y={(cy+0.5)*CELL} textAnchor="middle"
-                  dominantBaseline="central" fontSize="14" fill={tc ? tc.bg : '#333'} opacity={0.5}>&#9733;</text>
+                  dominantBaseline="central" fontSize="17" fill={tc ? '#ffffff' : '#64748b'}>&#9733;</text>
               )}
             </g>
           );
@@ -289,23 +287,24 @@ export function LudoBoard({
           return HOME_COLS[col].map(([cx,cy],i) => (
             <rect key={`h-${col}-${i}`} x={cx*CELL+1} y={cy*CELL+1}
               width={CELL-2} height={CELL-2} fill={c.bg}
-              opacity={active ? 0.15 + i*0.04 : 0.06} rx="3" />
+              opacity={active ? 0.96 : 0.78} stroke={c.token} strokeWidth="1.5" rx="2" />
           ));
         })}
 
-        <rect x={6.25*CELL} y={6.25*CELL} width={2.5*CELL} height={2.5*CELL}
-          fill="#111" stroke="rgba(255,255,255,0.06)" strokeWidth={2} rx="6" />
-        {ALL_COLORS.map((col,idx) => {
-          const c = COLORS[col];
-          const cx = 7.5*CELL; const cy = 7.5*CELL; const r = 1.1*CELL;
-          const a1 = (idx*Math.PI*2)/4 - Math.PI/2;
-          const a2 = ((idx+1)*Math.PI*2)/4 - Math.PI/2;
-          return (
-            <polygon key={`ctr-${col}`}
-              points={`${cx},${cy} ${cx+r*Math.cos(a1)},${cy+r*Math.sin(a1)} ${cx+r*Math.cos(a2)},${cy+r*Math.sin(a2)}`}
-              fill={c.bg} opacity={activeColors.has(col) ? 0.2 : 0.06} />
-          );
-        })}
+        <rect x={6*CELL} y={6*CELL} width={3*CELL} height={3*CELL}
+          fill="#fffdf8" stroke="#cbd5e1" strokeWidth={2} />
+        <polygon data-home-triangle="red"
+          points={`${6*CELL},${6*CELL} ${7.5*CELL},${7.5*CELL} ${6*CELL},${9*CELL}`}
+          fill={COLORS[LudoColor.RED].bg} />
+        <polygon data-home-triangle="green"
+          points={`${6*CELL},${6*CELL} ${9*CELL},${6*CELL} ${7.5*CELL},${7.5*CELL}`}
+          fill={COLORS[LudoColor.GREEN].bg} />
+        <polygon data-home-triangle="yellow"
+          points={`${9*CELL},${6*CELL} ${9*CELL},${9*CELL} ${7.5*CELL},${7.5*CELL}`}
+          fill={COLORS[LudoColor.YELLOW].bg} />
+        <polygon data-home-triangle="blue"
+          points={`${6*CELL},${9*CELL} ${7.5*CELL},${7.5*CELL} ${9*CELL},${9*CELL}`}
+          fill={COLORS[LudoColor.BLUE].bg} />
 
         {players.map((p) => {
           const c = COLORS[p.color];

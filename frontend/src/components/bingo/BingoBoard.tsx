@@ -42,7 +42,7 @@ export function BingoBoard({
     : 'w-14 h-14 sm:w-16 sm:h-16 text-lg';
 
   return (
-    <div className={compact ? 'w-full max-w-xs mx-auto' : 'w-full max-w-sm mx-auto'}>
+    <div className={compact ? 'mx-auto w-full max-w-xs' : 'mx-auto w-full max-w-md'}>
       {label && (
         <p className="text-center text-sm text-white/40 uppercase tracking-wider mb-2 font-semibold">
           {label}
@@ -95,15 +95,15 @@ export function BingoBoard({
                   ${
                     isEmpty
                       ? canClickSetup
-                        ? 'bg-white/[0.03] border-2 border-dashed border-white/40 text-white/60 hover:border-white/30 hover:bg-white/10 cursor-pointer'
-                        : 'bg-white/[0.03] border border-white/[0.06] text-white/40/30'
+                        ? 'cursor-pointer border-2 border-dashed border-game-blue/50 bg-[#172c3b] text-white/60 hover:border-game-blue hover:bg-game-blue/10'
+                        : 'border border-white/10 bg-[#172c3b] text-white/20'
                       : isLastCalled
                         ? 'bg-yellow-500/40 border-2 border-yellow-400 text-white ring-2 ring-yellow-400/50'
                         : isMarked
-                          ? 'bg-white/30 border-2 border-white/30 text-white line-through decoration-2'
+                          ? 'border-2 border-game-mint bg-game-mint/25 text-white line-through decoration-game-mint decoration-2 shadow-lg shadow-game-mint/10'
                           : canClickPlay
-                            ? 'bg-white/[0.03] border-2 border-green-400/50 text-white hover:bg-green-500/20 hover:border-green-400 cursor-pointer'
-                            : 'bg-white/[0.03] border border-white/[0.06] text-white'
+                            ? 'cursor-pointer border-2 border-game-blue/60 bg-[#172c3b] text-white hover:border-game-blue hover:bg-game-blue/20'
+                            : 'border border-white/10 bg-[#172c3b] text-white'
                   }`}
               >
                 {isEmpty

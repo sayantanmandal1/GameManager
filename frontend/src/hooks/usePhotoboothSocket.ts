@@ -9,14 +9,14 @@ import { usePhotoboothStore } from '@/stores/photoboothStore';
  * `usePhotoboothStore(selector)` and mutate only through the store's typed
  * actions.
  */
-export function usePhotoboothSocket(lobbyCode: string): void {
+export function usePhotoboothSocket(lobbyCode: string, isConnected: boolean): void {
   const setLobbyCode = usePhotoboothStore((s) => s.setLobbyCode);
   const initListeners = usePhotoboothStore((s) => s.initListeners);
 
   useEffect(() => {
-    if (!lobbyCode) return;
+    if (!lobbyCode || !isConnected) return;
     setLobbyCode(lobbyCode);
     const cleanup = initListeners();
     return cleanup;
-  }, [lobbyCode, setLobbyCode, initListeners]);
+  }, [lobbyCode, isConnected, setLobbyCode, initListeners]);
 }

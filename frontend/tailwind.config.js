@@ -5,20 +5,24 @@ module.exports = {
     extend: {
       colors: {
         primary: {
-          DEFAULT: '#ffffff',
-          dark: '#e0e0e0',
-          light: '#ffffff',
+          DEFAULT: '#f4f1e8',
+          dark: '#d9d3c5',
+          light: '#fffdf7',
         },
         accent: {
           DEFAULT: '#a0a0a0',
           dark: '#808080',
           light: '#c0c0c0',
         },
-        'game-bg': '#000000',
-        'game-card': '#0a0a0a',
-        'game-border': '#1a1a1a',
-        'game-text': '#e5e5e5',
-        'game-muted': '#737373',
+        'game-bg': '#101310',
+        'game-card': '#1c1f1b',
+        'game-border': '#3b4139',
+        'game-text': '#f4f1e8',
+        'game-muted': '#a7ada4',
+        'game-coral': '#ff684d',
+        'game-mint': '#63d5a4',
+        'game-sun': '#f2c94c',
+        'game-blue': '#65aaf6',
       },
       animation: {
         'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
@@ -27,8 +31,8 @@ module.exports = {
       },
       keyframes: {
         'pulse-glow': {
-          '0%, 100%': { boxShadow: '0 0 20px rgba(255, 255, 255, 0.15)' },
-          '50%': { boxShadow: '0 0 40px rgba(255, 255, 255, 0.3)' },
+          '0%, 100%': { boxShadow: '0 0 0 rgba(242, 201, 76, 0)' },
+          '50%': { boxShadow: '0 0 28px rgba(242, 201, 76, 0.28)' },
         },
         float: {
           '0%, 100%': { transform: 'translateY(0px)' },

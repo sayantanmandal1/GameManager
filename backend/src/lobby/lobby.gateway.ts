@@ -20,12 +20,16 @@ import {
   CHESS_EVENTS,
   PHOTOBOOTH_EVENTS,
   UNO_EVENTS,
+  TICTACTOE_EVENTS,
+  CONNECTFOUR_EVENTS,
   GameType,
+  LobbyStatus,
   CreateLobbyPayload,
   JoinLobbyPayload,
+  getCorsOrigins,
 } from '../shared';
 
-@WebSocketGateway({ cors: { origin: '*' } })
+@WebSocketGateway({ cors: { origin: getCorsOrigins(), credentials: true } })
 export class LobbyGateway
   implements OnGatewayConnection, OnGatewayDisconnect
 {
@@ -57,10 +61,16 @@ export class LobbyGateway
     const user = client.data?.user;
     const code = this.socketLobbyMap.get(client.id);
     if (user && code) {
+      this.socketLobbyMap.delete(client.id);
+      client.leave(`lobby:${code}`);
       try {
+        const currentLobby = await this.lobbyService.getLobby(code);
+        // Active game gateways own disconnect presence and rejoin. Removing the
+        // lobby member here would turn a returning player into a new joiner and
+        // make the in-progress guard reject their reconnect.
+        if (currentLobby?.status === LobbyStatus.IN_PROGRESS) return;
+
         const lobby = await this.lobbyService.leaveLobby(code, user.sub);
-        this.socketLobbyMap.delete(client.id);
-        client.leave(`lobby:${code}`);
         if (lobby) {
           this.server.to(`lobby:${code}`).emit(LOBBY_EVENTS.STATE, { lobby });
         }
@@ -85,6 +95,7 @@ export class LobbyGateway
         data.maxPlayers,
         data.timeControl ?? null,
         data.unoRules ?? null,
+        data.tictactoeMode ?? null,
       );
       client.join(`lobby:${lobby.code}`);
       this.socketLobbyMap.set(client.id, lobby.code);
@@ -102,6 +113,9 @@ export class LobbyGateway
       } else if (raw === 'invalid_uno_rules') {
         code = 'INVALID_UNO_RULES';
         message = 'Invalid UNO rules';
+      } else if (raw === 'invalid_tictactoe_mode') {
+        code = 'INVALID_TICTACTOE_MODE';
+        message = 'Invalid Tic Tac Toe mode';
       }
       client.emit(LOBBY_EVENTS.ERROR, { message, code });
     }
@@ -221,6 +235,12 @@ export class LobbyGateway
       } else if (lobby.gameType === GameType.UNO) {
         const result = await this.gameService.startUnoGame(code);
         gameId = result.gameId;
+      } else if (lobby.gameType === GameType.TICTACTOE) {
+        const result = await this.gameService.startTicTacToeGame(code);
+        gameId = result.gameId;
+      } else if (lobby.gameType === GameType.CONNECTFOUR) {
+        const result = await this.gameService.startConnectFourGame(code);
+        gameId = result.gameId;
       } else {
         const result = await this.gameService.startBingoGame(code);
         gameId = result.gameId;
@@ -257,6 +277,16 @@ export class LobbyGateway
             const view = this.gameService.getUnoPlayerView(gameId, sUser.sub);
             if (view) {
               s.emit(UNO_EVENTS.STATE, { gameId, view });
+            }
+          } else if (lobby.gameType === GameType.TICTACTOE) {
+            const view = this.gameService.getTicTacToePlayerView(gameId, sUser.sub);
+            if (view) {
+              s.emit(TICTACTOE_EVENTS.STATE, { gameId, lobbyCode: code, view });
+            }
+          } else if (lobby.gameType === GameType.CONNECTFOUR) {
+            const view = this.gameService.getConnectFourPlayerView(gameId, sUser.sub);
+            if (view) {
+              s.emit(CONNECTFOUR_EVENTS.STATE, { gameId, lobbyCode: code, view });
             }
           } else {
             const view = this.gameService.getPlayerView(gameId, sUser.sub);

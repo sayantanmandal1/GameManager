@@ -75,9 +75,57 @@ describe('LudoBoard Component', () => {
       <LudoBoard {...defaultProps} players={players} />,
     );
 
-    // Should have circles for tokens (8 total tokens for 2 players)
-    const circles = container.querySelectorAll('circle');
-    expect(circles.length).toBeGreaterThanOrEqual(8);
+    expect(container.querySelectorAll('[data-ludo-token]')).toHaveLength(8);
+  });
+
+  it('positions tokens in the yard, track, home lane, and finish using native SVG transforms', () => {
+    const players = [
+      makePlayer('p1', LudoColor.RED, [0, 1, 53, 59]),
+    ];
+
+    const { container } = render(
+      <LudoBoard {...defaultProps} players={players} />,
+    );
+
+    expect(container.querySelector('[data-ludo-token="red-0"]')).toHaveAttribute(
+      'transform',
+      'translate(88 88)',
+    );
+    expect(container.querySelector('[data-ludo-token="red-1"]')).toHaveAttribute(
+      'transform',
+      'translate(66 286)',
+    );
+    expect(container.querySelector('[data-ludo-token="red-2"]')).toHaveAttribute(
+      'transform',
+      'translate(66 330)',
+    );
+    expect(container.querySelector('[data-ludo-token="red-3"]')).toHaveAttribute(
+      'transform',
+      'translate(321.2 321.2)',
+    );
+  });
+
+  it('aligns each center triangle with its matching home lane', () => {
+    const { container } = render(
+      <LudoBoard {...defaultProps} players={[makePlayer('p1', LudoColor.RED, [0, 0, 0, 0])]} />,
+    );
+
+    expect(container.querySelector('[data-home-triangle="red"]')).toHaveAttribute(
+      'points',
+      '264,264 330,330 264,396',
+    );
+    expect(container.querySelector('[data-home-triangle="green"]')).toHaveAttribute(
+      'points',
+      '264,264 396,264 330,330',
+    );
+    expect(container.querySelector('[data-home-triangle="yellow"]')).toHaveAttribute(
+      'points',
+      '396,264 396,396 330,330',
+    );
+    expect(container.querySelector('[data-home-triangle="blue"]')).toHaveAttribute(
+      'points',
+      '264,396 330,330 396,396',
+    );
   });
 
   it('should render safe square markers', () => {

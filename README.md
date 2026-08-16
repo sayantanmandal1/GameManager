@@ -1,37 +1,43 @@
 # GameVerse — Multiplayer Gaming Platform
 
-A production-grade, real-time multiplayer gaming platform built with **Next.js**, **NestJS**, **Socket.IO**, and **PostgreSQL**. The architecture is designed to support many games; Bingo, Ludo, and Chess ship in v1.
+A real-time multiplayer gaming platform built with **Next.js**, **NestJS**, **Socket.IO**, **PostgreSQL**, and an **Expo/React Native** Android client.
 
 ---
 
 ## Supported Games
 
-| Game  | Players | Notes                                                                                  |
-|-------|---------|----------------------------------------------------------------------------------------|
-| Bingo | 2–8     | Classic 5×5 boards; server draws numbers on a fixed interval.                          |
-| Ludo  | 2–4     | Standard rules with bot fill for open seats; server-authoritative dice and turns.      |
-| Chess | 2       | Standard rules via `chess.js`; optional time controls (Blitz 5+0 / Rapid 10+0 / Classical 15+10 / untimed); read-only spectators; resign and draw-offer flows. See `.context/chess-game/` for feature docs. |
+| Game | Players | Notes |
+|------|---------|-------|
+| Bingo | 2–8 | Custom 5×5 boards with server-authoritative turns and win detection. |
+| Ludo | 2–4 | Standard 15×15 board, safe squares, blocks, capture, exact finish, and offline bots. |
+| Chess | 2 | `chess.js` rules, optional clocks, spectators, resign, and draw offers. |
+| Photobooth | 2 | Synchronized camera session and shared photo strip. |
+| UNO | 2–4 | Classic, custom, No Mercy, and Flip modes with per-player private state. |
+| Tic Tac Toe | 2 | Classic and three-piece movement modes; online play and local minimax bot. |
+| Connect Four | 2 | Server-authoritative gravity and wins; online play and local alpha-beta bot. |
+| Sudoku | 1 | Resumable local puzzles with notes, hints, mistakes, timer, and four difficulties. |
 
 ---
 
 ## Architecture
 
 ```
-┌────────────────────┐      ┌────────────────────┐
-│   Next.js 14       │◄────►│   NestJS 10        │
-│   (App Router)     │ WS   │   (REST + WS)      │
-│   Port 3000        │      │   Port 8000         │
-└────────────────────┘      └──────────┬─────────┘
-                                       │
-                                       ▼
-                                ┌────────────┐
-                                │  PostgreSQL│
-                                │  Port 5432 │
-                                └────────────┘
+┌────────────────────┐       ┌────────────────────┐
+│ Next.js 16 Web     │◄─────►│ NestJS 10 API      │
+│ App Router         │ WS    │ REST + Socket.IO   │
+└─────────▲──────────┘       └──────────┬─────────┘
+      │                             │
+┌─────────┴──────────┐                  ▼
+│ Expo 57 Mobile     │           ┌───────────────┐
+│ Native shell +     │           │ PostgreSQL 16 │
+│ same-origin games  │           └───────────────┘
+└────────────────────┘
 ```
 
 - **Server-authoritative**: All game state lives on the server; clients receive only their own view.
 - **WebRTC voice chat**: Peer-to-peer mesh topology (≤ 8 players), signaling through Socket.IO.
+- **Crossplay**: Android and browser users share the same authentication, lobby, game, and Socket.IO contracts.
+- **Secure mobile session**: Guest credentials are stored with the platform keystore via `expo-secure-store`.
 - **Extensible game engine**: Implement `IGameEngine<TState, TMove, TPlayerView, TWinResult>` and register it.
 
 ---
@@ -40,7 +46,7 @@ A production-grade, real-time multiplayer gaming platform built with **Next.js**
 
 | Tool    | Version |
 |---------|---------|
-| Node.js | 20+     |
+| Node.js | 22.13+  |
 | npm     | 10+     |
 | Docker  | 24+     |
 
@@ -119,63 +125,42 @@ Copy `.env.example` to `.env` at the project root. Key variables:
 | `BINGO_DRAW_INTERVAL` | `4000`                | ms between number draws       |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000`| Backend URL for the frontend |
 | `NEXT_PUBLIC_WS_URL`  | `http://localhost:8000`| WebSocket URL for the frontend|
+| `NEXT_PUBLIC_TURN_URLS` | *(optional)* | Comma-separated TURN/TURNS relay URLs for reliable voice across restrictive networks |
+| `NEXT_PUBLIC_TURN_USERNAME` | *(optional)* | Short-lived browser TURN username |
+| `NEXT_PUBLIC_TURN_CREDENTIAL` | *(optional)* | Short-lived browser TURN credential; do not use a long-lived infrastructure secret |
 
 ---
 
 ## Project Structure
 
 ```
-multiplayer-games/
-├── apps/
-│   ├── backend/              # NestJS server
-│   │   └── src/
-│   │       ├── auth/         # JWT guest auth
-│   │       ├── user/         # User entity + service
-│   │       ├── lobby/        # Lobby REST + WebSocket gateway
-│   │       ├── game/         # Game orchestration + engines
-│   │       │   └── engines/
-│   │       │       ├── bingo/  # Bingo engine + utils + tests
-│   │       │       ├── ludo/   # Ludo engine + utils + tests
-│   │       │       └── chess/  # Chess engine (chess.js) + utils + tests
-│   │       ├── voice/        # WebRTC signaling gateway
-│   │       └── cache/        # In-memory cache module
-│   └── frontend/             # Next.js 14 (App Router)
-│       └── src/
-│           ├── app/          # Pages (home, games, lobby, play)
-│           ├── components/   # UI, bingo, lobby, voice components
-│           ├── stores/       # Zustand stores (auth, lobby, game, voice)
-│           ├── hooks/        # useSocket, useVoiceChat
-│           └── lib/          # Socket.IO client, API helpers
-├── packages/
-│   └── shared/               # Types, events, constants
-│       └── src/
-│           ├── types/        # User, Lobby, Game, Bingo interfaces
-│           ├── events/       # Socket.IO event name constants
-│           └── constants.ts  # Game constants, avatars
-├── docker-compose.yml
-├── turbo.json
-└── .env.example
+GameManager/
+├── backend/                  # NestJS API, gateways, engines, migrations
+├── frontend/                 # Next.js 16 web application
+├── mobileapp/                # Expo 57 native shell + committed Android project
+├── .github/workflows/        # Web/backend CI and per-commit APK publishing
+└── docker-compose.yml
 ```
 
 ---
 
 ## How to Add a New Game
 
-1. **Define types** in `packages/shared/src/types/your-game.ts` and add to the `GameType` enum.
+1. **Define mirrored types** in `backend/src/shared/types/` and `frontend/src/shared/types/`, then add the game to `GameType`.
 
-2. **Implement the engine** — create `apps/backend/src/game/engines/your-game/` with a class implementing:
+2. **Implement the engine** in `backend/src/game/engines/your-game/` with server-side validation and focused tests.
    ```ts
    IGameEngine<YourGameState, YourMove, YourPlayerView, YourWinResult>
    ```
 
-3. **Register it** in `apps/backend/src/game/game-registry.ts`:
+3. **Register it** in `backend/src/game/game-registry.ts`:
    ```ts
    this.engines.set(GameType.YOUR_GAME, new YourGameEngine());
    ```
 
 4. **Add orchestration** in `GameService` for game-specific lifecycle (timers, turns, etc.).
 
-5. **Build the frontend** — create pages under `apps/frontend/src/app/games/your-game/` and game-specific components.
+5. **Build the frontend** under `frontend/src/app/games/your-game/` and game-specific components.
 
 6. **Add the card** to the game selection page at `apps/frontend/src/app/games/page.tsx`.
 
@@ -184,15 +169,41 @@ multiplayer-games/
 ## Running Tests
 
 ```bash
-# All tests
+# Backend
+cd backend
 npm test
+npm run build
 
-# Backend unit tests
-npm test --workspace=apps/backend
+# Frontend
+cd ../frontend
+npm test
+npm run build
 
-# Watch mode
-npm test --workspace=apps/backend -- --watch
+# Mobile
+cd ../mobileapp
+npm run typecheck
+npx expo export --platform android
 ```
+
+## Android APK Releases
+
+`.github/workflows/mobile-apk.yml` runs for every push and pull request. Every pushed commit publishes an installable APK to a prerelease tagged `mobile-<full commit SHA>` and uploads the same APK as a workflow artifact.
+
+For stable production signing, configure the four repository secrets documented in `mobileapp/README.md`. Without them, CI generates a short-lived signer for an installable commit APK.
+
+## Production Checklist
+
+Before directing users to a release:
+
+1. Deploy the current backend image with `npm run start:prod` (the Docker image already does this). Startup applies the advisory-locked migrations before Nest begins accepting traffic.
+2. Set `NODE_ENV=production`, a strong `JWT_SECRET`, the PostgreSQL connection values, and `DATABASE_SSL_CA` for verified database TLS.
+3. Set `CORS_ORIGIN` to the exact comma-separated browser origins, for example `https://game-manager-two.vercel.app`. Never use `*` with credentials.
+4. Build the web app with production `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_WS_URL` values. Confirm `/health` returns `{"status":"ok"}` after deployment.
+5. Configure `NEXT_PUBLIC_TURN_URLS`, `NEXT_PUBLIC_TURN_USERNAME`, and `NEXT_PUBLIC_TURN_CREDENTIAL` from a managed TURN provider. STUN-only voice cannot be guaranteed across carrier-grade or symmetric NAT.
+6. Configure the four stable Android signing secrets from `mobileapp/README.md`. Ephemeral-signed CI APKs are installable but cannot upgrade one another.
+7. Confirm both GitHub Actions workflows pass. `CI` runs all unit/build jobs plus the Dockerized REST/Socket.IO runtime E2E suite; `Mobile APK` builds and attaches the commit APK to a prerelease.
+
+The currently hosted Vercel/Render instances must be redeployed before they represent this worktree; inspecting the live URLs alone only verifies the previous release.
 
 ---
 
@@ -200,11 +211,12 @@ npm test --workspace=apps/backend -- --watch
 
 | Layer      | Technology                                       |
 |------------|--------------------------------------------------|
-| Frontend   | Next.js 14, React 18, TypeScript, TailwindCSS, Zustand, Framer Motion |
+| Frontend   | Next.js 16, React 19, TypeScript, TailwindCSS, Zustand, Framer Motion |
 | Backend    | NestJS 10, TypeORM, Socket.IO                    |
+| Mobile     | Expo 57, React Native 0.86, SecureStore, WebView |
 | Database   | PostgreSQL 16                                    |
 | Voice      | WebRTC (mesh), Socket.IO signaling               |
-| Build      | Turborepo, Docker Compose                        |
+| Build      | Docker Compose, GitHub Actions, Gradle 9.3       |
 | Security   | Helmet, CORS, JWT, rate limiting, input validation|
 
 ---

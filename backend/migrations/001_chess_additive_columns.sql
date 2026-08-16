@@ -9,13 +9,11 @@
 -- explicitly, and to serve as the canonical record of the chess schema delta.
 --
 -- Apply idempotently:
---   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f backend/migrations/001_chess_additive_columns.sql
+--   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f backend/migrations/001_chess_additive_columns.sql
 --
 -- SECURITY_NOTE: no data migration, no destructive ops, no default backfill.
 -- All columns default to NULL; they are only populated by the chess game
 -- lifecycle code (LobbyService.createLobby, GameService.finalizeChess).
-
-BEGIN;
 
 -- Lobbies: time-control config for chess lobbies (base/increment ms). NULL = untimed or non-chess.
 ALTER TABLE lobbies
@@ -30,5 +28,3 @@ ALTER TABLE games
   ADD COLUMN IF NOT EXISTS pgn          text          NULL,
   ADD COLUMN IF NOT EXISTS "finalFen"   varchar(128)  NULL,
   ADD COLUMN IF NOT EXISTS "startedAt"  timestamp     NULL;
-
-COMMIT;

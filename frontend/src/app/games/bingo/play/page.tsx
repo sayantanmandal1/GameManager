@@ -19,7 +19,7 @@ function BingoPlayContent() {
   const searchParams = useSearchParams();
   const lobbyCode = searchParams.get('lobby') || '';
 
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, hasHydrated, user } = useAuthStore();
   const {
     gameId,
     view,
@@ -36,18 +36,19 @@ function BingoPlayContent() {
   const { isConnected } = useSocket();
 
   useEffect(() => {
+    if (!hasHydrated) return;
     if (!isAuthenticated) {
       router.push('/');
       return;
     }
     setLobbyCode(lobbyCode);
-  }, [isAuthenticated, router, lobbyCode, setLobbyCode]);
+  }, [hasHydrated, isAuthenticated, router, lobbyCode, setLobbyCode]);
 
   useEffect(() => {
-    if (!isAuthenticated || !lobbyCode || !isConnected) return;
+    if (!hasHydrated || !isAuthenticated || !lobbyCode || !isConnected) return;
     const cleanup = initListeners();
     return cleanup;
-  }, [isAuthenticated, lobbyCode, isConnected, initListeners]);
+  }, [hasHydrated, isAuthenticated, lobbyCode, isConnected, initListeners]);
 
   // Confetti on game result
   useEffect(() => {
@@ -103,16 +104,16 @@ function BingoPlayContent() {
     : undefined;
 
   return (
-    <main className="min-h-screen p-4 md:p-8">
-      <div className="max-w-6xl mx-auto">
+    <main className="min-h-screen bg-[#0e1c26] p-4 md:p-8">
+      <div className="mx-auto max-w-6xl">
 
         {/* ──────── SETUP PHASE ──────── */}
         {isSetupPhase && (
-          <div className="text-center">
+          <div className="mx-auto max-w-2xl rounded-lg border border-game-blue/20 bg-[#142838] p-5 text-center shadow-2xl shadow-black/20 sm:p-8">
             <motion.h1
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="text-3xl font-black text-white mb-2"
+              className="mb-2 text-3xl font-black text-white"
             >
               Set Up Your Board
             </motion.h1>
@@ -149,7 +150,7 @@ function BingoPlayContent() {
 
         {/* ──────── PLAY PHASE & FINISHED ──────── */}
         {(isPlayPhase || isFinished) && (
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 max-w-3xl mx-auto">
+          <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
             {/* Left: My board — click a number to choose it */}
             <BingoBoard
               board={view.board}
@@ -162,7 +163,7 @@ function BingoPlayContent() {
             />
 
             {/* Right: Info panel + chat */}
-            <div className="space-y-4">
+            <div className="space-y-4 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:pr-1">
               <NumberDisplay
                 chosenNumbers={view.chosenNumbers}
                 calledBy={view.calledBy}
@@ -193,7 +194,7 @@ function BingoPlayContent() {
               initial={{ y: 50, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-              className="text-center p-8 bg-white/[0.03] border border-white/[0.06] rounded-2xl max-w-sm"
+              className="max-w-sm rounded-lg border border-white/12 bg-[#172c3b] p-8 text-center"
             >
               <div className="text-6xl mb-4">
                 {result.winnerId === user?.id ? '🏆' : '😢'}

@@ -38,7 +38,7 @@ export function ChessControls({
   return (
     <div
       data-testid="chess-controls"
-      className="flex flex-col gap-2 p-3 bg-white/[0.03] border border-white/[0.06] rounded-xl"
+      className="flex flex-col gap-3 rounded-lg border border-white/12 bg-[#22241d] p-4"
     >
       <div className="flex flex-wrap gap-2">
         <Button
@@ -71,9 +71,9 @@ export function ChessControls({
         <div
           role="region"
           aria-label={chessStrings.controls.drawPendingFromOpponent}
-          className="flex flex-wrap gap-2 items-center"
+          className="flex flex-wrap items-center gap-2 rounded-lg border border-game-sun/35 bg-game-sun/10 p-3"
         >
-          <span className="text-sm text-white/70">
+          <span className="w-full text-sm font-semibold text-[#f5dfa0]">
             {chessStrings.controls.drawPendingFromOpponent}
           </span>
           <Button

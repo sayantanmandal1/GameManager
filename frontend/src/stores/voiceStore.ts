@@ -9,10 +9,17 @@ interface VoicePeer {
 
 interface VoiceState {
   isInVoice: boolean;
+  isJoining: boolean;
   isMuted: boolean;
   isSpeakerOff: boolean;
+  connectionError: string | null;
+  needsAudioResume: boolean;
   activePeers: Map<string, VoicePeer>;
   toggleVoice: () => void;
+  setVoiceActive: (active: boolean) => void;
+  setVoiceJoining: (joining: boolean) => void;
+  setConnectionError: (error: string | null) => void;
+  setAudioResumeRequired: (required: boolean) => void;
   toggleMute: () => void;
   toggleSpeaker: () => void;
   addPeer: (peer: Omit<VoicePeer, 'isMuted'>) => void;
@@ -24,12 +31,20 @@ interface VoiceState {
 
 export const useVoiceStore = create<VoiceState>()((set) => ({
   isInVoice: false,
+  isJoining: false,
   isMuted: false,
   isSpeakerOff: false,
+  connectionError: null,
+  needsAudioResume: false,
   activePeers: new Map(),
 
   toggleVoice: () =>
     set((state) => ({ isInVoice: !state.isInVoice })),
+
+  setVoiceActive: (active) => set({ isInVoice: active }),
+  setVoiceJoining: (joining) => set({ isJoining: joining }),
+  setConnectionError: (error) => set({ connectionError: error }),
+  setAudioResumeRequired: (required) => set({ needsAudioResume: required }),
 
   toggleMute: () =>
     set((state) => ({ isMuted: !state.isMuted })),
@@ -62,5 +77,13 @@ export const useVoiceStore = create<VoiceState>()((set) => ({
   clearPeers: () => set({ activePeers: new Map() }),
 
   reset: () =>
-    set({ isInVoice: false, isMuted: false, isSpeakerOff: false, activePeers: new Map() }),
+    set({
+      isInVoice: false,
+      isJoining: false,
+      isMuted: false,
+      isSpeakerOff: false,
+      connectionError: null,
+      needsAudioResume: false,
+      activePeers: new Map(),
+    }),
 }));

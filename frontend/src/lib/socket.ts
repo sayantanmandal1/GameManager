@@ -4,6 +4,7 @@ const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:8000';
 
 let socket: Socket | null = null;
 let connectionPromise: Promise<Socket> | null = null;
+let socketToken: string | null = null;
 
 export function getSocket(): Socket | null {
   return socket;
@@ -32,16 +33,20 @@ export async function waitForSocket(): Promise<Socket | null> {
 }
 
 export function connectSocket(token: string): Socket {
-  // Return existing connected socket
-  if (socket?.connected) return socket;
+  // Multiple providers can mount while the initial handshake is still in
+  // flight. Reuse that socket for the same identity instead of aborting and
+  // restarting the WebSocket connection.
+  if (socket && socketToken === token) return socket;
 
-  // Disconnect stale socket if exists
+  // A token change is an identity change. Never retain a socket authenticated
+  // as the previous user, even when that socket is already connected.
   if (socket) {
     socket.disconnect();
     socket = null;
     connectionPromise = null;
   }
 
+  socketToken = token;
   socket = io(WS_URL, {
     auth: { token },
     transports: ['websocket', 'polling'],
@@ -85,6 +90,7 @@ export function disconnectSocket(): void {
   if (socket) {
     socket.disconnect();
     socket = null;
-    connectionPromise = null;
   }
+  connectionPromise = null;
+  socketToken = null;
 }

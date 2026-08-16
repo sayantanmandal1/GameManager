@@ -12,10 +12,10 @@ export function ChessHistory({ moves }: ChessHistoryProps) {
   if (moves.length === 0) {
     return (
       <div
-        className="p-3 bg-white/[0.03] border border-white/[0.06] rounded-xl"
+        className="rounded-lg border border-white/12 bg-[#22241d] p-4"
         aria-label={chessStrings.history.label}
       >
-        <h3 className="text-sm font-semibold text-white/40 uppercase tracking-wider mb-2">
+        <h3 className="mb-2 text-sm font-semibold text-game-muted">
           {chessStrings.history.label}
         </h3>
         <p className="text-xs text-white/40">{chessStrings.history.empty}</p>
@@ -34,14 +34,14 @@ export function ChessHistory({ moves }: ChessHistoryProps) {
 
   return (
     <div
-      className="p-3 bg-white/[0.03] border border-white/[0.06] rounded-xl max-h-60 overflow-y-auto"
+      className="max-h-64 overflow-y-auto rounded-lg border border-white/12 bg-[#22241d] p-4"
       aria-label={chessStrings.history.label}
     >
-      <h3 className="text-sm font-semibold text-white/40 uppercase tracking-wider mb-2">
+      <h3 className="sticky top-0 mb-3 bg-[#22241d] pb-2 text-sm font-semibold text-game-muted">
         {chessStrings.history.label}
       </h3>
       <ol
-        className="grid grid-cols-[auto_1fr_1fr] gap-x-3 gap-y-1 text-sm font-mono"
+        className="grid grid-cols-[auto_1fr_1fr] gap-x-4 gap-y-2 font-mono text-sm"
         data-testid="chess-history-list"
       >
         {pairs.map((pair) => (
@@ -50,9 +50,9 @@ export function ChessHistory({ moves }: ChessHistoryProps) {
             className="contents"
             data-testid={`chess-history-row-${pair.num}`}
           >
-            <span className="text-white/40">{pair.num}.</span>
-            <span className="text-white">{pair.white.san}</span>
-            <span className="text-white">{pair.black?.san ?? ''}</span>
+            <span className="text-game-muted">{pair.num}.</span>
+            <span className="rounded bg-[#eee8d7]/8 px-2 py-0.5 text-[#eee8d7]">{pair.white.san}</span>
+            <span className="rounded bg-black/20 px-2 py-0.5 text-[#c3c8bc]">{pair.black?.san ?? ''}</span>
           </li>
         ))}
       </ol>

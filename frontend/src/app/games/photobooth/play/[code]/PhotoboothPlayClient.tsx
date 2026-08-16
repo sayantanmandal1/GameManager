@@ -32,9 +32,9 @@ interface Props {
 
 export default function PhotoboothPlayClient({ code }: Props) {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, hasHydrated } = useAuthStore();
   const { isConnected } = useSocket();
-  usePhotoboothSocket(code);
+  usePhotoboothSocket(code, isConnected);
 
   const view = usePhotoboothStore((s) => s.view);
   const error = usePhotoboothStore((s) => s.error);
@@ -58,8 +58,8 @@ export default function PhotoboothPlayClient({ code }: Props) {
   const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated) router.push('/');
-  }, [isAuthenticated, router]);
+    if (hasHydrated && !isAuthenticated) router.push('/');
+  }, [hasHydrated, isAuthenticated, router]);
 
   useEffect(() => {
     if (!code) router.push('/games/photobooth');

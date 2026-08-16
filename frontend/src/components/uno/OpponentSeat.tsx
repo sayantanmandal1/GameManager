@@ -32,16 +32,19 @@ export function OpponentSeat({
   return (
     <motion.div
       layout
-      className={`flex flex-col items-center gap-1 rounded-2xl px-3 py-2 transition-colors ${
+      className={`min-w-36 border px-3 py-2 transition-colors ${
         player.eliminated
-          ? 'opacity-40 grayscale'
+          ? 'rounded-lg border-white/5 bg-black/15 opacity-40 grayscale'
           : isCurrent
-            ? 'bg-white/[0.08] ring-1 ring-white/30'
-            : 'bg-white/[0.02]'
+            ? 'rounded-lg border-game-sun/60 bg-game-sun/10 shadow-lg shadow-black/20'
+            : 'rounded-lg border-white/10 bg-black/20'
       }`}
     >
       {/* Name + status */}
       <div className="flex items-center gap-2">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-black text-white">
+          {player.name.slice(0, 1).toUpperCase()}
+        </span>
         {isCurrent && (
           <TurnTimer turnEndsAt={turnEndsAt} active size={26} />
         )}
@@ -61,7 +64,7 @@ export function OpponentSeat({
       </div>
 
       {/* Fanned card backs */}
-      <div className="relative flex h-12 items-center justify-center">
+      <div className="relative mt-1 flex h-12 items-center justify-center">
         {backs.map((_, i) => (
           <div
             key={i}

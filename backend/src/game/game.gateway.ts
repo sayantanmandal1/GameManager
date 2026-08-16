@@ -24,12 +24,15 @@ import {
   CHESS_EVENTS,
   PHOTOBOOTH_EVENTS,
   UNO_EVENTS,
+  TICTACTOE_EVENTS,
+  CONNECTFOUR_EVENTS,
   GameType,
   LudoMoveAction,
   CHESS_MOVE_RATE_CAPACITY,
   CHESS_MOVE_RATE_REFILL_PER_SEC,
   PHOTOBOOTH_CAPTURE_RATE_CAPACITY,
   PHOTOBOOTH_CAPTURE_RATE_REFILL_PER_SEC,
+  getCorsOrigins,
 } from '../shared';
 import {
   ChessMoveDto,
@@ -51,6 +54,8 @@ import {
   UnoCatchDto,
   UnoRejoinDto,
 } from './dto/uno.dto';
+import { TicTacToeMoveDto } from './dto/tictactoe.dto';
+import { ConnectFourDropDto } from './dto/connectfour.dto';
 
 /**
  * Token-bucket rate limiter state held per socket.
@@ -80,7 +85,7 @@ const WS_VALIDATION = new ValidationPipe({
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+    origin: getCorsOrigins(),
     credentials: true,
   },
 })
@@ -230,6 +235,27 @@ export class GameGateway
       });
     };
 
+    this.gameService.onTicTacToeStateChanged = (gameId, lobbyCode) => {
+      this.broadcastTicTacToePlayerViews(gameId, lobbyCode);
+    };
+    this.gameService.onTicTacToeGameFinished = (gameId, lobbyCode, result) => {
+      this.broadcastTicTacToePlayerViews(gameId, lobbyCode);
+      this.server.to(`game:${lobbyCode}`).emit(TICTACTOE_EVENTS.RESULT, {
+        gameId,
+        result,
+      });
+    };
+    this.gameService.onConnectFourStateChanged = (gameId, lobbyCode) => {
+      this.broadcastConnectFourPlayerViews(gameId, lobbyCode);
+    };
+    this.gameService.onConnectFourGameFinished = (gameId, lobbyCode, result) => {
+      this.broadcastConnectFourPlayerViews(gameId, lobbyCode);
+      this.server.to(`game:${lobbyCode}`).emit(CONNECTFOUR_EVENTS.RESULT, {
+        gameId,
+        result,
+      });
+    };
+
     // Clock-tick loop (server-authoritative, ≤1Hz broadcast per game).
     this.chessTickTimer = setInterval(() => {
       this.gameService.chessTick().catch((err) => {
@@ -302,6 +328,11 @@ export class GameGateway
       if (remaining.length === 0) {
         this.scheduleUnoCleanup(tracked.gameId, tracked.lobbyCode);
       }
+    } else if (tracked.gameType === GameType.TICTACTOE) {
+      // Preserve the seat and board through transient disconnects. The player
+      // can replay state through GAME_EVENTS.REQUEST_STATE on reconnect.
+    } else if (tracked.gameType === GameType.CONNECTFOUR) {
+      // Preserve the seat and board for reconnect; resignation is explicit.
     }
   }
 
@@ -360,6 +391,24 @@ export class GameGateway
       const view = this.gameService.getLudoPlayerView(gameId, user.sub);
       if (view) {
         client.emit(GAME_EVENTS.STATE, { gameId, view, gameType: GameType.LUDO });
+      }
+    } else if (gameType === GameType.TICTACTOE) {
+      const view = this.gameService.getTicTacToePlayerView(gameId, user.sub);
+      if (view) {
+        client.emit(TICTACTOE_EVENTS.STATE, {
+          gameId,
+          lobbyCode: data.lobbyCode,
+          view,
+        });
+      }
+    } else if (gameType === GameType.CONNECTFOUR) {
+      const view = this.gameService.getConnectFourPlayerView(gameId, user.sub);
+      if (view) {
+        client.emit(CONNECTFOUR_EVENTS.STATE, {
+          gameId,
+          lobbyCode: data.lobbyCode,
+          view,
+        });
       }
     } else if (gameType === GameType.PHOTOBOOTH) {
       // Reconnect: cancel any pending teardown, clear the "disconnected" flag
@@ -507,6 +556,44 @@ export class GameGateway
     }
   }
 
+  @SubscribeMessage(TICTACTOE_EVENTS.MOVE)
+  @UsePipes(WS_VALIDATION)
+  async handleTicTacToeMove(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: TicTacToeMoveDto,
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const result = await this.gameService.tictactoeMove(
+      data.gameId,
+      user.sub,
+      { from: data.from, to: data.to },
+      data.lobbyCode,
+    );
+    if (!result.ok) {
+      client.emit(TICTACTOE_EVENTS.ERROR, { message: result.error });
+    }
+  }
+
+  @SubscribeMessage(CONNECTFOUR_EVENTS.DROP)
+  @UsePipes(WS_VALIDATION)
+  async handleConnectFourDrop(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: ConnectFourDropDto,
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const result = await this.gameService.connectfourDrop(
+      data.gameId,
+      user.sub,
+      data.column,
+      data.lobbyCode,
+    );
+    if (!result.ok) {
+      client.emit(CONNECTFOUR_EVENTS.ERROR, { message: result.error });
+    }
+  }
+
   // ─── Generic Surrender Handler (works for all game types) ───
 
   @SubscribeMessage(GAME_EVENTS.SURRENDER)
@@ -524,6 +611,18 @@ export class GameGateway
       result = await this.gameService.ludoSurrender(data.gameId, user.sub, data.lobbyCode);
     } else if (gameType === GameType.BINGO) {
       result = await this.gameService.bingoSurrender(data.gameId, user.sub, data.lobbyCode);
+    } else if (gameType === GameType.TICTACTOE) {
+      result = await this.gameService.tictactoeSurrender(
+        data.gameId,
+        user.sub,
+        data.lobbyCode,
+      );
+    } else if (gameType === GameType.CONNECTFOUR) {
+      result = await this.gameService.connectfourSurrender(
+        data.gameId,
+        user.sub,
+        data.lobbyCode,
+      );
     } else {
       result = { ok: false, error: 'Unknown game type' };
     }
@@ -551,6 +650,32 @@ export class GameGateway
           s.emit(GAME_EVENTS.STATE, { gameId, view, gameType: GameType.LUDO });
         }
       }
+    }
+  }
+
+  private async broadcastTicTacToePlayerViews(
+    gameId: string,
+    lobbyCode: string,
+  ): Promise<void> {
+    const sockets = await this.server.in(`game:${lobbyCode}`).fetchSockets();
+    for (const socket of sockets) {
+      const user = socket.data?.user;
+      if (!user) continue;
+      const view = this.gameService.getTicTacToePlayerView(gameId, user.sub);
+      if (view) socket.emit(TICTACTOE_EVENTS.STATE, { gameId, lobbyCode, view });
+    }
+  }
+
+  private async broadcastConnectFourPlayerViews(
+    gameId: string,
+    lobbyCode: string,
+  ): Promise<void> {
+    const sockets = await this.server.in(`game:${lobbyCode}`).fetchSockets();
+    for (const socket of sockets) {
+      const user = socket.data?.user;
+      if (!user) continue;
+      const view = this.gameService.getConnectFourPlayerView(gameId, user.sub);
+      if (view) socket.emit(CONNECTFOUR_EVENTS.STATE, { gameId, lobbyCode, view });
     }
   }
 

@@ -10,6 +10,8 @@ import { LudoEngine } from './engines/ludo/ludo.engine';
 import { ChessEngine } from './engines/chess/chess.engine';
 import { PhotoboothEngine } from './engines/photobooth/photobooth.engine';
 import { UnoEngine, UnoActionResult } from './engines/uno/uno.engine';
+import { TicTacToeEngine } from './engines/tictactoe/tictactoe.engine';
+import { ConnectFourEngine } from './engines/connectfour/connectfour.engine';
 import {
   GameType,
   GameStatus,
@@ -39,6 +41,14 @@ import {
   UnoRoundResult,
   UnoRules,
   UnoPhase,
+  TicTacToeAction,
+  TicTacToeGameState,
+  TicTacToeMode,
+  TicTacToePlayerView,
+  TicTacToeResult,
+  ConnectFourGameState,
+  ConnectFourPlayerView,
+  ConnectFourResult,
 } from '../shared';
 
 export interface ChessMoveApplied {
@@ -70,6 +80,8 @@ export class GameService {
   private chessGameStates = new Map<string, ChessGameState>();
   private photoboothGameStates = new Map<string, PhotoboothGameState>();
   private unoGameStates = new Map<string, UnoGameState>();
+  private tictactoeGameStates = new Map<string, TicTacToeGameState>();
+  private connectfourGameStates = new Map<string, ConnectFourGameState>();
   /** uno gameId → epoch ms to auto-start the next round (ROUND_OVER interstitial). */
   private unoNextRoundAt = new Map<string, number>();
   /** lobbyCode → gameId lookup */
@@ -81,6 +93,8 @@ export class GameService {
   private chessEngine = new ChessEngine();
   private photoboothEngine = new PhotoboothEngine();
   private unoEngine = new UnoEngine();
+  private tictactoeEngine = new TicTacToeEngine();
+  private connectfourEngine = new ConnectFourEngine();
 
   /** Callbacks set by the gateway to broadcast state */
   onStateChanged: ((gameId: string, lobbyCode: string) => void) | null = null;
@@ -124,6 +138,15 @@ export class GameService {
     | null = null;
   onUnoGameOver:
     | ((gameId: string, lobbyCode: string, result: UnoRoundResult) => void)
+    | null = null;
+
+  onTicTacToeStateChanged: ((gameId: string, lobbyCode: string) => void) | null = null;
+  onTicTacToeGameFinished:
+    | ((gameId: string, lobbyCode: string, result: TicTacToeResult) => void)
+    | null = null;
+  onConnectFourStateChanged: ((gameId: string, lobbyCode: string) => void) | null = null;
+  onConnectFourGameFinished:
+    | ((gameId: string, lobbyCode: string, result: ConnectFourResult) => void)
     | null = null;
 
   constructor(
@@ -266,6 +289,210 @@ export class GameService {
 
   getState(gameId: string): BingoGameState | undefined {
     return this.gameStates.get(gameId);
+  }
+
+  async startTicTacToeGame(
+    lobbyCode: string,
+  ): Promise<{ gameId: string; state: TicTacToeGameState }> {
+    const lobby = await this.lobbyService.getLobby(lobbyCode);
+    if (!lobby || lobby.gameType !== GameType.TICTACTOE) {
+      throw new Error('Tic Tac Toe lobby not found');
+    }
+    if (lobby.players.length !== 2) {
+      throw new Error('Tic Tac Toe requires exactly 2 players');
+    }
+
+    const playerIds = lobby.players.map((player) => player.id);
+    const playerNames = Object.fromEntries(
+      lobby.players.map((player) => [player.id, player.username]),
+    );
+    const state = this.tictactoeEngine.initGame(
+      playerIds,
+      playerNames,
+      lobby.tictactoeMode ?? TicTacToeMode.CLASSIC,
+    );
+    const entity = this.gameRepo.create({
+      lobbyId: lobby.id,
+      gameType: GameType.TICTACTOE,
+      playerIds,
+      status: GameStatus.IN_PROGRESS,
+    });
+    const saved = await this.gameRepo.save(entity);
+
+    this.tictactoeGameStates.set(saved.id, state);
+    this.lobbyGameMap.set(lobbyCode, saved.id);
+    this.lobbyGameTypeMap.set(lobbyCode, GameType.TICTACTOE);
+    await this.redis.set(`game:${saved.id}`, JSON.stringify(state), 'EX', 3600);
+    await this.lobbyService.setStatus(lobbyCode, LobbyStatus.IN_PROGRESS);
+    return { gameId: saved.id, state };
+  }
+
+  getTicTacToeState(gameId: string): TicTacToeGameState | undefined {
+    return this.tictactoeGameStates.get(gameId);
+  }
+
+  getTicTacToePlayerView(gameId: string, playerId: string): TicTacToePlayerView | null {
+    const state = this.tictactoeGameStates.get(gameId);
+    if (!state || !state.players.some((player) => player.id === playerId)) return null;
+    return this.tictactoeEngine.getPlayerView(state, playerId);
+  }
+
+  async tictactoeMove(
+    gameId: string,
+    playerId: string,
+    action: TicTacToeAction,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (
+      this.lobbyGameMap.get(lobbyCode) !== gameId ||
+      this.lobbyGameTypeMap.get(lobbyCode) !== GameType.TICTACTOE
+    ) {
+      return { ok: false, error: 'Game not found' };
+    }
+    const state = this.tictactoeGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+
+    const outcome = this.tictactoeEngine.applyAction(state, playerId, action);
+    if (!outcome.valid) return { ok: false, error: outcome.reason };
+    await this.redis.set(`game:${gameId}`, JSON.stringify(state), 'EX', 3600);
+
+    if (outcome.result) {
+      await this.finalizeTicTacToe(gameId, lobbyCode, outcome.result);
+    } else {
+      this.onTicTacToeStateChanged?.(gameId, lobbyCode);
+    }
+    return { ok: true };
+  }
+
+  async tictactoeSurrender(
+    gameId: string,
+    playerId: string,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (this.lobbyGameMap.get(lobbyCode) !== gameId) {
+      return { ok: false, error: 'Game not found' };
+    }
+    const state = this.tictactoeGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+    const outcome = this.tictactoeEngine.surrender(state, playerId);
+    if (!outcome.valid || !outcome.result) {
+      return { ok: false, error: outcome.reason };
+    }
+    await this.redis.set(`game:${gameId}`, JSON.stringify(state), 'EX', 3600);
+    await this.finalizeTicTacToe(gameId, lobbyCode, outcome.result);
+    return { ok: true };
+  }
+
+  private async finalizeTicTacToe(
+    gameId: string,
+    lobbyCode: string,
+    result: TicTacToeResult,
+  ): Promise<void> {
+    await this.gameRepo.update(gameId, {
+      winnerId: result.winnerId,
+      status: GameStatus.FINISHED,
+      finishedAt: new Date(),
+    });
+    await this.lobbyService.setStatus(lobbyCode, LobbyStatus.WAITING);
+    this.onTicTacToeGameFinished?.(gameId, lobbyCode, result);
+  }
+
+  async startConnectFourGame(
+    lobbyCode: string,
+  ): Promise<{ gameId: string; state: ConnectFourGameState }> {
+    const lobby = await this.lobbyService.getLobby(lobbyCode);
+    if (!lobby || lobby.gameType !== GameType.CONNECTFOUR) {
+      throw new Error('Connect Four lobby not found');
+    }
+    if (lobby.players.length !== 2) {
+      throw new Error('Connect Four requires exactly 2 players');
+    }
+    const playerIds = lobby.players.map((player) => player.id);
+    const playerNames = Object.fromEntries(
+      lobby.players.map((player) => [player.id, player.username]),
+    );
+    const state = this.connectfourEngine.initGame(playerIds, playerNames);
+    const entity = this.gameRepo.create({
+      lobbyId: lobby.id,
+      gameType: GameType.CONNECTFOUR,
+      playerIds,
+      status: GameStatus.IN_PROGRESS,
+    });
+    const saved = await this.gameRepo.save(entity);
+    this.connectfourGameStates.set(saved.id, state);
+    this.lobbyGameMap.set(lobbyCode, saved.id);
+    this.lobbyGameTypeMap.set(lobbyCode, GameType.CONNECTFOUR);
+    await this.redis.set(`game:${saved.id}`, JSON.stringify(state), 'EX', 3600);
+    await this.lobbyService.setStatus(lobbyCode, LobbyStatus.IN_PROGRESS);
+    return { gameId: saved.id, state };
+  }
+
+  getConnectFourState(gameId: string): ConnectFourGameState | undefined {
+    return this.connectfourGameStates.get(gameId);
+  }
+
+  getConnectFourPlayerView(gameId: string, playerId: string): ConnectFourPlayerView | null {
+    const state = this.connectfourGameStates.get(gameId);
+    if (!state || !state.players.some((player) => player.id === playerId)) return null;
+    return this.connectfourEngine.getPlayerView(state, playerId);
+  }
+
+  async connectfourDrop(
+    gameId: string,
+    playerId: string,
+    column: number,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (
+      this.lobbyGameMap.get(lobbyCode) !== gameId ||
+      this.lobbyGameTypeMap.get(lobbyCode) !== GameType.CONNECTFOUR
+    ) {
+      return { ok: false, error: 'Game not found' };
+    }
+    const state = this.connectfourGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+    const outcome = this.connectfourEngine.drop(state, playerId, column);
+    if (!outcome.valid) return { ok: false, error: outcome.reason };
+    await this.redis.set(`game:${gameId}`, JSON.stringify(state), 'EX', 3600);
+    if (outcome.result) {
+      await this.finalizeConnectFour(gameId, lobbyCode, outcome.result);
+    } else {
+      this.onConnectFourStateChanged?.(gameId, lobbyCode);
+    }
+    return { ok: true };
+  }
+
+  async connectfourSurrender(
+    gameId: string,
+    playerId: string,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (this.lobbyGameMap.get(lobbyCode) !== gameId) {
+      return { ok: false, error: 'Game not found' };
+    }
+    const state = this.connectfourGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+    const outcome = this.connectfourEngine.surrender(state, playerId);
+    if (!outcome.valid || !outcome.result) {
+      return { ok: false, error: outcome.reason };
+    }
+    await this.redis.set(`game:${gameId}`, JSON.stringify(state), 'EX', 3600);
+    await this.finalizeConnectFour(gameId, lobbyCode, outcome.result);
+    return { ok: true };
+  }
+
+  private async finalizeConnectFour(
+    gameId: string,
+    lobbyCode: string,
+    result: ConnectFourResult,
+  ): Promise<void> {
+    await this.gameRepo.update(gameId, {
+      winnerId: result.winnerId,
+      status: GameStatus.FINISHED,
+      finishedAt: new Date(),
+    });
+    await this.lobbyService.setStatus(lobbyCode, LobbyStatus.WAITING);
+    this.onConnectFourGameFinished?.(gameId, lobbyCode, result);
   }
 
   async bingoSurrender(

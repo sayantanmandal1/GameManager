@@ -1,9 +1,16 @@
 {
   "name": "GameVerse",
   "short_name": "GameVerse",
-  "icons": [],
+  "icons": [
+    {
+      "src": "/gameverse-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f0f1a",
-  "theme_color": "#6366f1"
+  "background_color": "#101310",
+  "theme_color": "#101310"
 }

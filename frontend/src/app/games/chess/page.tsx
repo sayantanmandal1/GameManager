@@ -41,7 +41,7 @@ const TIME_CONTROLS: TimeControlOption[] = [
 
 export default function ChessLandingPage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, hasHydrated } = useAuthStore();
   const { lobby, isLoading, joinLobby, initListeners, error, reset } = useLobbyStore();
   const { isConnected } = useSocket();
   const [showJoinModal, setShowJoinModal] = useState(false);
@@ -50,6 +50,7 @@ export default function ChessLandingPage() {
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
+    if (!hasHydrated) return;
     if (!isAuthenticated) {
       router.push('/');
       return;
@@ -57,7 +58,7 @@ export default function ChessLandingPage() {
     if (!isConnected) return;
     const cleanup = initListeners();
     return cleanup;
-  }, [isAuthenticated, isConnected, router, initListeners]);
+  }, [hasHydrated, isAuthenticated, isConnected, router, initListeners]);
 
   useEffect(() => {
     if (lobby) {
@@ -87,7 +88,7 @@ export default function ChessLandingPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-6">
+    <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-[#171713] p-6">
       <div className="max-w-2xl w-full">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -101,7 +102,7 @@ export default function ChessLandingPage() {
 
         {/* Time-control segmented control */}
         <fieldset
-          className="mb-6 p-3 bg-white/[0.03] border border-white/[0.06] rounded-xl"
+          className="mb-6 rounded-lg border border-[#b68a4a]/35 bg-[#2a251d] p-3 shadow-xl shadow-black/20"
           data-testid="time-control-picker"
         >
           <legend className="px-2 text-xs uppercase tracking-wider text-white/40">
@@ -118,8 +119,8 @@ export default function ChessLandingPage() {
                 onClick={() => setTcKey(opt.key)}
                 className={`px-4 py-2 rounded-lg text-sm border transition-colors ${
                   tcKey === opt.key
-                    ? 'bg-white text-black border-white'
-                    : 'bg-white/[0.03] text-white border-white/[0.06] hover:bg-white/[0.06]'
+                    ? 'border-[#d3a85d] bg-[#b7833f] text-white shadow-lg shadow-black/20'
+                    : 'border-white/10 bg-black/15 text-game-muted hover:border-white/25 hover:text-white'
                 }`}
               >
                 {opt.label}

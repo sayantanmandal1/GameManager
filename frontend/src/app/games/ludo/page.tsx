@@ -14,13 +14,14 @@ import { GameType } from '@/shared';
 
 export default function LudoEntryPage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, hasHydrated } = useAuthStore();
   const { lobby, isLoading, createLobby, joinLobby, initListeners, error } = useLobbyStore();
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [joinCode, setJoinCode] = useState('');
   const { isConnected } = useSocket();
 
   useEffect(() => {
+    if (!hasHydrated) return;
     if (!isAuthenticated) {
       router.push('/');
       return;
@@ -28,7 +29,7 @@ export default function LudoEntryPage() {
     if (!isConnected) return;
     const cleanup = initListeners();
     return cleanup;
-  }, [isAuthenticated, isConnected, router, initListeners]);
+  }, [hasHydrated, isAuthenticated, isConnected, router, initListeners]);
 
   useEffect(() => {
     if (lobby) {

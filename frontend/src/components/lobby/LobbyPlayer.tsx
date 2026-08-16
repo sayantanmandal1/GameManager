@@ -14,8 +14,8 @@ export function LobbyPlayerCard({ player, isCurrentUser }: LobbyPlayerProps) {
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 20 }}
-      className={`flex items-center gap-3 p-3 rounded-xl border
-        ${isCurrentUser ? 'border-white/30 bg-white/10' : 'border-white/[0.06] bg-white/[0.03]'}`}
+      className={`flex min-h-16 items-center gap-3 rounded-lg border p-3
+        ${isCurrentUser ? 'border-game-mint/50 bg-game-mint/10' : 'border-white/10 bg-black/15'}`}
     >
       <span className="text-2xl">{player.avatar}</span>
 
@@ -25,10 +25,10 @@ export function LobbyPlayerCard({ player, isCurrentUser }: LobbyPlayerProps) {
             {player.username}
           </span>
           {isCurrentUser && (
-            <span className="text-xs text-white">(you)</span>
+            <span className="text-xs text-game-mint">(you)</span>
           )}
           {player.isHost && (
-            <span className="text-xs px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded-full">
+            <span className="rounded-full bg-game-sun/15 px-2 py-0.5 text-xs text-game-sun">
               Host
             </span>
           )}
@@ -38,7 +38,7 @@ export function LobbyPlayerCard({ player, isCurrentUser }: LobbyPlayerProps) {
       <div
         className={`w-3 h-3 rounded-full ${
           player.isReady || player.isHost
-            ? 'bg-green-500 shadow-lg shadow-green-500/50'
+            ? 'bg-game-mint shadow-lg shadow-game-mint/30'
             : 'bg-game-muted/30'
         }`}
       />

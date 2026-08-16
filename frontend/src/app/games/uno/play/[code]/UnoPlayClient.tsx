@@ -8,6 +8,8 @@ import { useUnoStore } from '@/stores/unoStore';
 import { useSocket } from '@/hooks/useSocket';
 import { useUnoSocket } from '@/hooks/useUnoSocket';
 import { getSocket } from '@/lib/socket';
+import { GameChat } from '@/components/chat/GameChat';
+import { VoiceChat } from '@/components/voice/VoiceChat';
 import {
   LOBBY_EVENTS,
   UnoPhase,
@@ -49,9 +51,9 @@ const MODE_LABEL: Record<string, string> = {
 
 export default function UnoPlayClient({ code }: Props) {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, hasHydrated } = useAuthStore();
   const { isConnected } = useSocket();
-  useUnoSocket(code);
+  useUnoSocket(code, isConnected);
 
   const view = useUnoStore((s) => s.view);
   const error = useUnoStore((s) => s.error);
@@ -75,8 +77,8 @@ export default function UnoPlayClient({ code }: Props) {
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
 
   useEffect(() => {
-    if (!isAuthenticated) router.push('/');
-  }, [isAuthenticated, router]);
+    if (hasHydrated && !isAuthenticated) router.push('/');
+  }, [hasHydrated, isAuthenticated, router]);
   useEffect(() => {
     if (!code) router.push('/games/uno');
   }, [code, router]);
@@ -227,14 +229,14 @@ export default function UnoPlayClient({ code }: Props) {
 
   return (
     <main
-      className={`relative flex min-h-screen flex-col px-4 py-4 text-white transition-colors duration-500 ${
+      className={`relative min-h-screen px-3 py-3 text-white transition-colors duration-500 sm:px-5 ${
         isDark
-          ? 'bg-gradient-to-b from-[#0a0716] via-[#120a1f] to-[#080611]'
-          : 'bg-gradient-to-b from-[#0e0e12] via-[#141018] to-[#0b0e16]'
+          ? 'bg-[#110d18]'
+          : 'bg-[#0d1512]'
       }`}
     >
       {/* Header */}
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mx-auto mb-3 flex w-full max-w-[96rem] items-center justify-between gap-3 px-1">
         <button onClick={handleBackToLobby} className="text-sm text-white/40 transition hover:text-white">
           ← {S.over.backToLobby}
         </button>
@@ -251,29 +253,40 @@ export default function UnoPlayClient({ code }: Props) {
         <span className="font-mono text-sm tracking-widest text-white/40">#{code}</span>
       </div>
 
-      {/* Opponents */}
-      <div className="flex flex-wrap items-start justify-center gap-3">
-        {opponents.map((p) => (
-          <OpponentSeat
-            key={p.id}
-            player={p}
-            side={view.side}
-            isCurrent={view.currentPlayerId === p.id && view.phase === UnoPhase.PLAYING}
-            turnEndsAt={view.turnEndsAt}
-            catchable={canAct && view.catchableIds.includes(p.id)}
-            onCatch={() => catchPlayer(p.id)}
-          />
-        ))}
-      </div>
+      <div className="mx-auto grid w-full max-w-[96rem] gap-4 xl:grid-cols-[minmax(0,1fr)_19rem]">
+        <section
+          className={`relative flex min-h-[calc(100svh-4.75rem)] min-w-0 flex-col overflow-hidden rounded-[2rem] border shadow-2xl shadow-black/40 ${
+            isDark
+              ? 'border-[#6b4ca0]/35 bg-[#261a35]'
+              : 'border-[#5e8c76]/40 bg-[#183d31]'
+          }`}
+        >
+          <div className="pointer-events-none absolute inset-5 rounded-[1.5rem] border border-white/10" />
+          <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:repeating-linear-gradient(45deg,transparent,transparent_18px,rgba(255,255,255,0.03)_19px)]" />
 
-      {/* Table centre */}
-      <div className="flex flex-1 items-center justify-center py-4">
-        <TableCenter view={view} onDrawPile={() => isMyTurn && view.canDraw && draw()} />
-      </div>
+          {/* Opponent rail */}
+          <div className="relative z-10 flex min-h-28 flex-wrap items-start justify-center gap-2 px-3 pt-4 sm:gap-3">
+            {opponents.map((p) => (
+              <OpponentSeat
+                key={p.id}
+                player={p}
+                side={view.side}
+                isCurrent={view.currentPlayerId === p.id && view.phase === UnoPhase.PLAYING}
+                turnEndsAt={view.turnEndsAt}
+                catchable={canAct && view.catchableIds.includes(p.id)}
+                onCatch={() => catchPlayer(p.id)}
+              />
+            ))}
+          </div>
 
-      {/* Controls + my seat */}
-      {canAct && (
-        <div className="flex flex-col items-center gap-3">
+          {/* Table centre */}
+          <div className="relative z-10 flex min-h-64 flex-1 items-center justify-center px-4 py-5">
+            <TableCenter view={view} onDrawPile={() => isMyTurn && view.canDraw && draw()} />
+          </div>
+
+          {/* Controls + my seat */}
+          {canAct && (
+            <div className="relative z-10 flex flex-col items-center gap-3 px-3">
           <UnoControls
             view={view}
             onDraw={draw}
@@ -303,7 +316,7 @@ export default function UnoPlayClient({ code }: Props) {
               )}
             </div>
           )}
-          {view.jumpInIds.length > 0 && !isMyTurn && (
+              {view.jumpInIds.length > 0 && !isMyTurn && (
             <motion.span
               animate={{ opacity: [0.5, 1, 0.5] }}
               transition={{ repeat: Infinity, duration: 1.2 }}
@@ -311,31 +324,38 @@ export default function UnoPlayClient({ code }: Props) {
             >
               ⚡ {S.hud.jumpInHint}
             </motion.span>
+              )}
+            </div>
           )}
-        </div>
-      )}
 
-      {iAmOut && (
-        <div className="py-6 text-center text-sm font-semibold text-red-300">
-          You’re out of this game — watching the rest unfold.
-        </div>
-      )}
+          {iAmOut && (
+            <div className="relative z-10 py-6 text-center text-sm font-semibold text-red-300">
+              You’re out of this game — watching the rest unfold.
+            </div>
+          )}
 
-      {/* My hand */}
-      {!isSpectator && !iAmOut && (
-        <div className="mt-2">
-          <PlayerHand
-            hand={view.yourHand}
-            side={view.side}
-            legalCardIds={view.legalCardIds}
-            jumpInIds={view.jumpInIds}
-            isMyTurn={isMyTurn}
-            playableDrawnCardId={view.playableDrawnCardId}
-            onSelect={onSelectCard}
-            onJumpIn={(card) => jumpIn(card.id)}
-          />
-        </div>
-      )}
+          {/* My hand rail */}
+          {!isSpectator && !iAmOut && (
+            <div className="relative z-10 mt-2 border-t border-white/10 bg-black/15">
+              <PlayerHand
+                hand={view.yourHand}
+                side={view.side}
+                legalCardIds={view.legalCardIds}
+                jumpInIds={view.jumpInIds}
+                isMyTurn={isMyTurn}
+                playableDrawnCardId={view.playableDrawnCardId}
+                onSelect={onSelectCard}
+                onJumpIn={(card) => jumpIn(card.id)}
+              />
+            </div>
+          )}
+        </section>
+
+        <aside className="space-y-4">
+          <VoiceChat roomId={code} />
+          <GameChat lobbyCode={code} />
+        </aside>
+      </div>
 
       {/* Colour picker */}
       <ColorPicker open={wildCardId !== null} side={view.side} onPick={onPickColor} onCancel={() => setWildCardId(null)} />
@@ -345,7 +365,7 @@ export default function UnoPlayClient({ code }: Props) {
         {view.awaitingSevenTarget && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="relative rounded-3xl border border-white/10 bg-[#111] p-6 shadow-2xl">
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="relative rounded-lg border border-white/10 bg-[#111] p-6 shadow-2xl">
               <h3 className="mb-4 text-center text-lg font-bold text-white">{S.hud.chooseSwap}</h3>
               <div className="flex flex-col gap-2">
                 {swapTargets.map((p) => (
@@ -369,7 +389,7 @@ export default function UnoPlayClient({ code }: Props) {
         {confirmQuit && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setConfirmQuit(false)} />
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="relative w-full max-w-sm rounded-3xl border border-white/10 bg-[#111] p-6 text-center shadow-2xl">
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="relative w-full max-w-sm rounded-lg border border-white/10 bg-[#111] p-6 text-center shadow-2xl">
               <div className="mb-2 text-4xl">🏳️</div>
               <h3 className="text-lg font-bold text-white">{S.hud.surrenderTitle}</h3>
               <p className="mt-1 text-sm text-white/60">{S.hud.surrenderBody}</p>

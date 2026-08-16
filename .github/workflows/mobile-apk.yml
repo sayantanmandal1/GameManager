@@ -1,0 +1,190 @@
+name: Mobile APK
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android-apk:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.1'
+          cache: npm
+          cache-dependency-path: mobileapp/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +o pipefail
+          yes | sdkmanager --licenses >/dev/null
+          license_status="${PIPESTATUS[1]}"
+          set -o pipefail
+          if [[ "$license_status" -ne 0 ]]; then
+            echo 'Android SDK license acceptance failed.' >&2
+            exit "$license_status"
+          fi
+          sdkmanager \
+            'platform-tools' \
+            'platforms;android-36' \
+            'build-tools;36.0.0' \
+            'ndk;27.1.12297006'
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install mobile dependencies
+        working-directory: mobileapp
+        run: npm ci
+
+      - name: Type-check mobile app
+        working-directory: mobileapp
+        run: npm run typecheck
+
+      - name: Audit critical production dependencies
+        working-directory: mobileapp
+        run: npm audit --omit=dev --audit-level=critical
+
+      - name: Configure APK signing
+        id: signing
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && secrets.ANDROID_KEYSTORE_BASE64 || '' }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
+          ANDROID_KEY_ALIAS: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && secrets.ANDROID_KEY_ALIAS || '' }}
+          ANDROID_KEY_PASSWORD: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && secrets.ANDROID_KEY_PASSWORD || '' }}
+        run: |
+          set -euo pipefail
+          names=(
+            ANDROID_KEYSTORE_BASE64
+            ANDROID_KEYSTORE_PASSWORD
+            ANDROID_KEY_ALIAS
+            ANDROID_KEY_PASSWORD
+          )
+          provided=0
+          for name in "${names[@]}"; do
+            if [[ -n "${!name:-}" ]]; then
+              provided=$((provided + 1))
+            fi
+          done
+
+          if [[ "$provided" -ne 0 && "$provided" -ne 4 ]]; then
+            echo 'Either configure all four Android signing secrets or configure none.' >&2
+            exit 1
+          fi
+
+          if [[ "$provided" -eq 4 ]]; then
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > mobileapp/android/app/gameverse-upload.jks
+            signing_mode='production'
+            signing_password="$ANDROID_KEYSTORE_PASSWORD"
+            signing_alias="$ANDROID_KEY_ALIAS"
+            key_password="$ANDROID_KEY_PASSWORD"
+            echo 'Using repository-provided Android release signing.'
+          else
+            signing_mode='ephemeral'
+            signing_password="$(openssl rand -hex 24)"
+            signing_alias='gameverse-ci'
+            key_password="$signing_password"
+            keytool -genkeypair -noprompt \
+              -storetype PKCS12 \
+              -keystore mobileapp/android/app/gameverse-upload.jks \
+              -storepass "$signing_password" \
+              -keypass "$key_password" \
+              -alias "$signing_alias" \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 30 \
+              -dname 'CN=GameVerse CI,O=GameVerse,C=US'
+            echo 'Signing secrets are absent; generated an ephemeral signer for this standalone prerelease APK.'
+          fi
+
+          echo "::add-mask::${signing_password}"
+          echo "::add-mask::${key_password}"
+
+          {
+            echo 'ORG_GRADLE_PROJECT_GAMEVERSE_UPLOAD_STORE_FILE=gameverse-upload.jks'
+            echo "ORG_GRADLE_PROJECT_GAMEVERSE_UPLOAD_STORE_PASSWORD=${signing_password}"
+            echo "ORG_GRADLE_PROJECT_GAMEVERSE_UPLOAD_KEY_ALIAS=${signing_alias}"
+            echo "ORG_GRADLE_PROJECT_GAMEVERSE_UPLOAD_KEY_PASSWORD=${key_password}"
+          } >> "$GITHUB_ENV"
+          echo "mode=${signing_mode}" >> "$GITHUB_OUTPUT"
+
+      - name: Build release APK
+        working-directory: mobileapp/android
+        shell: bash
+        env:
+          EXPO_PUBLIC_API_URL: ${{ vars.MOBILE_API_URL || 'https://gamemanager-8icc.onrender.com' }}
+          EXPO_PUBLIC_WEB_URL: ${{ vars.MOBILE_WEB_URL || 'https://game-manager-two.vercel.app' }}
+          ORG_GRADLE_PROJECT_GAMEVERSE_VERSION_CODE: ${{ github.run_number }}
+          ORG_GRADLE_PROJECT_GAMEVERSE_VERSION_NAME: 1.0.${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew --no-daemon clean assembleRelease \
+            -PreactNativeArchitectures=armeabi-v7a,arm64-v8a
+
+      - name: Prepare APK
+        id: apk
+        shell: bash
+        run: |
+          set -euo pipefail
+          short_sha="${GITHUB_SHA::7}"
+          output_dir='mobileapp/dist'
+          output_path="${output_dir}/GameVerse-${short_sha}.apk"
+          mkdir -p "$output_dir"
+          cp mobileapp/android/app/build/outputs/apk/release/app-release.apk "$output_path"
+          test -s "$output_path"
+          echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
+          echo "path=$output_path" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GameVerse-APK-${{ steps.apk.outputs.short_sha }}
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish commit release
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APK_PATH: ${{ steps.apk.outputs.path }}
+          SHORT_SHA: ${{ steps.apk.outputs.short_sha }}
+        run: |
+          set -euo pipefail
+          tag="mobile-${GITHUB_SHA}"
+          asset_name="GameVerse-${SHORT_SHA}.apk"
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "${APK_PATH}#${asset_name}" --clobber
+          else
+            gh release create "$tag" "${APK_PATH}#${asset_name}" \
+              --target "$GITHUB_SHA" \
+              --title "GameVerse Android ${SHORT_SHA}" \
+              --notes "Automated installable Android APK for commit ${GITHUB_SHA}. Signing mode: ${{ steps.signing.outputs.mode }}." \
+              --prerelease
+          fi

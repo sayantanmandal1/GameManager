@@ -38,7 +38,7 @@ const RULES: { key: keyof Omit<UnoRules, 'mode' | 'targetScore'>; label: string 
 
 export default function UnoLandingPage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, hasHydrated } = useAuthStore();
   const { lobby, isLoading, joinLobby, initListeners, error, reset } = useLobbyStore();
   const { isConnected } = useSocket();
   const [showJoin, setShowJoin] = useState(false);
@@ -56,6 +56,7 @@ export default function UnoLandingPage() {
   });
 
   useEffect(() => {
+    if (!hasHydrated) return;
     if (!isAuthenticated) {
       router.push('/');
       return;
@@ -63,7 +64,7 @@ export default function UnoLandingPage() {
     if (!isConnected) return;
     const cleanup = initListeners();
     return cleanup;
-  }, [isAuthenticated, isConnected, router, initListeners]);
+  }, [hasHydrated, isAuthenticated, isConnected, router, initListeners]);
 
   useEffect(() => {
     if (lobby) router.push(`/lobby/${lobby.code}`);

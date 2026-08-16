@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { getSocket, waitForSocket } from '@/lib/socket';
+import { useAuthStore } from '@/stores/authStore';
 import {
   UNO_EVENTS,
   LOBBY_EVENTS,
@@ -50,7 +51,19 @@ const INITIAL = {
 export const useUnoStore = create<UnoStoreState>()((set, get) => ({
   ...INITIAL,
 
-  setLobbyCode: (code) => set({ lobbyCode: code }),
+  setLobbyCode: (code) =>
+    set((state) =>
+      state.lobbyCode === code
+        ? state
+        : {
+            gameId: null,
+            lobbyCode: code,
+            view: null,
+            error: null,
+            roundResult: null,
+            matchResult: null,
+          },
+    ),
 
   rejoin: async () => {
     const { lobbyCode } = get();
@@ -103,7 +116,19 @@ export const useUnoStore = create<UnoStoreState>()((set, get) => ({
 
   dismissRoundResult: () => set({ roundResult: null }),
 
-  applyState: (payload) => set({ gameId: payload.gameId, view: payload.view, error: null }),
+  applyState: (payload) => {
+    const { lobbyCode } = get();
+    const authenticatedUserId = useAuthStore.getState().user?.id;
+    if (
+      !lobbyCode ||
+      payload.view.lobbyCode !== lobbyCode ||
+      payload.view.gameId !== payload.gameId ||
+      (payload.view.role === 'player' && payload.view.youId !== authenticatedUserId)
+    ) {
+      return;
+    }
+    set({ gameId: payload.gameId, view: payload.view, error: null });
+  },
 
   initListeners: () => {
     const socket = getSocket();

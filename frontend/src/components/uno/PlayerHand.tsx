@@ -65,18 +65,17 @@ export function PlayerHand({
   const legal = useMemo(() => new Set(legalCardIds), [legalCardIds]);
   const jumps = useMemo(() => new Set(jumpInIds), [jumpInIds]);
   const count = sorted.length;
-  const overlap = count > 10 ? -34 : count > 7 ? -26 : -14;
-  const width = count > 12 ? 62 : 72;
+  const width = count > 14 ? 58 : count > 10 ? 64 : 72;
 
   return (
-    <div className="flex items-end justify-center overflow-x-auto px-4 pb-1">
-      <AnimatePresence initial={false}>
-        {sorted.map((card, i) => {
+    <div className="w-full overflow-x-auto px-3 pb-3 pt-4 [scrollbar-width:thin]">
+      <div className="mx-auto flex w-max min-w-full items-end justify-center gap-2">
+        <AnimatePresence initial={false}>
+        {sorted.map((card) => {
           const isLegal = isMyTurn && legal.has(card.id);
           const isJump = !isMyTurn && jumps.has(card.id);
           const actionable = isLegal || isJump;
           const isDrawn = card.id === playableDrawnCardId;
-          const rot = (i - (count - 1) / 2) * 2.2;
           const onClick = () => {
             if (isLegal) onSelect(card);
             else if (isJump) onJumpIn(card);
@@ -84,18 +83,16 @@ export function PlayerHand({
           return (
             <motion.div
               key={card.id}
+              data-uno-hand-card={card.id}
               layout
               initial={{ y: 40, opacity: 0 }}
               animate={{ y: actionable ? -10 : 0, opacity: 1 }}
               exit={{ y: 60, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 300, damping: 26 }}
               style={{
-                marginLeft: i === 0 ? 0 : overlap,
-                transform: `rotate(${rot}deg)`,
-                transformOrigin: 'bottom center',
-                zIndex: actionable ? 100 + i : i,
+                zIndex: actionable ? 10 : 1,
               }}
-              className={`rounded-[14%] ${
+              className={`shrink-0 rounded-[14%] ${
                 isDrawn ? 'ring-2 ring-white ring-offset-2 ring-offset-transparent' : ''
               } ${isJump ? 'ring-2 ring-amber-400' : ''}`}
             >
@@ -110,7 +107,8 @@ export function PlayerHand({
             </motion.div>
           );
         })}
-      </AnimatePresence>
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

@@ -21,6 +21,8 @@ describe('Socket Module', () => {
   beforeEach(() => {
     // Reset the module state by disconnecting
     disconnectSocket();
+    const { io } = require('socket.io-client');
+    io.mockClear();
     mockSocket.connected = false;
     mockSocket.on.mockReset();
     mockSocket.off.mockReset();
@@ -70,12 +72,28 @@ describe('Socket Module', () => {
       );
     });
 
-    it('should return existing socket if already connected', () => {
+    it('should reuse the same-token socket while it is still connecting', () => {
+      const { io } = require('socket.io-client');
+      connectSocket('token1');
+      const result = connectSocket('token1');
+
+      expect(result).toBe(mockSocket);
+      expect(io).toHaveBeenCalledTimes(1);
+      expect(mockSocket.disconnect).not.toHaveBeenCalled();
+    });
+
+    it('should replace an existing socket when the auth token changes', () => {
+      const { io } = require('socket.io-client');
       connectSocket('token1');
       mockSocket.connected = true;
-      const result = connectSocket('token2');
-      // Should return the same socket without creating a new one
-      expect(result).toBe(mockSocket);
+      connectSocket('token2');
+
+      expect(mockSocket.disconnect).toHaveBeenCalledTimes(1);
+      expect(io).toHaveBeenCalledTimes(2);
+      expect(io).toHaveBeenLastCalledWith(
+        expect.any(String),
+        expect.objectContaining({ auth: { token: 'token2' } }),
+      );
     });
 
     it('should set up connect and connect_error listeners', () => {

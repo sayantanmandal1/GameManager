@@ -11,14 +11,14 @@ import { useChessStore } from '@/stores/chessStore';
  * SECURITY_NOTE: components MUST NOT call `socket.emit` directly. Use the
  * typed actions returned from `useChessStore` (sendResign / offerDraw / etc.).
  */
-export function useChessSocket(lobbyCode: string): void {
+export function useChessSocket(lobbyCode: string, isConnected: boolean): void {
   const setLobbyCode = useChessStore((s) => s.setLobbyCode);
   const initListeners = useChessStore((s) => s.initListeners);
 
   useEffect(() => {
-    if (!lobbyCode) return;
+    if (!lobbyCode || !isConnected) return;
     setLobbyCode(lobbyCode);
     const cleanup = initListeners();
     return cleanup;
-  }, [lobbyCode, setLobbyCode, initListeners]);
+  }, [lobbyCode, isConnected, setLobbyCode, initListeners]);
 }

@@ -9,6 +9,8 @@ import {
   LobbyStatus,
   BingoGamePhase,
   PHOTOBOOTH_MAX_ACTIVE_GAMES,
+  TicTacToeMode,
+  TicTacToePhase,
 } from '../shared';
 
 describe('GameService', () => {
@@ -89,6 +91,103 @@ describe('GameService', () => {
       expect(view).toBeTruthy();
       expect(view!.phase).toBe(BingoGamePhase.SETUP);
       expect(view!.board).toBeDefined();
+    });
+  });
+
+  describe('Tic Tac Toe lifecycle', () => {
+    const tictactoeLobby = {
+      ...fakeLobby,
+      gameType: GameType.TICTACTOE,
+      maxPlayers: 2,
+      tictactoeMode: TicTacToeMode.LIMITED,
+    };
+
+    it('starts a two-player game with the persisted mode', async () => {
+      mockLobbyService.getLobby!.mockResolvedValue(tictactoeLobby);
+
+      const { gameId, state } = await service.startTicTacToeGame('123456');
+
+      expect(gameId).toBe('game1');
+      expect(state.mode).toBe(TicTacToeMode.LIMITED);
+      expect(state.players.map((player) => player.id)).toEqual(['player1', 'player2']);
+      expect(mockLobbyService.setStatus).toHaveBeenCalledWith(
+        '123456',
+        LobbyStatus.IN_PROGRESS,
+      );
+    });
+
+    it('rejects a move whose game is not bound to the supplied lobby', async () => {
+      mockLobbyService.getLobby!.mockResolvedValue(tictactoeLobby);
+      const { gameId } = await service.startTicTacToeGame('123456');
+
+      await expect(
+        service.tictactoeMove(gameId, 'player1', { to: 0 }, '654321'),
+      ).resolves.toEqual({ ok: false, error: 'Game not found' });
+    });
+
+    it('persists a winning move and emits the terminal result', async () => {
+      mockLobbyService.getLobby!.mockResolvedValue({
+        ...tictactoeLobby,
+        tictactoeMode: TicTacToeMode.CLASSIC,
+      });
+      const { gameId } = await service.startTicTacToeGame('123456');
+      const finished = jest.fn();
+      service.onTicTacToeGameFinished = finished;
+
+      await service.tictactoeMove(gameId, 'player1', { to: 0 }, '123456');
+      await service.tictactoeMove(gameId, 'player2', { to: 3 }, '123456');
+      await service.tictactoeMove(gameId, 'player1', { to: 1 }, '123456');
+      await service.tictactoeMove(gameId, 'player2', { to: 4 }, '123456');
+      await service.tictactoeMove(gameId, 'player1', { to: 2 }, '123456');
+
+      expect(service.getTicTacToeState(gameId)?.phase).toBe(TicTacToePhase.FINISHED);
+      expect(mockGameRepo.update).toHaveBeenCalledWith(
+        gameId,
+        expect.objectContaining({ winnerId: 'player1', status: GameStatus.FINISHED }),
+      );
+      expect(finished).toHaveBeenCalledWith(
+        gameId,
+        '123456',
+        expect.objectContaining({ winnerId: 'player1' }),
+      );
+    });
+  });
+
+  describe('Connect Four lifecycle', () => {
+    const connectFourLobby = {
+      ...fakeLobby,
+      gameType: GameType.CONNECTFOUR,
+      maxPlayers: 2,
+    };
+
+    it('starts exactly two players and binds the lobby to the game', async () => {
+      mockLobbyService.getLobby!.mockResolvedValue(connectFourLobby);
+      const { gameId, state } = await service.startConnectFourGame('123456');
+      expect(gameId).toBe('game1');
+      expect(state.players.map((player) => player.id)).toEqual(['player1', 'player2']);
+      expect(service.getGameTypeForLobby('123456')).toBe(GameType.CONNECTFOUR);
+    });
+
+    it('persists and emits a terminal horizontal win', async () => {
+      mockLobbyService.getLobby!.mockResolvedValue(connectFourLobby);
+      const { gameId } = await service.startConnectFourGame('123456');
+      const finished = jest.fn();
+      service.onConnectFourGameFinished = finished;
+      for (const [player, column] of [
+        ['player1', 0], ['player2', 0], ['player1', 1], ['player2', 1],
+        ['player1', 2], ['player2', 2], ['player1', 3],
+      ] as const) {
+        await service.connectfourDrop(gameId, player, column, '123456');
+      }
+      expect(mockGameRepo.update).toHaveBeenCalledWith(
+        gameId,
+        expect.objectContaining({ winnerId: 'player1', status: GameStatus.FINISHED }),
+      );
+      expect(finished).toHaveBeenCalledWith(
+        gameId,
+        '123456',
+        expect.objectContaining({ winnerId: 'player1' }),
+      );
     });
   });
 

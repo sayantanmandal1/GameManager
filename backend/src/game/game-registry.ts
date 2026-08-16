@@ -5,13 +5,17 @@ import { LudoEngine } from './engines/ludo/ludo.engine';
 import { ChessEngine } from './engines/chess/chess.engine';
 import { PhotoboothEngine } from './engines/photobooth/photobooth.engine';
 import { UnoEngine } from './engines/uno/uno.engine';
+import { TicTacToeEngine } from './engines/tictactoe/tictactoe.engine';
+import { ConnectFourEngine } from './engines/connectfour/connectfour.engine';
 
 export type AnyGameEngine =
   | BingoEngine
   | LudoEngine
   | ChessEngine
   | PhotoboothEngine
-  | UnoEngine;
+  | UnoEngine
+  | TicTacToeEngine
+  | ConnectFourEngine;
 
 @Injectable()
 export class GameRegistry {
@@ -23,6 +27,8 @@ export class GameRegistry {
     this.engines.set(GameType.CHESS, new ChessEngine());
     this.engines.set(GameType.PHOTOBOOTH, new PhotoboothEngine());
     this.engines.set(GameType.UNO, new UnoEngine());
+    this.engines.set(GameType.TICTACTOE, new TicTacToeEngine());
+    this.engines.set(GameType.CONNECTFOUR, new ConnectFourEngine());
   }
 
   getEngine(gameType: GameType): AnyGameEngine {

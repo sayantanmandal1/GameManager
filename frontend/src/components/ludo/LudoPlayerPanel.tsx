@@ -5,10 +5,10 @@ import type { LudoPlayerState } from '@/shared';
 import { LudoColor, LUDO_TOKENS_PER_PLAYER } from '@/shared';
 
 const COLOR_MAP: Record<LudoColor, { bg: string; text: string; label: string; dot: string }> = {
-  [LudoColor.RED]: { bg: 'bg-white/[0.06]', text: 'text-white/80', label: 'Red', dot: '#FF4C4C' },
-  [LudoColor.GREEN]: { bg: 'bg-white/[0.06]', text: 'text-white/80', label: 'Green', dot: '#4CAF50' },
-  [LudoColor.YELLOW]: { bg: 'bg-white/[0.06]', text: 'text-white/80', label: 'Yellow', dot: '#FFC107' },
-  [LudoColor.BLUE]: { bg: 'bg-white/[0.06]', text: 'text-white/80', label: 'Blue', dot: '#2196F3' },
+  [LudoColor.RED]: { bg: 'bg-red-500/10', text: 'text-red-100', label: 'Red', dot: '#e34242' },
+  [LudoColor.GREEN]: { bg: 'bg-green-500/10', text: 'text-green-100', label: 'Green', dot: '#34a853' },
+  [LudoColor.YELLOW]: { bg: 'bg-yellow-400/10', text: 'text-yellow-100', label: 'Yellow', dot: '#f6c945' },
+  [LudoColor.BLUE]: { bg: 'bg-blue-500/10', text: 'text-blue-100', label: 'Blue', dot: '#3587d4' },
 };
 
 const RANK_LABELS = ['🏆 1st', '🥈 2nd', '🥉 3rd', '4th'];
@@ -28,7 +28,7 @@ export function LudoPlayerPanel({
 }: LudoPlayerPanelProps) {
   return (
     <div className="space-y-2">
-      <h3 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-3">
+      <h3 className="mb-3 text-xs font-bold text-game-muted">
         Players
       </h3>
       {players.map((player) => {
@@ -47,9 +47,9 @@ export function LudoPlayerPanel({
         return (
           <motion.div
             key={player.id}
-            className={`flex items-center gap-3 px-3 py-2 rounded-xl border transition-all ${
+            className={`flex min-h-16 items-center gap-3 rounded-lg border px-3 py-2 transition-all ${
               isCurrent
-                ? `${color.bg} border-white/20 ${color.text} backdrop-blur-md`
+                ? `${color.bg} border-white/35 ${color.text} shadow-lg shadow-black/20`
                 : isFinished
                 ? 'bg-white/[0.01] border-white/[0.03] opacity-70'
                 : 'bg-white/[0.02] border-white/[0.05]'
@@ -59,7 +59,7 @@ export function LudoPlayerPanel({
           >
             {/* Color indicator */}
             <div
-              className={`w-3 h-3 rounded-full ${
+              className={`h-5 w-5 shrink-0 rounded-full ring-2 ring-white/30 ${
                 isCurrent ? 'animate-pulse' : ''
               }`}
               style={{ backgroundColor: color.dot }}
@@ -82,20 +82,20 @@ export function LudoPlayerPanel({
               </div>
 
               {/* Token progress */}
-              <div className="flex items-center gap-2 mt-0.5">
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
                 {tokensInBase > 0 && (
-                  <span className="text-[10px] text-white/30">
-                    🏠{tokensInBase}
+                  <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px] text-game-muted">
+                    Base {tokensInBase}
                   </span>
                 )}
                 {tokensActive > 0 && (
-                  <span className="text-[10px] text-white/30">
-                    🏃{tokensActive}
+                  <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px] text-game-muted">
+                    Track {tokensActive}
                   </span>
                 )}
                 {tokensHome > 0 && (
-                  <span className="text-[10px] text-white/60">
-                    ✅{tokensHome}
+                  <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px] text-white">
+                    Home {tokensHome}
                   </span>
                 )}
               </div>
@@ -108,8 +108,8 @@ export function LudoPlayerPanel({
                   {RANK_LABELS[rankIdx]}
                 </span>
               ) : isCurrent ? (
-                <span className="text-xs font-bold text-white">
-                  ▶
+                <span className="animate-pulse text-lg font-bold text-white">
+                  ●
                 </span>
               ) : null}
             </div>
