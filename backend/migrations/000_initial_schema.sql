@@ -2,11 +2,11 @@
 -- Idempotent for existing installations: CREATE TABLE IF NOT EXISTS leaves
 -- TypeORM-managed tables unchanged, then later additive migrations fill any
 -- columns missing from older deployments.
-
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- PostgreSQL 13+ provides gen_random_uuid() in core, so startup does not need
+-- provider-restricted CREATE EXTENSION privileges (for example on Render).
 
 CREATE TABLE IF NOT EXISTS users (
-  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   username varchar(32) NOT NULL,
   avatar varchar(8) NOT NULL,
   "createdAt" timestamp NOT NULL DEFAULT now(),
@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS lobbies (
-  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   code varchar(6) NOT NULL UNIQUE,
   "hostId" uuid NOT NULL,
   "gameType" varchar(32) NOT NULL,
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS lobbies (
 );
 
 CREATE TABLE IF NOT EXISTS games (
-  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   "lobbyId" uuid NOT NULL,
   "gameType" varchar(32) NOT NULL,
   "playerIds" jsonb NOT NULL DEFAULT '[]'::jsonb,
