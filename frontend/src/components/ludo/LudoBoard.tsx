@@ -2,7 +2,14 @@
 
 import { useMemo, useCallback, useRef, useEffect, useState } from 'react';
 import type { LudoPlayerState, LudoMoveAction, LudoMoveRecord } from '@/shared';
-import { LudoColor, LUDO_START_POSITIONS, LUDO_SAFE_SQUARES, LUDO_BOARD_SIZE } from '@/shared';
+import {
+  LudoColor,
+  LUDO_START_POSITIONS,
+  LUDO_SAFE_SQUARES,
+  LUDO_BOARD_SIZE,
+  LUDO_MAIN_TRACK_STEPS,
+  LUDO_FINISHED_STEPS,
+} from '@/shared';
 
 // --- Board geometry (SVG internal units) ---
 const CELL = 44;
@@ -37,10 +44,10 @@ const TRACK: [number, number][] = (() => {
 })();
 
 const HOME_COLS: Record<LudoColor, [number, number][]> = {
-  [LudoColor.RED]:    [[1,7],[2,7],[3,7],[4,7],[5,7],[6,7]],
-  [LudoColor.GREEN]:  [[7,1],[7,2],[7,3],[7,4],[7,5],[7,6]],
-  [LudoColor.YELLOW]: [[13,7],[12,7],[11,7],[10,7],[9,7],[8,7]],
-  [LudoColor.BLUE]:   [[7,13],[7,12],[7,11],[7,10],[7,9],[7,8]],
+  [LudoColor.RED]:    [[1,7],[2,7],[3,7],[4,7],[5,7]],
+  [LudoColor.GREEN]:  [[7,1],[7,2],[7,3],[7,4],[7,5]],
+  [LudoColor.YELLOW]: [[13,7],[12,7],[11,7],[10,7],[9,7]],
+  [LudoColor.BLUE]:   [[7,13],[7,12],[7,11],[7,10],[7,9]],
 };
 
 const BASE_POS: Record<LudoColor, [number, number][]> = {
@@ -58,7 +65,7 @@ const BASE_RECTS: Record<LudoColor, { x: number; y: number; w: number; h: number
 };
 
 function getAbsPos(color: LudoColor, steps: number): number {
-  if (steps <= 0 || steps > LUDO_BOARD_SIZE) return -1;
+  if (steps <= 0 || steps > LUDO_MAIN_TRACK_STEPS) return -1;
   return (LUDO_START_POSITIONS[color] + steps - 1) % LUDO_BOARD_SIZE;
 }
 
@@ -67,13 +74,13 @@ function pxForStep(step: number, color: LudoColor, tid: number): [number, number
     const b = BASE_POS[color][tid];
     return [b[0] * CELL, b[1] * CELL];
   }
-  if (step >= LUDO_BOARD_SIZE + 7) {
+  if (step >= LUDO_FINISHED_STEPS) {
     const off = [[-0.3,-0.3],[0.3,-0.3],[-0.3,0.3],[0.3,0.3]];
     const o = off[tid];
     return [(7 + o[0]) * CELL, (7 + o[1]) * CELL];
   }
-  if (step > LUDO_BOARD_SIZE) {
-    const hi = step - LUDO_BOARD_SIZE - 1;
+  if (step > LUDO_MAIN_TRACK_STEPS) {
+    const hi = step - LUDO_MAIN_TRACK_STEPS - 1;
     const hc = HOME_COLS[color];
     if (hi >= 0 && hi < hc.length) {
       return [(hc[hi][0] + 0.5) * CELL, (hc[hi][1] + 0.5) * CELL];

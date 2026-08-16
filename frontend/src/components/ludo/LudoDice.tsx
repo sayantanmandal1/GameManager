@@ -79,12 +79,18 @@ export function LudoDice({
   isMyTurn,
   showRollButton,
 }: LudoDiceProps) {
+  const visibleDice = dice ?? (isRolling ? 1 : null);
+
   return (
     <div className="flex flex-col items-center gap-4">
       {/* Dice display */}
       <div className="flex gap-3 items-center">
-        {dice != null ? (
-          <DieFace value={dice} isRolling={isRolling} isSix={dice === 6} />
+        {visibleDice != null ? (
+          <DieFace
+            value={visibleDice}
+            isRolling={isRolling}
+            isSix={!isRolling && visibleDice === 6}
+          />
         ) : (
           <div className="w-20 h-20 rounded-2xl bg-white/[0.04] border-2 border-dashed border-white/[0.12] flex items-center justify-center text-white/20 text-2xl">
             ?

@@ -38,11 +38,9 @@ export function LudoPlayerPanel({
         const rankIdx = rankings.indexOf(player.id);
         const isFinished = player.finishedCount === LUDO_TOKENS_PER_PLAYER;
 
-        const tokensInBase = player.tokens.filter((t) => t.stepsFromStart === 0).length;
-        const tokensActive = player.tokens.filter(
-          (t) => t.stepsFromStart > 0 && t.stepsFromStart < 59,
-        ).length;
-        const tokensHome = player.finishedCount;
+        const tokensInBase = player.tokens.filter((token) => token.state === 'base').length;
+        const tokensActive = player.tokens.filter((token) => token.state === 'active').length;
+        const tokensHome = player.tokens.filter((token) => token.state === 'home').length;
 
         return (
           <motion.div

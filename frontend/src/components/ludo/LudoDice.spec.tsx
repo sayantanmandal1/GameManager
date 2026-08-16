@@ -47,6 +47,14 @@ describe('LudoDice Component', () => {
     expect(circles).toHaveLength(3);
   });
 
+  it('should show an animated die instead of a placeholder while rolling', () => {
+    const { container } = render(
+      <LudoDice {...defaultProps} isRolling={true} />,
+    );
+    expect(container.querySelectorAll('circle')).toHaveLength(1);
+    expect(screen.queryByText('?')).not.toBeInTheDocument();
+  });
+
   it('should show roll button when showRollButton is true', () => {
     render(<LudoDice {...defaultProps} showRollButton={true} />);
     expect(screen.getByText(/Roll/i)).toBeInTheDocument();

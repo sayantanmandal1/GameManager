@@ -30,6 +30,7 @@ function LudoPlayContent() {
     result,
     error,
     diceRolling,
+    displayDice,
     rollDice,
     moveToken,
     setLobbyCode,
@@ -156,7 +157,7 @@ function LudoPlayContent() {
           {/* Dice */}
           <Card className="bg-[#202820]">
             <LudoDice
-              dice={view.dice}
+              dice={displayDice ?? view.dice}
               isRolling={diceRolling}
               onRoll={rollDice}
               disabled={!isMyTurn || isFinished}

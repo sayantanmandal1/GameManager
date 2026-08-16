@@ -525,6 +525,11 @@ export class GameGateway
     const user = getSocketUser(client, this.jwtService);
     if (!user) return;
 
+    if (this.gameService.getGameIdForLobby(data.lobbyCode) !== data.gameId) {
+      client.emit(GAME_EVENTS.ERROR, { message: 'Game does not belong to this lobby' });
+      return;
+    }
+
     const result = this.gameService.ludoRollDice(
       data.gameId,
       user.sub,
@@ -533,6 +538,17 @@ export class GameGateway
 
     if (!result.ok) {
       client.emit(GAME_EVENTS.ERROR, { message: result.error });
+      return;
+    }
+
+    if (result.dice !== undefined) {
+      this.server.to(`game:${data.lobbyCode}`).emit(LUDO_EVENTS.DICE_ROLLED, {
+        gameId: data.gameId,
+        playerId: user.sub,
+        dice: result.dice,
+        turnSkipped: result.turnSkipped ?? false,
+        turnCanceled: result.turnCanceled ?? false,
+      });
     }
   }
 

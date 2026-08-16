@@ -21,6 +21,7 @@ import {
   LudoPlayerState,
   LudoGameState,
   LUDO_BOARD_SIZE,
+  LUDO_MAIN_TRACK_STEPS,
   LUDO_SAFE_SQUARES,
   LUDO_START_POSITIONS,
   LUDO_TOKENS_PER_PLAYER,
@@ -83,9 +84,8 @@ describe('LudoUtils', () => {
       expect(getAbsolutePosition(LudoColor.GREEN, 1)).toBe(13);
     });
 
-    it('should wrap around the board correctly', () => {
-      // RED at step 52 → absolute (0 + 52 - 1) % 52 = 51
-      expect(getAbsolutePosition(LudoColor.RED, 52)).toBe(51);
+    it('should map the final common-track step correctly', () => {
+      expect(getAbsolutePosition(LudoColor.RED, 51)).toBe(50);
     });
 
     it('should handle wrap for non-RED colors', () => {
@@ -95,6 +95,7 @@ describe('LudoUtils', () => {
 
     it('should return -1 for invalid step values', () => {
       expect(getAbsolutePosition(LudoColor.RED, 0)).toBe(-1);
+      expect(getAbsolutePosition(LudoColor.RED, 52)).toBe(-1);
       expect(getAbsolutePosition(LudoColor.RED, 53)).toBe(-1);
       expect(getAbsolutePosition(LudoColor.RED, -1)).toBe(-1);
     });
@@ -108,28 +109,29 @@ describe('LudoUtils', () => {
 
     it('should identify main track range', () => {
       expect(isOnMainTrack(1)).toBe(true);
-      expect(isOnMainTrack(52)).toBe(true);
+      expect(isOnMainTrack(51)).toBe(true);
       expect(isOnMainTrack(0)).toBe(false);
-      expect(isOnMainTrack(53)).toBe(false);
+      expect(isOnMainTrack(52)).toBe(false);
     });
 
     it('should identify home column range', () => {
-      expect(isOnHomeColumn(53)).toBe(true);
-      expect(isOnHomeColumn(58)).toBe(true);
-      expect(isOnHomeColumn(52)).toBe(false);
-      expect(isOnHomeColumn(59)).toBe(false);
+      expect(isOnHomeColumn(52)).toBe(true);
+      expect(isOnHomeColumn(56)).toBe(true);
+      expect(isOnHomeColumn(51)).toBe(false);
+      expect(isOnHomeColumn(57)).toBe(false);
     });
 
     it('should identify finished position', () => {
-      expect(isFinished(59)).toBe(true);
-      expect(isFinished(58)).toBe(false);
+      expect(isFinished(57)).toBe(true);
+      expect(isFinished(56)).toBe(false);
     });
   });
 
   describe('FINISHED_STEPS / HOME_ENTRANCE_STEP constants', () => {
     it('should have correct values', () => {
-      expect(FINISHED_STEPS).toBe(LUDO_BOARD_SIZE + 7); // 59
-      expect(HOME_ENTRANCE_STEP).toBe(LUDO_BOARD_SIZE + 1); // 53
+      expect(LUDO_MAIN_TRACK_STEPS).toBe(LUDO_BOARD_SIZE - 1);
+      expect(FINISHED_STEPS).toBe(57);
+      expect(HOME_ENTRANCE_STEP).toBe(52);
     });
   });
 
@@ -264,19 +266,27 @@ describe('LudoUtils', () => {
 
     it('should not allow overshooting home', () => {
       const players: Record<string, LudoPlayerState> = {
-        p1: makePlayer('p1', LudoColor.RED, [57, 0, 0, 0]),
+        p1: makePlayer('p1', LudoColor.RED, [56, 0, 0, 0]),
       };
-      const token = players.p1.tokens[0]; // at step 57, needs exactly 2 to finish
-      expect(canTokenMove(token, 3, players.p1, players)).toBe(false);
-      expect(canTokenMove(token, 2, players.p1, players)).toBe(true);
+      const token = players.p1.tokens[0];
+      expect(canTokenMove(token, 2, players.p1, players)).toBe(false);
+      expect(canTokenMove(token, 1, players.p1, players)).toBe(true);
     });
 
     it('should allow exact home entry', () => {
       const players: Record<string, LudoPlayerState> = {
+        p1: makePlayer('p1', LudoColor.RED, [54, 0, 0, 0]),
+      };
+      const token = players.p1.tokens[0];
+      expect(canTokenMove(token, 3, players.p1, players)).toBe(true);
+    });
+
+    it('should never move a token already marked home', () => {
+      const players: Record<string, LudoPlayerState> = {
         p1: makePlayer('p1', LudoColor.RED, [56, 0, 0, 0]),
       };
-      const token = players.p1.tokens[0]; // step 56, needs 3 to reach 59
-      expect(canTokenMove(token, 3, players.p1, players)).toBe(true);
+      players.p1.tokens[0].state = 'home';
+      expect(canTokenMove(players.p1.tokens[0], 1, players.p1, players)).toBe(false);
     });
 
     it('should not allow entry when start square is blocked', () => {
@@ -381,11 +391,11 @@ describe('LudoUtils', () => {
     });
 
     it('should return empty when token cannot move with die value', () => {
-      // Token at step 57, die = 3 → overshoot (57 + 3 = 60 > 59)
+      // Token one step before home cannot overshoot the sixth home-lane cell.
       const players: Record<string, LudoPlayerState> = {
-        p1: makePlayer('p1', LudoColor.RED, [57, 0, 0, 0]),
+        p1: makePlayer('p1', LudoColor.RED, [56, 0, 0, 0]),
       };
-      const state = makeState(players, 'p1', 3);
+      const state = makeState(players, 'p1', 2);
       const moves = calculateAllPossibleMoves(state, 'p1');
       expect(moves).toHaveLength(0);
     });

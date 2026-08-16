@@ -527,6 +527,41 @@ async function verifyLudoProjection(alpha, beta, alphaSocket, betaSocket) {
     assert.equal(player.tokens.length, 4);
     assert(player.tokens.every((token) => token.stepsFromStart === 0));
   }
+
+  const rollingSocket = state.view.currentTurn === alpha.user.id ? alphaSocket : betaSocket;
+  const rollResultPromise = waitForEvent(
+    alphaSocket,
+    'ludo:dice_rolled',
+    (payload) => payload.gameId === state.gameId,
+  );
+  const peerRollResultPromise = waitForEvent(
+    betaSocket,
+    'ludo:dice_rolled',
+    (payload) => payload.gameId === state.gameId,
+  );
+  const stateAfterRollPromise = waitForEvent(
+    alphaSocket,
+    'game:state',
+    (payload) => payload.gameType === 'ludo' && payload.gameId === state.gameId,
+  );
+  rollingSocket.emit('ludo:roll_dice', {
+    gameId: state.gameId,
+    lobbyCode: lobby.code,
+  });
+
+  const [rollResult, peerRollResult, stateAfterRoll] = await Promise.all([
+    rollResultPromise,
+    peerRollResultPromise,
+    stateAfterRollPromise,
+  ]);
+  assert.equal(rollResult.playerId, state.view.currentTurn);
+  assert(Number.isInteger(rollResult.dice));
+  assert(rollResult.dice >= 1 && rollResult.dice <= 6);
+  assert.equal(peerRollResult.playerId, rollResult.playerId);
+  assert.equal(peerRollResult.dice, rollResult.dice);
+  if (rollResult.turnSkipped) {
+    assert.equal(stateAfterRoll.view.dice, null);
+  }
 }
 
 async function verifyVoiceRelay(alphaSocket, betaSocket) {

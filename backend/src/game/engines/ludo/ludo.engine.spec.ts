@@ -299,17 +299,17 @@ describe('LudoEngine', () => {
         ['p1', 'p2'],
         { p1: 'A', p2: 'B' },
       );
-      state.players.p1.tokens[0].stepsFromStart = 56; // needs 3 to finish
+      state.players.p1.tokens[0].stepsFromStart = FINISHED_STEPS - 1;
       state.players.p1.tokens[0].state = 'active';
-      state.dice = 3;
+      state.dice = 1;
       state.phase = LudoGamePhase.MOVING;
       state.turnState = {
-        availableMoves: [[{ tokenId: 0, steps: 3 }]],
+        availableMoves: [[{ tokenId: 0, steps: 1 }]],
         mustRollAgain: false,
         turnCanceled: false,
       };
 
-      const result = engine.moveToken(state, 'p1', [{ tokenId: 0, steps: 3 }]);
+      const result = engine.moveToken(state, 'p1', [{ tokenId: 0, steps: 1 }]);
       expect(result.valid).toBe(true);
       expect(result.reachedHome).toBe(true);
       expect(result.extraTurn).toBe(true);
@@ -329,7 +329,7 @@ describe('LudoEngine', () => {
         state.players.p1.tokens[i].state = 'home';
       }
       state.players.p1.finishedCount = 3;
-      state.players.p1.tokens[3].stepsFromStart = 56;
+      state.players.p1.tokens[3].stepsFromStart = FINISHED_STEPS - 3;
       state.players.p1.tokens[3].state = 'active';
       state.dice = 3;
       state.phase = LudoGamePhase.MOVING;

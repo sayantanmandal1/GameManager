@@ -74,15 +74,13 @@ describe('LudoBot', () => {
     });
 
     it('should prefer reaching home over a regular move', () => {
-      // Token at step 56, needs 3 to finish. Die = 3.
       const players: Record<string, LudoPlayerState> = {
-        p1: makePlayer('p1', LudoColor.RED, [56, 10, 0, 0]),
+        p1: makePlayer('p1', LudoColor.RED, [FINISHED_STEPS - 3, 10, 0, 0]),
       };
       const state = makeState(players, 'p1', 3);
       const best = chooseBestMove(state, 'p1');
       expect(best.length).toBeGreaterThan(0);
 
-      // Bot should prefer the move that reaches home (token 0 moves 3 = step 59)
       const hasHomeMove = best.some((m) => m.tokenId === 0 && m.steps === 3);
       expect(hasHomeMove).toBe(true);
     });

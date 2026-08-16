@@ -16,7 +16,12 @@ export enum LudoGamePhase {
 // ─── Board Layout Constants ───
 
 export const LUDO_BOARD_SIZE = 52;
-export const LUDO_HOME_COLUMN_SIZE = 6;
+export const LUDO_HOME_COLUMN_SIZE = 5;
+/** A token branches into its home lane before revisiting the square behind its start. */
+export const LUDO_MAIN_TRACK_STEPS = LUDO_BOARD_SIZE - 1;
+/** Five colored home-lane cells followed by the center finish. */
+export const LUDO_FINISHED_STEPS =
+  LUDO_MAIN_TRACK_STEPS + LUDO_HOME_COLUMN_SIZE + 1;
 export const LUDO_TOKENS_PER_PLAYER = 4;
 
 /** Absolute board position where each color enters the main track */
@@ -49,8 +54,8 @@ export const LUDO_COLOR_ASSIGNMENTS: Record<number, LudoColor[]> = {
 
 /**
  * Represents a single Ludo token.
- * stepsFromStart: 0 = at base, 1 = entry square, 2–52 = main track,
- * 53–58 = home column (6 squares), 59 = finished (reached center).
+ * stepsFromStart: 0 = at base, 1–51 = common track,
+ * 52–56 = the five colored home-lane cells, 57 = center/finished.
  */
 export interface LudoToken {
   id: number; // 0–3
@@ -70,8 +75,11 @@ export interface LudoPlayerState {
 // ─── Dice & Moves ───
 
 export interface LudoDiceResult {
+  gameId: string;
   dice: number;
   playerId: string;
+  turnSkipped: boolean;
+  turnCanceled: boolean;
 }
 
 /** A single atomic move: move one token by N steps */

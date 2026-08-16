@@ -5,7 +5,7 @@ import { ChessMoveDto, ChessResignDto, ChessRejoinDto } from './dto/chess.dto';
 import { PhotoboothCaptureDto } from './dto/photobooth.dto';
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
-import { CHESS_EVENTS, GAME_EVENTS } from '../shared';
+import { CHESS_EVENTS, GAME_EVENTS, LUDO_EVENTS } from '../shared';
 
 // ─── DTO-level validation tests (exercise the actual validators the
 // ValidationPipe uses at runtime). Gateway-level rate-limit + auth tests
@@ -93,10 +93,11 @@ function mkSocket(user?: { sub: string; username: string }): MockSocket {
   };
 }
 
-describe('GameGateway — chess handlers', () => {
+describe('GameGateway handlers', () => {
   let gateway: GameGateway;
   let gameService: jest.Mocked<Partial<GameService>>;
   let jwtService: jest.Mocked<Partial<JwtService>>;
+  let roomEmit: jest.Mock;
 
   beforeEach(() => {
     gameService = {
@@ -108,6 +109,13 @@ describe('GameGateway — chess handlers', () => {
       chessSpectate: jest.fn(),
       chessRemoveSpectator: jest.fn(),
       photoboothCapture: jest.fn().mockReturnValue({ ok: true }),
+      getGameIdForLobby: jest.fn().mockReturnValue('game-1'),
+      ludoRollDice: jest.fn().mockReturnValue({
+        ok: true,
+        dice: 4,
+        turnSkipped: true,
+        turnCanceled: false,
+      }),
     };
     jwtService = {
       verify: jest.fn(),
@@ -116,11 +124,45 @@ describe('GameGateway — chess handlers', () => {
       gameService as unknown as GameService,
       jwtService as unknown as JwtService,
     );
-    // Stub @WebSocketServer for emit helpers (not exercised here).
+    roomEmit = jest.fn();
     (gateway as unknown as { server: unknown }).server = {
-      to: jest.fn().mockReturnValue({ emit: jest.fn() }),
+      to: jest.fn().mockReturnValue({ emit: roomEmit }),
       in: jest.fn().mockReturnValue({ fetchSockets: jest.fn().mockResolvedValue([]) }),
     };
+  });
+
+  it('broadcasts every accepted Ludo roll even when the turn is skipped', () => {
+    const sock = mkSocket({ sub: 'user1', username: 'A' });
+
+    gateway.handleLudoRollDice(sock as never, {
+      gameId: 'game-1',
+      lobbyCode: '123456',
+    });
+
+    expect(gameService.ludoRollDice).toHaveBeenCalledWith('game-1', 'user1', '123456');
+    expect(roomEmit).toHaveBeenCalledWith(LUDO_EVENTS.DICE_ROLLED, {
+      gameId: 'game-1',
+      playerId: 'user1',
+      dice: 4,
+      turnSkipped: true,
+      turnCanceled: false,
+    });
+  });
+
+  it('rejects a Ludo roll when the game does not belong to the lobby', () => {
+    const sock = mkSocket({ sub: 'user1', username: 'A' });
+    (gameService.getGameIdForLobby as jest.Mock).mockReturnValue('another-game');
+
+    gateway.handleLudoRollDice(sock as never, {
+      gameId: 'game-1',
+      lobbyCode: '123456',
+    });
+
+    expect(gameService.ludoRollDice).not.toHaveBeenCalled();
+    expect(roomEmit).not.toHaveBeenCalled();
+    expect(sock.emit).toHaveBeenCalledWith(GAME_EVENTS.ERROR, {
+      message: 'Game does not belong to this lobby',
+    });
   });
 
   it('silently drops chess:move without auth (no emit, no service call)', async () => {

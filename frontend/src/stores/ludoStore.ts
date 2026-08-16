@@ -5,6 +5,7 @@ import {
   LUDO_EVENTS,
   LOBBY_EVENTS,
   type LudoPlayerView,
+  type LudoDiceResult,
   type LudoMoveAction,
   type LudoWinResult,
   type LudoMoveRecord,
@@ -25,6 +26,7 @@ interface LudoStoreState {
   result: LudoResult | null;
   error: string | null;
   diceRolling: boolean;
+  displayDice: number | null;
 
   rollDice: () => void;
   moveToken: (moves: LudoMoveAction[]) => void;
@@ -42,6 +44,7 @@ export const useLudoStore = create<LudoStoreState>()((set, get) => ({
   result: null,
   error: null,
   diceRolling: false,
+  displayDice: null,
 
   setLobbyCode: (code: string) => set({ lobbyCode: code }),
 
@@ -59,7 +62,7 @@ export const useLudoStore = create<LudoStoreState>()((set, get) => ({
     const socket = getSocket();
     const { gameId, lobbyCode } = get();
     if (!socket || !gameId || !lobbyCode) return;
-    set({ diceRolling: true });
+    set({ diceRolling: true, displayDice: null, error: null });
     socket.emit(LUDO_EVENTS.ROLL_DICE, { gameId, lobbyCode });
   },
 
@@ -83,7 +86,24 @@ export const useLudoStore = create<LudoStoreState>()((set, get) => ({
 
     const onState = (data: { gameId: string; view: LudoPlayerView; gameType?: string }) => {
       if (data.gameType !== 'ludo') return;
-      set({ gameId: data.gameId, view: data.view, diceRolling: false });
+      set((state) => ({
+        gameId: data.gameId,
+        view: data.view,
+        displayDice:
+          data.view.dice ?? (state.gameId === data.gameId ? state.displayDice : null),
+        diceRolling:
+          data.view.dice != null
+            ? false
+            : state.gameId === data.gameId
+              ? state.diceRolling
+              : false,
+      }));
+    };
+
+    const onDiceRolled = (data: LudoDiceResult) => {
+      const currentGameId = get().gameId;
+      if (currentGameId && data.gameId !== currentGameId) return;
+      set({ displayDice: data.dice, diceRolling: false });
     };
 
     const onResult = (data: LudoResult) => {
@@ -95,10 +115,11 @@ export const useLudoStore = create<LudoStoreState>()((set, get) => ({
     };
 
     const onGameStarting = () => {
-      set({ result: null, error: null, diceRolling: false });
+      set({ result: null, error: null, diceRolling: false, displayDice: null });
     };
 
     socket.on(GAME_EVENTS.STATE, onState);
+    socket.on(LUDO_EVENTS.DICE_ROLLED, onDiceRolled);
     socket.on(GAME_EVENTS.RESULT, onResult);
     socket.on(GAME_EVENTS.ERROR, onError);
     socket.on(LOBBY_EVENTS.GAME_STARTING, onGameStarting);
@@ -110,6 +131,7 @@ export const useLudoStore = create<LudoStoreState>()((set, get) => ({
 
     return () => {
       socket.off(GAME_EVENTS.STATE, onState);
+      socket.off(LUDO_EVENTS.DICE_ROLLED, onDiceRolled);
       socket.off(GAME_EVENTS.RESULT, onResult);
       socket.off(GAME_EVENTS.ERROR, onError);
       socket.off(LOBBY_EVENTS.GAME_STARTING, onGameStarting);
@@ -124,5 +146,6 @@ export const useLudoStore = create<LudoStoreState>()((set, get) => ({
       result: null,
       error: null,
       diceRolling: false,
+      displayDice: null,
     }),
 }));

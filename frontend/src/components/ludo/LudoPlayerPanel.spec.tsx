@@ -28,7 +28,7 @@ function makePlayer(
     tokens: [
       { id: 0, state: 'base', stepsFromStart: 0 },
       { id: 1, state: 'active', stepsFromStart: 10 },
-      { id: 2, state: 'home', stepsFromStart: 59 },
+      { id: 2, state: 'home', stepsFromStart: 57 },
       { id: 3, state: 'base', stepsFromStart: 0 },
     ],
     finishedCount: 1,

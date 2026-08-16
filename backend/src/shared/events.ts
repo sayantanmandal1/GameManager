@@ -35,6 +35,7 @@ export const BINGO_EVENTS = {
 // ─── Ludo-Specific Events ───
 export const LUDO_EVENTS = {
   ROLL_DICE: 'ludo:roll_dice',
+  DICE_ROLLED: 'ludo:dice_rolled',
   MOVE_TOKEN: 'ludo:move_token',
   ADD_BOT: 'ludo:add_bot',
   REMOVE_BOT: 'ludo:remove_bot',

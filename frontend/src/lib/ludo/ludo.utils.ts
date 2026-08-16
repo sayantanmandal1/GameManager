@@ -5,13 +5,16 @@ import {
   LudoMoveAction,
   LudoGameState,
   LUDO_BOARD_SIZE,
+  LUDO_HOME_COLUMN_SIZE,
+  LUDO_MAIN_TRACK_STEPS,
+  LUDO_FINISHED_STEPS,
   LUDO_TOKENS_PER_PLAYER,
   LUDO_START_POSITIONS,
   LUDO_SAFE_SQUARES,
 } from '@/shared';
 
 export function getAbsolutePosition(color: LudoColor, stepsFromStart: number): number {
-  if (stepsFromStart <= 0 || stepsFromStart > LUDO_BOARD_SIZE) return -1;
+  if (stepsFromStart <= 0 || stepsFromStart > LUDO_MAIN_TRACK_STEPS) return -1;
   const start = LUDO_START_POSITIONS[color];
   return (start + stepsFromStart - 1) % LUDO_BOARD_SIZE;
 }
@@ -21,18 +24,21 @@ export function isAtBase(stepsFromStart: number): boolean {
 }
 
 export function isOnMainTrack(stepsFromStart: number): boolean {
-  return stepsFromStart >= 1 && stepsFromStart <= LUDO_BOARD_SIZE;
+  return stepsFromStart >= 1 && stepsFromStart <= LUDO_MAIN_TRACK_STEPS;
 }
 
 export function isOnHomeColumn(stepsFromStart: number): boolean {
-  return stepsFromStart >= LUDO_BOARD_SIZE + 1 && stepsFromStart <= LUDO_BOARD_SIZE + 6;
+  return (
+    stepsFromStart >= LUDO_MAIN_TRACK_STEPS + 1 &&
+    stepsFromStart <= LUDO_MAIN_TRACK_STEPS + LUDO_HOME_COLUMN_SIZE
+  );
 }
 
 export function isFinished(stepsFromStart: number): boolean {
-  return stepsFromStart === LUDO_BOARD_SIZE + 7;
+  return stepsFromStart === LUDO_FINISHED_STEPS;
 }
 
-export const FINISHED_STEPS = LUDO_BOARD_SIZE + 7;
+export const FINISHED_STEPS = LUDO_FINISHED_STEPS;
 
 export function isSafeSquare(absolutePos: number): boolean {
   return LUDO_SAFE_SQUARES.includes(absolutePos);
@@ -107,7 +113,7 @@ export function canTokenMove(
   allPlayers: Record<string, LudoPlayerState>,
 ): boolean {
   if (steps <= 0) return false;
-  if (isFinished(token.stepsFromStart)) return false;
+  if (token.state === 'home' || isFinished(token.stepsFromStart)) return false;
   if (isAtBase(token.stepsFromStart)) {
     if (steps !== 6) return false;
     const entryAbs = LUDO_START_POSITIONS[playerState.color];
@@ -137,7 +143,9 @@ export function calculateAllPossibleMoves(
   const die = state.dice;
   const allMoves: LudoMoveAction[][] = [];
 
-  const activeTokens = player.tokens.filter((t) => !isFinished(t.stepsFromStart));
+  const activeTokens = player.tokens.filter(
+    (token) => token.state !== 'home' && !isFinished(token.stepsFromStart),
+  );
 
   for (const token of activeTokens) {
     if (canTokenMove(token, die, player, state.players)) {

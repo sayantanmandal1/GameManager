@@ -80,7 +80,7 @@ describe('LudoBoard Component', () => {
 
   it('positions tokens in the yard, track, home lane, and finish using native SVG transforms', () => {
     const players = [
-      makePlayer('p1', LudoColor.RED, [0, 1, 53, 59]),
+      makePlayer('p1', LudoColor.RED, [0, 1, 52, 57]),
     ];
 
     const { container } = render(

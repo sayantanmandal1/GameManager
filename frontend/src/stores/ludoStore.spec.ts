@@ -49,6 +49,10 @@ describe('LudoStore', () => {
     it('should have diceRolling false', () => {
       expect(useLudoStore.getState().diceRolling).toBe(false);
     });
+
+    it('should have no displayed dice', () => {
+      expect(useLudoStore.getState().displayDice).toBeNull();
+    });
   });
 
   describe('setLobbyCode', () => {
@@ -108,6 +112,7 @@ describe('LudoStore', () => {
       useLudoStore.getState().initListeners();
 
       expect(mockSocket.on).toHaveBeenCalledWith(GAME_EVENTS.STATE, expect.any(Function));
+      expect(mockSocket.on).toHaveBeenCalledWith(LUDO_EVENTS.DICE_ROLLED, expect.any(Function));
       expect(mockSocket.on).toHaveBeenCalledWith(GAME_EVENTS.RESULT, expect.any(Function));
       expect(mockSocket.on).toHaveBeenCalledWith(GAME_EVENTS.ERROR, expect.any(Function));
       expect(mockSocket.on).toHaveBeenCalledWith(LOBBY_EVENTS.GAME_STARTING, expect.any(Function));
@@ -119,6 +124,7 @@ describe('LudoStore', () => {
 
       cleanup();
       expect(mockSocket.off).toHaveBeenCalledWith(GAME_EVENTS.STATE, expect.any(Function));
+      expect(mockSocket.off).toHaveBeenCalledWith(LUDO_EVENTS.DICE_ROLLED, expect.any(Function));
       expect(mockSocket.off).toHaveBeenCalledWith(GAME_EVENTS.RESULT, expect.any(Function));
       expect(mockSocket.off).toHaveBeenCalledWith(GAME_EVENTS.ERROR, expect.any(Function));
       expect(mockSocket.off).toHaveBeenCalledWith(LOBBY_EVENTS.GAME_STARTING, expect.any(Function));
@@ -159,6 +165,35 @@ describe('LudoStore', () => {
 
       onState({ gameId: 'g1', view: {}, gameType: 'bingo' });
       expect(useLudoStore.getState().gameId).toBeNull();
+    });
+
+    it('should retain an accepted roll when the durable state has already cleared it', () => {
+      useLudoStore.setState({ gameId: 'g1', diceRolling: true });
+      useLudoStore.getState().initListeners();
+
+      const onDiceRolled = mockSocket.on.mock.calls.find(
+        (call: [string, Function]) => call[0] === LUDO_EVENTS.DICE_ROLLED,
+      )![1];
+
+      onDiceRolled({
+        gameId: 'g1',
+        playerId: 'p1',
+        dice: 4,
+        turnSkipped: true,
+        turnCanceled: false,
+      });
+
+      const onState = mockSocket.on.mock.calls.find(
+        (call: [string, Function]) => call[0] === GAME_EVENTS.STATE,
+      )![1];
+      onState({
+        gameId: 'g1',
+        gameType: 'ludo',
+        view: { dice: null },
+      });
+
+      expect(useLudoStore.getState().displayDice).toBe(4);
+      expect(useLudoStore.getState().diceRolling).toBe(false);
     });
 
     it('should set result on RESULT event', () => {
@@ -220,6 +255,7 @@ describe('LudoStore', () => {
         result: {} as any,
         error: 'err',
         diceRolling: true,
+        displayDice: 6,
       });
 
       useLudoStore.getState().reset();
@@ -230,6 +266,7 @@ describe('LudoStore', () => {
       expect(state.result).toBeNull();
       expect(state.error).toBeNull();
       expect(state.diceRolling).toBe(false);
+      expect(state.displayDice).toBeNull();
     });
   });
 });
