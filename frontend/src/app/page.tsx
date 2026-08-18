@@ -20,16 +20,24 @@ export default function HomePage() {
   const { isAuthenticated, hasHydrated, login, isLoading, error } = useAuthStore();
   const [showLogin, setShowLogin] = useState(false);
   const [username, setUsername] = useState('');
+  const [joinCode, setJoinCode] = useState('');
+  const [destination, setDestination] = useState('/games');
 
   useEffect(() => {
     if (hasHydrated && isAuthenticated) {
-      router.push('/games');
+      router.push(destination);
     }
-  }, [hasHydrated, isAuthenticated, router]);
+  }, [destination, hasHydrated, isAuthenticated, router]);
 
   const handleLogin = async () => {
     if (!username.trim()) return;
     await login(username.trim());
+  };
+
+  const joinRoom = () => {
+    if (!/^\d{6}$/.test(joinCode)) return;
+    setDestination(`/lobby/${joinCode}`);
+    setShowLogin(true);
   };
 
   return (
@@ -69,7 +77,7 @@ export default function HomePage() {
             GameVerse
           </h1>
           <p className="mt-5 max-w-xl text-lg leading-7 text-[#c9cec6]">
-            Bingo, chess, ludo, UNO and shared moments around one live table.
+            One hundred multiplayer games across strategy, cards, racing, puzzles, and party play.
           </p>
           <Button
             size="lg"
@@ -78,6 +86,25 @@ export default function HomePage() {
           >
             Enter GameVerse
           </Button>
+          <div className="mt-4 flex w-full max-w-md items-center gap-2 rounded-lg border border-white/12 bg-black/20 p-2">
+            <input
+              value={joinCode}
+              onChange={(event) => setJoinCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+              onKeyDown={(event) => event.key === 'Enter' && joinRoom()}
+              inputMode="numeric"
+              aria-label="Join lobby code"
+              placeholder="Enter room code"
+              className="h-11 min-w-0 flex-1 bg-transparent px-3 font-mono text-lg font-bold text-white outline-none placeholder:font-sans placeholder:text-sm placeholder:font-normal placeholder:text-white/35"
+            />
+            <button
+              type="button"
+              disabled={joinCode.length !== 6}
+              onClick={joinRoom}
+              className="h-11 rounded-lg bg-white/10 px-4 text-sm font-bold text-white disabled:opacity-35"
+            >
+              Join
+            </button>
+          </div>
         </motion.div>
       </section>
 

@@ -3,11 +3,13 @@
 import { motion } from 'framer-motion';
 import type { UnoPlayerPublic, UnoRoundResult } from '@/shared';
 import { unoStrings as S } from './strings';
+import { RematchButton } from '@/components/lobby/RematchButton';
 
 interface ScoreboardProps {
   result: UnoRoundResult;
   players: UnoPlayerPublic[];
   isMatch: boolean;
+  lobbyCode: string;
   onBackToLobby: () => void;
   onPlayAgain?: () => void;
 }
@@ -16,6 +18,7 @@ export function Scoreboard({
   result,
   players,
   isMatch,
+  lobbyCode,
   onBackToLobby,
   onPlayAgain,
 }: ScoreboardProps) {
@@ -65,6 +68,7 @@ export function Scoreboard({
 
         {isMatch ? (
           <div className="mt-6 flex justify-center gap-3">
+            <RematchButton lobbyCode={lobbyCode} />
             {onPlayAgain && (
               <button
                 onClick={onPlayAgain}

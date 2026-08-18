@@ -64,6 +64,29 @@ const BASE_RECTS: Record<LudoColor, { x: number; y: number; w: number; h: number
   [LudoColor.BLUE]:   { x: 0, y: 9, w: 6, h: 6 },
 };
 
+const FINISH_POS: Record<LudoColor, [number, number][]> = {
+  [LudoColor.RED]:    [[282,304],[282,356],[306,320],[306,340]],
+  [LudoColor.GREEN]:  [[356,282],[304,282],[340,306],[320,306]],
+  [LudoColor.YELLOW]: [[378,356],[378,304],[354,340],[354,320]],
+  [LudoColor.BLUE]:   [[304,378],[356,378],[320,354],[340,354]],
+};
+
+interface TokenLayout {
+  offset: [number, number];
+  scale: number;
+  hitRadius: number;
+  hitSize: [number, number];
+  stackCount: number;
+}
+
+const DEFAULT_TOKEN_LAYOUT: TokenLayout = {
+  offset: [0, 0],
+  scale: 1,
+  hitRadius: CELL * 0.44,
+  hitSize: [CELL * 0.88, CELL * 0.88],
+  stackCount: 1,
+};
+
 function getAbsPos(color: LudoColor, steps: number): number {
   if (steps <= 0 || steps > LUDO_MAIN_TRACK_STEPS) return -1;
   return (LUDO_START_POSITIONS[color] + steps - 1) % LUDO_BOARD_SIZE;
@@ -75,9 +98,7 @@ function pxForStep(step: number, color: LudoColor, tid: number): [number, number
     return [b[0] * CELL, b[1] * CELL];
   }
   if (step >= LUDO_FINISHED_STEPS) {
-    const off = [[-0.3,-0.3],[0.3,-0.3],[-0.3,0.3],[0.3,0.3]];
-    const o = off[tid];
-    return [(7 + o[0]) * CELL, (7 + o[1]) * CELL];
+    return FINISH_POS[color][tid];
   }
   if (step > LUDO_MAIN_TRACK_STEPS) {
     const hi = step - LUDO_MAIN_TRACK_STEPS - 1;
@@ -93,11 +114,47 @@ function pxForStep(step: number, color: LudoColor, tid: number): [number, number
   return [7.5 * CELL, 7.5 * CELL];
 }
 
+function sharedLocationKey(
+  color: LudoColor,
+  token: { id: number; stepsFromStart: number; state: string },
+): string | null {
+  if (token.state === 'base' || token.stepsFromStart === 0) return null;
+  if (token.state === 'home' || token.stepsFromStart >= LUDO_FINISHED_STEPS) return null;
+  if (token.stepsFromStart > LUDO_MAIN_TRACK_STEPS) {
+    return `lane:${color}:${token.stepsFromStart}`;
+  }
+  const absolutePosition = getAbsPos(color, token.stepsFromStart);
+  return absolutePosition >= 0 ? `track:${absolutePosition}` : null;
+}
+
+function compactTokenLayout(index: number, count: number): TokenLayout {
+  if (count <= 1) return DEFAULT_TOKEN_LAYOUT;
+
+  const columns = Math.ceil(Math.sqrt(count));
+  const rows = Math.ceil(count / columns);
+  const column = index % columns;
+  const row = Math.floor(index / columns);
+  const slotWidth = CELL / columns;
+  const slotHeight = CELL / rows;
+  const scale = columns === 2 ? (count === 2 ? 0.7 : 0.56) : columns === 3 ? 0.42 : 0.32;
+
+  return {
+    offset: [
+      (column - (columns - 1) / 2) * slotWidth,
+      (row - (rows - 1) / 2) * slotHeight,
+    ],
+    scale,
+    hitRadius: Math.max(4.5, Math.min(slotWidth, slotHeight) * 0.42),
+    hitSize: [slotWidth * 0.94, slotHeight * 0.94],
+    stackCount: count,
+  };
+}
+
 // --- Hop-animating token ---
 const HOP_MS = 100;
 
 function HoppingToken({
-  token, color, isMovable, isSelected, colorDef, pH, onClick,
+  token, color, isMovable, isSelected, colorDef, pH, layout, onClick,
 }: {
   token: { id: number; stepsFromStart: number; state: string };
   color: LudoColor;
@@ -105,6 +162,7 @@ function HoppingToken({
   isSelected: boolean;
   colorDef: (typeof COLORS)[LudoColor];
   pH: number;
+  layout: TokenLayout;
   onClick: () => void;
 }) {
   const prev = useRef(token.stepsFromStart);
@@ -147,34 +205,49 @@ function HoppingToken({
   }
 
   const c = colorDef;
+  const translatedX = pos[0] + layout.offset[0];
+  const translatedY = pos[1] + layout.offset[1];
   return (
     <g
       data-ludo-token={`${color}-${token.id}`}
-      transform={`translate(${pos[0]} ${pos[1]})`}
-      onClick={onClick}
+      data-stack-count={layout.stackCount}
+      transform={`translate(${translatedX} ${translatedY})`}
       style={{ cursor: isMovable ? 'pointer' : 'default' }}
     >
+      <rect
+        data-ludo-hitbox={`${color}-${token.id}`}
+        x={-layout.hitSize[0] / 2}
+        y={-layout.hitSize[1] / 2}
+        width={layout.hitSize[0]}
+        height={layout.hitSize[1]}
+        rx={Math.min(layout.hitSize[0], layout.hitSize[1]) * 0.2}
+        fill="transparent"
+        pointerEvents={isMovable ? 'all' : 'none'}
+        onClick={onClick}
+      />
       {isMovable && (
-        <circle cx={0} cy={pH * 0.1} r={CELL * 0.48}
+        <circle cx={0} cy={0} r={layout.hitRadius}
           fill="none" stroke="#fff" strokeWidth={2} opacity={0.6}
-          className="ludo-pulse" />
+          className="ludo-pulse" pointerEvents="none" />
       )}
       {isSelected && (
-        <circle cx={0} cy={pH * 0.1} r={CELL * 0.5}
+        <circle cx={0} cy={0} r={layout.hitRadius}
           fill="none" stroke="#fff" strokeWidth={2.5} opacity={0.9}
-          filter="url(#glow)" />
+          filter="url(#glow)" pointerEvents="none" />
       )}
-      <g filter="url(#tokenShadow)">
-        <ellipse cx={0} cy={pH * 0.42} rx={pH * 0.38} ry={pH * 0.14} fill={c.token} />
-        <path d={`M ${-pH*0.28} ${pH*0.38} Q ${-pH*0.18} ${-pH*0.05} 0 ${-pH*0.15} Q ${pH*0.18} ${-pH*0.05} ${pH*0.28} ${pH*0.38} Z`} fill={c.bg} />
-        <circle cx={0} cy={-pH * 0.28} r={pH * 0.2} fill={c.bg} />
-        <circle cx={-pH * 0.06} cy={-pH * 0.34} r={pH * 0.07} fill="#fff" opacity={0.5} />
-        <path d={`M ${-pH*0.08} ${pH*0.3} Q ${-pH*0.04} ${pH*0.05} 0 ${-pH*0.1} Q ${pH*0.04} ${pH*0.05} ${pH*0.08} ${pH*0.3} Z`} fill="#fff" opacity={0.18} />
+      <g data-token-scale={layout.scale} transform={`scale(${layout.scale})`} pointerEvents="none">
+        <g filter="url(#tokenShadow)">
+          <ellipse cx={0} cy={pH * 0.42} rx={pH * 0.38} ry={pH * 0.14} fill={c.token} />
+          <path d={`M ${-pH*0.28} ${pH*0.38} Q ${-pH*0.18} ${-pH*0.05} 0 ${-pH*0.15} Q ${pH*0.18} ${-pH*0.05} ${pH*0.28} ${pH*0.38} Z`} fill={c.bg} />
+          <circle cx={0} cy={-pH * 0.28} r={pH * 0.2} fill={c.bg} />
+          <circle cx={-pH * 0.06} cy={-pH * 0.34} r={pH * 0.07} fill="#fff" opacity={0.5} />
+          <path d={`M ${-pH*0.08} ${pH*0.3} Q ${-pH*0.04} ${pH*0.05} 0 ${-pH*0.1} Q ${pH*0.04} ${pH*0.05} ${pH*0.08} ${pH*0.3} Z`} fill="#fff" opacity={0.18} />
+        </g>
+        <text x={0} y={pH * 0.2} textAnchor="middle" dominantBaseline="central"
+          fontSize="11" fontWeight="bold" fill="#fff">
+          {token.id + 1}
+        </text>
       </g>
-      <text x={0} y={pH * 0.2} textAnchor="middle" dominantBaseline="central"
-        fontSize="11" fontWeight="bold" fill="#fff">
-        {token.id + 1}
-      </text>
     </g>
   );
 }
@@ -237,6 +310,45 @@ export function LudoBoard({
 
   const myPlayer = players.find((p) => p.color === myColor);
   const activeColors = useMemo(() => new Set(players.map((p) => p.color)), [players]);
+  const tokenLayouts = useMemo(() => {
+    const layouts = new Map<string, TokenLayout>();
+    const groups = new Map<string, Array<{ playerId: string; tokenId: number; color: LudoColor }>>();
+
+    for (const player of players) {
+      for (const token of player.tokens) {
+        const tokenKey = `${player.id}:${token.id}`;
+        if (token.state === 'home' || token.stepsFromStart >= LUDO_FINISHED_STEPS) {
+          layouts.set(tokenKey, {
+            ...DEFAULT_TOKEN_LAYOUT,
+            scale: 0.56,
+            hitRadius: CELL * 0.22,
+            hitSize: [CELL * 0.44, CELL * 0.44],
+          });
+          continue;
+        }
+        const locationKey = sharedLocationKey(player.color, token);
+        if (!locationKey) {
+          layouts.set(tokenKey, DEFAULT_TOKEN_LAYOUT);
+          continue;
+        }
+        const group = groups.get(locationKey) ?? [];
+        group.push({ playerId: player.id, tokenId: token.id, color: player.color });
+        groups.set(locationKey, group);
+      }
+    }
+
+    for (const group of groups.values()) {
+      group.sort((left, right) => {
+        const colorDifference = ALL_COLORS.indexOf(left.color) - ALL_COLORS.indexOf(right.color);
+        return colorDifference || left.tokenId - right.tokenId;
+      });
+      group.forEach((token, index) => {
+        layouts.set(`${token.playerId}:${token.tokenId}`, compactTokenLayout(index, group.length));
+      });
+    }
+
+    return layouts;
+  }, [players]);
   const pH = CELL * 0.75;
 
   return (
@@ -322,6 +434,7 @@ export function LudoBoard({
               <HoppingToken key={`tok-${p.id}-${token.id}`}
                 token={token} color={p.color} isMovable={isMovable}
                 isSelected={isSelected} colorDef={c} pH={pH}
+                layout={tokenLayouts.get(`${p.id}:${token.id}`) ?? DEFAULT_TOKEN_LAYOUT}
                 onClick={() => handleTokenClick(p.id, token.id)} />
             );
           });

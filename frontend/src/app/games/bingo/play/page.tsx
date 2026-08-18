@@ -9,6 +9,7 @@ import { NumberDisplay } from '@/components/bingo/NumberDisplay';
 import { Button } from '@/components/ui/Button';
 import { VoiceChat } from '@/components/voice/VoiceChat';
 import { GameChat } from '@/components/chat/GameChat';
+import { RematchButton } from '@/components/lobby/RematchButton';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { useSocket } from '@/hooks/useSocket';
@@ -211,6 +212,7 @@ function BingoPlayContent() {
                   : 'Better luck next time — every loss is a lesson.'}
               </p>
               <div className="flex gap-3 justify-center">
+                <RematchButton lobbyCode={lobbyCode} />
                 <Button onClick={handleBackToLobby}>
                   🔄 Back to Lobby
                 </Button>

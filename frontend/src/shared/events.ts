@@ -11,6 +11,8 @@ export const LOBBY_EVENTS = {
   START_GAME: 'lobby:start_game',
   GAME_STARTING: 'lobby:game_starting',
   BACK_TO_LOBBY: 'lobby:back_to_lobby',
+  REMATCH_REQUEST: 'lobby:rematch_request',
+  REMATCH_STATE: 'lobby:rematch_state',
   CHAT_MESSAGE: 'lobby:chat_message',
 } as const;
 
@@ -35,6 +37,13 @@ export const LUDO_EVENTS = {
   MOVE_TOKEN: 'ludo:move_token',
   ADD_BOT: 'ludo:add_bot',
   REMOVE_BOT: 'ludo:remove_bot',
+} as const;
+
+export const ARCADE_EVENTS = {
+  STATE: 'arcade:state',
+  ACTION: 'arcade:action',
+  RESULT: 'arcade:result',
+  ERROR: 'arcade:error',
 } as const;
 
 // ─── Chess-Specific Events ───
@@ -126,5 +135,6 @@ export const VOICE_EVENTS = {
 export const AUTH_EVENTS = {
   AUTHENTICATE: 'auth:authenticate',
   AUTHENTICATED: 'auth:authenticated',
+  SESSION_INVALID: 'auth:session_invalid',
   ERROR: 'auth:error',
 } as const;

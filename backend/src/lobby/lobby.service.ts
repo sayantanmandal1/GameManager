@@ -18,6 +18,8 @@ import {
   UNO_MODES,
   UNO_CONSTANTS,
   TicTacToeMode,
+  getDefaultGameDefinition,
+  getGameDefinition,
 } from '../shared';
 
 @Injectable()
@@ -44,29 +46,46 @@ export class LobbyService {
     timeControl?: TimeControl | null,
     unoRules?: UnoRules | null,
     tictactoeMode?: TicTacToeMode | null,
+    gameKey?: string,
   ): Promise<Lobby> {
     const host = await this.userService.findById(hostId);
     if (!host) throw new Error('User not found');
 
+    const definition = gameKey
+      ? getGameDefinition(gameKey)
+      : getDefaultGameDefinition(gameType);
+    if (!definition || (gameKey && definition.gameType !== gameType)) {
+      throw new Error('invalid_game_key');
+    }
+    if (definition.minPlayers < 2) throw new Error('invalid_game_key');
+    const resolvedGameType = definition.gameType;
+    const resolvedGameKey = definition.key;
     const code = this.generateCode();
     // Chess and Photobooth are strictly 2-player; UNO is 2–4; ignore bogus
     // client overrides in every case.
     let requestedMax: number;
     if (
-      gameType === GameType.CHESS ||
-      gameType === GameType.PHOTOBOOTH ||
-      gameType === GameType.TICTACTOE ||
-      gameType === GameType.CONNECTFOUR
+      resolvedGameType === GameType.CHESS ||
+      resolvedGameType === GameType.PHOTOBOOTH ||
+      resolvedGameType === GameType.TICTACTOE ||
+      resolvedGameType === GameType.CONNECTFOUR
     ) {
       requestedMax = 2;
-    } else if (gameType === GameType.UNO) {
+    } else if (resolvedGameType === GameType.UNO) {
+      const unoMaxPlayers = gameKey
+        ? definition.maxPlayers
+        : maxPlayers || definition.maxPlayers;
       requestedMax = Math.min(
-        Math.max(maxPlayers || UNO_CONSTANTS.MAX_PLAYERS, UNO_CONSTANTS.MIN_PLAYERS),
+        Math.max(unoMaxPlayers, UNO_CONSTANTS.MIN_PLAYERS),
         UNO_CONSTANTS.MAX_PLAYERS,
       );
+    } else if (resolvedGameType === GameType.LUDO) {
+      requestedMax = Math.min(definition.maxPlayers, 4);
+    } else if (resolvedGameType === GameType.ARCADE) {
+      requestedMax = definition.maxPlayers;
     } else {
       requestedMax = Math.min(
-        maxPlayers || GAME_CONSTANTS.DEFAULT_MAX_PLAYERS,
+        gameKey ? definition.maxPlayers : maxPlayers || definition.maxPlayers,
         GAME_CONSTANTS.DEFAULT_MAX_PLAYERS,
       );
     }
@@ -74,17 +93,25 @@ export class LobbyService {
     // SECURITY_NOTE: validate timeControl shape server-side; only honor it
     // for chess lobbies (design §9, security). Reject bogus values.
     const tc =
-      gameType === GameType.CHESS
-        ? LobbyService.validateTimeControl(timeControl ?? null)
+      resolvedGameType === GameType.CHESS
+        ? LobbyService.validateTimeControl(
+            gameKey
+              ? (definition.rules.timeControl as TimeControl | null)
+              : timeControl ?? null,
+          )
         : null;
     // SECURITY_NOTE: validate UNO rules against an allow-list (target score,
     // boolean stacking) so a crafted payload can't smuggle arbitrary config.
     const uno =
-      gameType === GameType.UNO
-        ? LobbyService.validateUnoRules(unoRules ?? null)
+      resolvedGameType === GameType.UNO
+        ? LobbyService.validateUnoRules(
+            gameKey
+              ? (definition.rules.unoRules as UnoRules)
+              : unoRules ?? null,
+          )
         : null;
     const tttMode =
-      gameType === GameType.TICTACTOE
+      resolvedGameType === GameType.TICTACTOE
         ? LobbyService.validateTicTacToeMode(tictactoeMode)
         : null;
 
@@ -101,7 +128,8 @@ export class LobbyService {
       id: crypto.randomUUID(),
       code,
       hostId,
-      gameType,
+      gameType: resolvedGameType,
+      gameKey: resolvedGameKey,
       players: [hostPlayer],
       status: LobbyStatus.WAITING,
       maxPlayers: requestedMax,
@@ -117,6 +145,7 @@ export class LobbyService {
       code: lobby.code,
       hostId: lobby.hostId,
       gameType: lobby.gameType,
+      gameKey: lobby.gameKey,
       playerIds: [hostId],
       status: lobby.status,
       maxPlayers: lobby.maxPlayers,

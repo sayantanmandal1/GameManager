@@ -12,6 +12,7 @@ import { PhotoboothEngine } from './engines/photobooth/photobooth.engine';
 import { UnoEngine, UnoActionResult } from './engines/uno/uno.engine';
 import { TicTacToeEngine } from './engines/tictactoe/tictactoe.engine';
 import { ConnectFourEngine } from './engines/connectfour/connectfour.engine';
+import { ArcadeEngine } from './engines/arcade/arcade.engine';
 import {
   GameType,
   GameStatus,
@@ -49,6 +50,11 @@ import {
   ConnectFourGameState,
   ConnectFourPlayerView,
   ConnectFourResult,
+  ArcadeAction,
+  ArcadeGameState,
+  ArcadePlayerView,
+  ArcadeResult,
+  getGameDefinition,
 } from '../shared';
 
 export interface ChessMoveApplied {
@@ -82,6 +88,7 @@ export class GameService {
   private unoGameStates = new Map<string, UnoGameState>();
   private tictactoeGameStates = new Map<string, TicTacToeGameState>();
   private connectfourGameStates = new Map<string, ConnectFourGameState>();
+  private arcadeGameStates = new Map<string, ArcadeGameState>();
   /** uno gameId → epoch ms to auto-start the next round (ROUND_OVER interstitial). */
   private unoNextRoundAt = new Map<string, number>();
   /** lobbyCode → gameId lookup */
@@ -95,6 +102,7 @@ export class GameService {
   private unoEngine = new UnoEngine();
   private tictactoeEngine = new TicTacToeEngine();
   private connectfourEngine = new ConnectFourEngine();
+  private arcadeEngine = new ArcadeEngine();
 
   /** Callbacks set by the gateway to broadcast state */
   onStateChanged: ((gameId: string, lobbyCode: string) => void) | null = null;
@@ -148,6 +156,10 @@ export class GameService {
   onConnectFourGameFinished:
     | ((gameId: string, lobbyCode: string, result: ConnectFourResult) => void)
     | null = null;
+  onArcadeStateChanged: ((gameId: string, lobbyCode: string) => void) | null = null;
+  onArcadeGameFinished:
+    | ((gameId: string, lobbyCode: string, result: ArcadeResult) => void)
+    | null = null;
 
   constructor(
     @InjectRepository(GameEntity)
@@ -173,6 +185,7 @@ export class GameService {
     const entity = this.gameRepo.create({
       lobbyId: lobby.id,
       gameType: GameType.BINGO,
+      gameKey: lobby.gameKey ?? GameType.BINGO,
       playerIds,
       status: GameStatus.IN_PROGRESS,
     });
@@ -314,6 +327,7 @@ export class GameService {
     const entity = this.gameRepo.create({
       lobbyId: lobby.id,
       gameType: GameType.TICTACTOE,
+      gameKey: lobby.gameKey ?? GameType.TICTACTOE,
       playerIds,
       status: GameStatus.IN_PROGRESS,
     });
@@ -415,6 +429,7 @@ export class GameService {
     const entity = this.gameRepo.create({
       lobbyId: lobby.id,
       gameType: GameType.CONNECTFOUR,
+      gameKey: lobby.gameKey ?? GameType.CONNECTFOUR,
       playerIds,
       status: GameStatus.IN_PROGRESS,
     });
@@ -495,6 +510,112 @@ export class GameService {
     this.onConnectFourGameFinished?.(gameId, lobbyCode, result);
   }
 
+  async startArcadeGame(
+    lobbyCode: string,
+  ): Promise<{ gameId: string; state: ArcadeGameState }> {
+    const lobby = await this.lobbyService.getLobby(lobbyCode);
+    if (!lobby || lobby.gameType !== GameType.ARCADE || !lobby.gameKey) {
+      throw new Error('Arcade lobby not found');
+    }
+    const definition = getGameDefinition(lobby.gameKey);
+    if (!definition || definition.gameType !== GameType.ARCADE) {
+      throw new Error('Arcade game not found');
+    }
+    const playerIds = lobby.players.map((player) => player.id);
+    const playerNames = Object.fromEntries(
+      lobby.players.map((player) => [player.id, player.username]),
+    );
+    const entity = this.gameRepo.create({
+      lobbyId: lobby.id,
+      gameType: GameType.ARCADE,
+      gameKey: lobby.gameKey,
+      playerIds,
+      status: GameStatus.IN_PROGRESS,
+    });
+    const saved = await this.gameRepo.save(entity);
+    const state = this.arcadeEngine.initGame(
+      saved.id,
+      lobbyCode,
+      definition as Parameters<ArcadeEngine['initGame']>[2],
+      playerIds,
+      playerNames,
+    );
+
+    this.arcadeGameStates.set(saved.id, state);
+    this.lobbyGameMap.set(lobbyCode, saved.id);
+    this.lobbyGameTypeMap.set(lobbyCode, GameType.ARCADE);
+    await this.redis.set(`game:${saved.id}`, JSON.stringify(state), 'EX', 3600);
+    await this.lobbyService.setStatus(lobbyCode, LobbyStatus.IN_PROGRESS);
+    return { gameId: saved.id, state };
+  }
+
+  getArcadeState(gameId: string): ArcadeGameState | undefined {
+    return this.arcadeGameStates.get(gameId);
+  }
+
+  getArcadePlayerView(gameId: string, playerId: string): ArcadePlayerView | null {
+    const state = this.arcadeGameStates.get(gameId);
+    return state ? this.arcadeEngine.getPlayerView(state, playerId) : null;
+  }
+
+  async arcadeAction(
+    gameId: string,
+    playerId: string,
+    action: ArcadeAction,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (
+      this.lobbyGameMap.get(lobbyCode) !== gameId ||
+      this.lobbyGameTypeMap.get(lobbyCode) !== GameType.ARCADE
+    ) {
+      return { ok: false, error: 'Game not found' };
+    }
+    const state = this.arcadeGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+    const outcome = this.arcadeEngine.applyAction(state, playerId, action);
+    if (!outcome.valid) return { ok: false, error: outcome.reason };
+    await this.redis.set(`game:${gameId}`, JSON.stringify(state), 'EX', 3600);
+    if (outcome.result) {
+      await this.finalizeArcade(gameId, lobbyCode, outcome.result);
+    } else {
+      this.onArcadeStateChanged?.(gameId, lobbyCode);
+    }
+    return { ok: true };
+  }
+
+  async arcadeSurrender(
+    gameId: string,
+    playerId: string,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (this.lobbyGameMap.get(lobbyCode) !== gameId) {
+      return { ok: false, error: 'Game not found' };
+    }
+    const state = this.arcadeGameStates.get(gameId);
+    if (!state) return { ok: false, error: 'Game not found' };
+    const outcome = this.arcadeEngine.surrender(state, playerId);
+    if (!outcome.valid || !outcome.result) {
+      return { ok: false, error: outcome.reason };
+    }
+    await this.redis.set(`game:${gameId}`, JSON.stringify(state), 'EX', 3600);
+    await this.finalizeArcade(gameId, lobbyCode, outcome.result);
+    return { ok: true };
+  }
+
+  private async finalizeArcade(
+    gameId: string,
+    lobbyCode: string,
+    result: ArcadeResult,
+  ): Promise<void> {
+    await this.gameRepo.update(gameId, {
+      winnerId: result.winnerId,
+      status: GameStatus.FINISHED,
+      finishedAt: new Date(),
+    });
+    await this.lobbyService.setStatus(lobbyCode, LobbyStatus.WAITING);
+    this.onArcadeGameFinished?.(gameId, lobbyCode, result);
+  }
+
   async bingoSurrender(
     gameId: string,
     playerId: string,
@@ -543,6 +664,7 @@ export class GameService {
     const entity = this.gameRepo.create({
       lobbyId: lobby.id,
       gameType: GameType.LUDO,
+      gameKey: lobby.gameKey ?? GameType.LUDO,
       playerIds,
       status: GameStatus.IN_PROGRESS,
     });
@@ -750,6 +872,7 @@ export class GameService {
     const entity = this.gameRepo.create({
       lobbyId: lobby.id,
       gameType: GameType.CHESS,
+      gameKey: lobby.gameKey ?? GameType.CHESS,
       playerIds,
       status: GameStatus.IN_PROGRESS,
       startedAt: new Date(),
@@ -1331,6 +1454,7 @@ export class GameService {
     const entity = this.gameRepo.create({
       lobbyId: lobby.id,
       gameType: GameType.UNO,
+      gameKey: lobby.gameKey ?? GameType.UNO,
       playerIds,
       status: GameStatus.IN_PROGRESS,
     });

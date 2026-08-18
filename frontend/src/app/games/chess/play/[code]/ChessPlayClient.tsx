@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
+import { RematchButton } from '@/components/lobby/RematchButton';
 import { Card } from '@/components/ui/Card';
 import { VoiceChat } from '@/components/voice/VoiceChat';
 import {
@@ -288,9 +289,12 @@ export default function ChessPlayClient({ code }: ChessPlayClientProps) {
               <p className="text-white/60 mb-4">
                 {chessStrings.gameOver.termination[result.termination]}
               </p>
-              <Button onClick={handleBackToLobby}>
-                {chessStrings.gameOver.returnToLobby}
-              </Button>
+              <div className="flex justify-center gap-3">
+                {role !== 'spectator' && <RematchButton lobbyCode={code} />}
+                <Button onClick={handleBackToLobby}>
+                  {chessStrings.gameOver.returnToLobby}
+                </Button>
+              </div>
             </motion.div>
           </motion.div>
         )}

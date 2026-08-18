@@ -191,6 +191,66 @@ describe('GameService', () => {
     });
   });
 
+  describe('Arcade lifecycle', () => {
+    const arcadeLobby = {
+      ...fakeLobby,
+      gameType: GameType.ARCADE,
+      gameKey: 'take-15',
+      maxPlayers: 2,
+    };
+
+    it('starts a catalog-backed arcade game and binds it to the lobby', async () => {
+      mockLobbyService.getLobby!.mockResolvedValue(arcadeLobby);
+
+      const { gameId, state } = await service.startArcadeGame('123456');
+
+      expect(gameId).toBe('game1');
+      expect(state.gameKey).toBe('take-15');
+      expect(state.takeaway?.heaps).toEqual([15]);
+      expect(service.getGameTypeForLobby('123456')).toBe(GameType.ARCADE);
+      expect(service.getArcadePlayerView(gameId, 'player1')?.canAct).toBe(true);
+      expect(mockLobbyService.setStatus).toHaveBeenCalledWith(
+        '123456',
+        LobbyStatus.IN_PROGRESS,
+      );
+    });
+
+    it('rejects actions whose game is not bound to the supplied lobby', async () => {
+      mockLobbyService.getLobby!.mockResolvedValue(arcadeLobby);
+      const { gameId } = await service.startArcadeGame('123456');
+
+      await expect(
+        service.arcadeAction(gameId, 'player1', { type: 'take', heap: 0, count: 1 }, '654321'),
+      ).resolves.toEqual({ ok: false, error: 'Game not found' });
+    });
+
+    it('persists and emits a terminal arcade result', async () => {
+      mockLobbyService.getLobby!.mockResolvedValue(arcadeLobby);
+      const { gameId, state } = await service.startArcadeGame('123456');
+      state.takeaway!.heaps[0] = 1;
+      const finished = jest.fn();
+      service.onArcadeGameFinished = finished;
+
+      await service.arcadeAction(
+        gameId,
+        'player1',
+        { type: 'take', heap: 0, count: 1 },
+        '123456',
+      );
+
+      expect(mockGameRepo.update).toHaveBeenCalledWith(
+        gameId,
+        expect.objectContaining({ winnerId: 'player1', status: GameStatus.FINISHED }),
+      );
+      expect(mockLobbyService.setStatus).toHaveBeenCalledWith('123456', LobbyStatus.WAITING);
+      expect(finished).toHaveBeenCalledWith(
+        gameId,
+        '123456',
+        expect.objectContaining({ winnerId: 'player1' }),
+      );
+    });
+  });
+
   describe('placeNumber', () => {
     it('should place a number and return ok', async () => {
       mockLobbyService.getLobby!.mockResolvedValue(fakeLobby);

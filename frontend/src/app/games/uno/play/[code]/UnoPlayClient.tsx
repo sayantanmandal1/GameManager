@@ -414,10 +414,10 @@ export default function UnoPlayClient({ code }: Props) {
 
       {/* Scoreboards */}
       {matchResult && (
-        <Scoreboard result={matchResult} players={view.players} isMatch onBackToLobby={handleBackToLobby} />
+        <Scoreboard result={matchResult} players={view.players} isMatch lobbyCode={code} onBackToLobby={handleBackToLobby} />
       )}
       {!matchResult && roundResult && view.phase === UnoPhase.ROUND_OVER && (
-        <Scoreboard result={roundResult} players={view.players} isMatch={false} onBackToLobby={handleBackToLobby} />
+        <Scoreboard result={roundResult} players={view.players} isMatch={false} lobbyCode={code} onBackToLobby={handleBackToLobby} />
       )}
 
       {/* Event toast */}

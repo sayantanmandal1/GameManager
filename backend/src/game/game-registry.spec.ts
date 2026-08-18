@@ -3,6 +3,7 @@ import { GameType } from '../shared';
 import { BingoEngine } from './engines/bingo/bingo.engine';
 import { TicTacToeEngine } from './engines/tictactoe/tictactoe.engine';
 import { ConnectFourEngine } from './engines/connectfour/connectfour.engine';
+import { ArcadeEngine } from './engines/arcade/arcade.engine';
 
 describe('GameRegistry', () => {
   let registry: GameRegistry;
@@ -22,6 +23,10 @@ describe('GameRegistry', () => {
 
   it('should return ConnectFourEngine for CONNECTFOUR game type', () => {
     expect(registry.getEngine(GameType.CONNECTFOUR)).toBeInstanceOf(ConnectFourEngine);
+  });
+
+  it('should return ArcadeEngine for ARCADE game type', () => {
+    expect(registry.getEngine(GameType.ARCADE)).toBeInstanceOf(ArcadeEngine);
   });
 
   it('should throw for unknown game type', () => {

@@ -14,14 +14,16 @@ import type { WebViewNavigation } from 'react-native-webview';
 import { WEB_ORIGIN, WEB_URL } from '../config';
 import { colors } from '../theme';
 import type { GuestSession, WebDestination } from '../types';
+import { isGuestSession } from '../services/auth';
 
 interface GameWebViewProps {
   destination: WebDestination;
   session: GuestSession;
+  onSessionChange: (session: GuestSession) => Promise<void>;
   onClose: () => void;
 }
 
-export function GameWebView({ destination, session, onClose }: GameWebViewProps) {
+export function GameWebView({ destination, session, onSessionChange, onClose }: GameWebViewProps) {
   const webView = useRef<WebView>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -50,6 +52,18 @@ export function GameWebView({ destination, session, onClose }: GameWebViewProps)
     if (request.url === 'about:blank' || request.url.startsWith(WEB_ORIGIN)) return true;
     if (request.url.startsWith('https://')) Linking.openURL(request.url).catch(() => undefined);
     return false;
+  };
+
+  const handleMessage = (raw: string) => {
+    if (raw.length > 12_000) return;
+    try {
+      const message = JSON.parse(raw) as { type?: unknown; session?: unknown };
+      if (message.type === 'auth-session' && isGuestSession(message.session)) {
+        void onSessionChange(message.session);
+      }
+    } catch {
+      // Ignore non-JSON messages from game pages.
+    }
   };
 
   return (
@@ -89,6 +103,7 @@ export function GameWebView({ destination, session, onClose }: GameWebViewProps)
         originWhitelist={[`${WEB_ORIGIN}/*`]}
         onShouldStartLoadWithRequest={allowNavigation}
         onNavigationStateChange={handleNavigation}
+        onMessage={(event) => handleMessage(event.nativeEvent.data)}
         onLoadStart={() => {
           setLoading(true);
           setLoadError(null);
@@ -138,7 +153,7 @@ function createAuthFallbackInjection(session: GuestSession): string {
     (function () {
       try {
         var expected = ${JSON.stringify(storageValue)};
-        if (window.localStorage.getItem('auth-storage') !== expected) {
+        if (!window.localStorage.getItem('auth-storage')) {
           window.localStorage.setItem('auth-storage', expected);
           window.location.reload();
         }

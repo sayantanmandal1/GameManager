@@ -6,6 +6,7 @@ import { TicTacToeBoard } from '@/components/tictactoe/TicTacToeBoard';
 import { GameChat } from '@/components/chat/GameChat';
 import { VoiceChat } from '@/components/voice/VoiceChat';
 import { Button } from '@/components/ui/Button';
+import { RematchButton } from '@/components/lobby/RematchButton';
 import { useAuthStore } from '@/stores/authStore';
 import { useTicTacToeStore } from '@/stores/tictactoeStore';
 import { useSocket } from '@/hooks/useSocket';
@@ -117,6 +118,7 @@ export default function TicTacToePlayClient({ code }: { code: string }) {
               <p className="text-game-muted">Waiting for {current?.name ?? 'opponent'}…</p>
             )}
             {error && <p role="alert" className="mt-1 text-sm text-red-300">{error}</p>}
+            {finished && <RematchButton lobbyCode={code} className="mt-4" />}
           </div>
         </section>
 

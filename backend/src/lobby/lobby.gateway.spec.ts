@@ -3,19 +3,29 @@ import { LobbyService } from './lobby.service';
 import { GameService } from '../game/game.service';
 import { UserService } from '../user/user.service';
 import { JwtService } from '@nestjs/jwt';
-import { LOBBY_EVENTS, LobbyStatus } from '../shared';
+import { AUTH_EVENTS, LOBBY_EVENTS, LobbyStatus } from '../shared';
 
-describe('LobbyGateway disconnect handling', () => {
+describe('LobbyGateway connection handling', () => {
   let gateway: LobbyGateway;
   let lobbyService: {
     getLobby: jest.Mock;
     leaveLobby: jest.Mock;
+    setReady: jest.Mock;
   };
   let roomEmit: jest.Mock;
+  let roomSockets: Array<ReturnType<typeof makeSocket>>;
+  let gameService: { getGameIdForLobby: jest.Mock };
+  let userService: {
+    findById: jest.Mock;
+    updateLastActive: jest.Mock;
+  };
 
   const makeSocket = () => ({
     id: 'socket-1',
     data: { user: { sub: 'user-1', username: 'Alice' } },
+    emit: jest.fn(),
+    disconnect: jest.fn(),
+    join: jest.fn(),
     leave: jest.fn(),
   });
 
@@ -23,17 +33,180 @@ describe('LobbyGateway disconnect handling', () => {
     lobbyService = {
       getLobby: jest.fn(),
       leaveLobby: jest.fn(),
+      setReady: jest.fn().mockResolvedValue(undefined),
     };
     roomEmit = jest.fn();
+    roomSockets = [];
+    userService = {
+      findById: jest.fn().mockResolvedValue({ id: 'user-1' }),
+      updateLastActive: jest.fn().mockResolvedValue(undefined),
+    };
+    gameService = {
+      getGameIdForLobby: jest.fn().mockReturnValue('game-1'),
+    };
     gateway = new LobbyGateway(
       lobbyService as unknown as LobbyService,
       {} as JwtService,
-      {} as GameService,
-      {} as UserService,
+      gameService as unknown as GameService,
+      userService as unknown as UserService,
     );
     gateway.server = {
       to: jest.fn().mockReturnValue({ emit: roomEmit }),
+      in: jest.fn().mockReturnValue({ fetchSockets: jest.fn().mockImplementation(async () => roomSockets) }),
     } as never;
+  });
+
+  it('accepts a persisted session whose guest user still exists', async () => {
+    const socket = makeSocket();
+
+    await gateway.handleConnection(socket as never);
+
+    expect(userService.findById).toHaveBeenCalledWith('user-1');
+    expect(userService.updateLastActive).toHaveBeenCalledWith('user-1');
+    expect(socket.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('invalidates a persisted session whose guest user was cleaned up', async () => {
+    const socket = makeSocket();
+    userService.findById.mockResolvedValue(null);
+
+    await gateway.handleConnection(socket as never);
+
+    expect(socket.emit).toHaveBeenCalledWith(AUTH_EVENTS.SESSION_INVALID, {
+      reason: 'user_not_found',
+    });
+    expect(socket.disconnect).toHaveBeenCalledWith(true);
+  });
+
+  it('does not classify a database outage as an invalid user session', async () => {
+    const socket = makeSocket();
+    userService.findById.mockRejectedValue(new Error('database unavailable'));
+
+    await gateway.handleConnection(socket as never);
+
+    expect(socket.emit).toHaveBeenCalledWith(AUTH_EVENTS.ERROR, {
+      message: 'Session validation unavailable',
+    });
+    expect(socket.emit).not.toHaveBeenCalledWith(
+      AUTH_EVENTS.SESSION_INVALID,
+      expect.anything(),
+    );
+    expect(socket.disconnect).toHaveBeenCalledWith(true);
+  });
+
+  it('broadcasts rematch vote progress without restarting early', async () => {
+    const socket = makeSocket();
+    gateway.getSocketLobbyMap().set(socket.id, '123456');
+    lobbyService.getLobby.mockResolvedValue({
+      code: '123456',
+      hostId: 'user-1',
+      status: LobbyStatus.WAITING,
+      players: [
+        { id: 'user-1', isHost: true, isReady: false },
+        { id: 'user-2', isHost: false, isReady: false },
+      ],
+    });
+    const start = jest.spyOn(gateway, 'handleStartGame').mockResolvedValue();
+
+    await gateway.handleRematchRequest(socket as never);
+
+    expect(roomEmit).toHaveBeenCalledWith(LOBBY_EVENTS.REMATCH_STATE, {
+      requestedBy: ['user-1'],
+      required: 2,
+    });
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it('restores lobby-room membership when a refreshed player votes by code', async () => {
+    const socket = makeSocket();
+    lobbyService.getLobby.mockResolvedValue({
+      code: '123456',
+      hostId: 'user-1',
+      status: LobbyStatus.WAITING,
+      players: [
+        { id: 'user-1', isHost: true, isReady: false },
+        { id: 'user-2', isHost: false, isReady: false },
+      ],
+    });
+
+    await gateway.handleRematchRequest(socket as never, { lobbyCode: '123456' });
+
+    expect(socket.join).toHaveBeenCalledWith('lobby:123456');
+    expect(gateway.getSocketLobbyMap().get(socket.id)).toBe('123456');
+    expect(roomEmit).toHaveBeenCalledWith(LOBBY_EVENTS.REMATCH_STATE, {
+      requestedBy: ['user-1'],
+      required: 2,
+    });
+  });
+
+  it('starts a fresh game through the host socket after every player votes', async () => {
+    const hostSocket = makeSocket();
+    const guestSocket = {
+      ...makeSocket(),
+      id: 'socket-2',
+      data: { user: { sub: 'user-2', username: 'Bob' } },
+    };
+    gateway.getSocketLobbyMap().set(hostSocket.id, '123456');
+    gateway.getSocketLobbyMap().set(guestSocket.id, '123456');
+    roomSockets = [hostSocket, guestSocket];
+    lobbyService.getLobby.mockResolvedValue({
+      code: '123456',
+      hostId: 'user-1',
+      status: LobbyStatus.WAITING,
+      players: [
+        { id: 'user-1', isHost: true, isReady: false },
+        { id: 'user-2', isHost: false, isReady: false },
+      ],
+    });
+    const start = jest.spyOn(gateway, 'handleStartGame').mockResolvedValue();
+
+    await gateway.handleRematchRequest(hostSocket as never);
+    await gateway.handleRematchRequest(guestSocket as never);
+
+    expect(roomEmit).toHaveBeenCalledWith(LOBBY_EVENTS.REMATCH_STATE, {
+      requestedBy: [],
+      required: 2,
+      starting: true,
+    });
+    expect(start).toHaveBeenCalledWith(hostSocket);
+    expect(lobbyService.setReady).toHaveBeenCalledWith('123456', 'user-2', true);
+  });
+
+  it('rejects rematch votes before the current game ends', async () => {
+    const socket = makeSocket();
+    gateway.getSocketLobbyMap().set(socket.id, '123456');
+    lobbyService.getLobby.mockResolvedValue({
+      code: '123456',
+      hostId: 'user-1',
+      status: LobbyStatus.IN_PROGRESS,
+      players: [{ id: 'user-1' }, { id: 'user-2' }],
+    });
+
+    await gateway.handleRematchRequest(socket as never);
+
+    expect(socket.emit).toHaveBeenCalledWith(LOBBY_EVENTS.ERROR, {
+      message: 'Rematch is available after the current game ends',
+      code: 'REMATCH_UNAVAILABLE',
+    });
+  });
+
+  it('does not let rematch voting bypass the first game ready flow', async () => {
+    const socket = makeSocket();
+    gateway.getSocketLobbyMap().set(socket.id, '123456');
+    gameService.getGameIdForLobby.mockReturnValue(undefined);
+    lobbyService.getLobby.mockResolvedValue({
+      code: '123456',
+      hostId: 'user-1',
+      status: LobbyStatus.WAITING,
+      players: [{ id: 'user-1' }, { id: 'user-2' }],
+    });
+
+    await gateway.handleRematchRequest(socket as never, { lobbyCode: '123456' });
+
+    expect(socket.emit).toHaveBeenCalledWith(LOBBY_EVENTS.ERROR, {
+      message: 'No completed game is available to replay',
+      code: 'REMATCH_UNAVAILABLE',
+    });
   });
 
   it('preserves membership when a player disconnects during an active game', async () => {

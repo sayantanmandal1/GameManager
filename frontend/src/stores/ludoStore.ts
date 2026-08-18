@@ -89,6 +89,7 @@ export const useLudoStore = create<LudoStoreState>()((set, get) => ({
       set((state) => ({
         gameId: data.gameId,
         view: data.view,
+        result: state.gameId && state.gameId !== data.gameId ? null : state.result,
         displayDice:
           data.view.dice ?? (state.gameId === data.gameId ? state.displayDice : null),
         diceRolling:

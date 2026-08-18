@@ -6,6 +6,7 @@ import { ConnectFourBoard } from '@/components/connectfour/ConnectFourBoard';
 import { GameChat } from '@/components/chat/GameChat';
 import { VoiceChat } from '@/components/voice/VoiceChat';
 import { Button } from '@/components/ui/Button';
+import { RematchButton } from '@/components/lobby/RematchButton';
 import { useAuthStore } from '@/stores/authStore';
 import { useConnectFourStore } from '@/stores/connectfourStore';
 import { useSocket } from '@/hooks/useSocket';
@@ -82,6 +83,7 @@ export default function ConnectFourPlayClient({ code }: { code: string }) {
           <div className="mt-4 min-h-12 text-center">
             {finished ? <p className="text-lg font-bold">{result?.isDraw || view.isDraw ? 'Draw game' : `${winner?.name ?? 'Player'} wins`}</p> : view.canAct ? <p className="font-semibold">Choose a column</p> : <p className="text-game-muted">Waiting for {current?.name ?? 'opponent'}…</p>}
             {error && <p role="alert" className="mt-1 text-sm text-red-300">{error}</p>}
+            {finished && <RematchButton lobbyCode={code} className="mt-4" />}
           </div>
         </section>
         <aside className="space-y-4"><VoiceChat roomId={code} /><GameChat lobbyCode={code} /></aside>

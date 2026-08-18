@@ -5,8 +5,10 @@ import { GameService } from './game.service';
 import { GameGateway } from './game.gateway';
 import { LobbyModule } from '../lobby/lobby.module';
 import { AuthModule } from '../auth/auth.module';
+import { GameCatalogController } from './game-catalog.controller';
 
 @Module({
+  controllers: [GameCatalogController],
   imports: [
     TypeOrmModule.forFeature([GameEntity]),
     forwardRef(() => LobbyModule),

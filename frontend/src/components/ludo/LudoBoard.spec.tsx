@@ -4,7 +4,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { LudoBoard } from './LudoBoard';
-import { LudoColor, LudoPlayerState, LUDO_TOKENS_PER_PLAYER } from '@/shared';
+import { LudoColor, LudoPlayerState, LUDO_FINISHED_STEPS } from '@/shared';
 
 // Mock framer-motion
 jest.mock('framer-motion', () => ({
@@ -32,10 +32,10 @@ function makePlayer(
     color,
     tokens: tokenSteps.map((s, i) => ({
       id: i,
-      state: s === 0 ? ('base' as const) : s >= 59 ? ('home' as const) : ('active' as const),
+      state: s === 0 ? ('base' as const) : s >= LUDO_FINISHED_STEPS ? ('home' as const) : ('active' as const),
       stepsFromStart: s,
     })),
-    finishedCount: tokenSteps.filter((s) => s >= 59).length,
+    finishedCount: tokenSteps.filter((s) => s >= LUDO_FINISHED_STEPS).length,
     isBot: false,
   };
 }
@@ -101,8 +101,95 @@ describe('LudoBoard Component', () => {
     );
     expect(container.querySelector('[data-ludo-token="red-3"]')).toHaveAttribute(
       'transform',
-      'translate(321.2 321.2)',
+      'translate(306 340)',
     );
+  });
+
+  it('separates tokens sharing a safe square and gives the movable token its own hitbox', () => {
+    const players = [
+      makePlayer('p1', LudoColor.RED, [14, 0, 0, 0]),
+      makePlayer('p2', LudoColor.GREEN, [1, 0, 0, 0]),
+    ];
+
+    const { container } = render(
+      <LudoBoard
+        {...defaultProps}
+        players={players}
+        availableMoves={[[{ tokenId: 0, steps: 2 }]]}
+      />,
+    );
+
+    const redToken = container.querySelector('[data-ludo-token="red-0"]');
+    const greenToken = container.querySelector('[data-ludo-token="green-0"]');
+    expect(redToken).toHaveAttribute('data-stack-count', '2');
+    expect(greenToken).toHaveAttribute('data-stack-count', '2');
+    expect(redToken?.getAttribute('transform')).not.toBe(greenToken?.getAttribute('transform'));
+    expect(container.querySelector('[data-ludo-hitbox="red-0"]')).toHaveAttribute(
+      'pointer-events',
+      'all',
+    );
+    expect(container.querySelector('[data-ludo-hitbox="green-0"]')).toHaveAttribute(
+      'pointer-events',
+      'none',
+    );
+  });
+
+  it('assigns every finished pawn a unique slot inside its color home', () => {
+    const players = [
+      makePlayer('p1', LudoColor.RED, [57, 57, 57, 57]),
+      makePlayer('p2', LudoColor.GREEN, [57, 57, 57, 57]),
+      makePlayer('p3', LudoColor.YELLOW, [57, 57, 57, 57]),
+      makePlayer('p4', LudoColor.BLUE, [57, 57, 57, 57]),
+    ];
+
+    const { container } = render(
+      <LudoBoard {...defaultProps} players={players} />,
+    );
+
+    const transforms = Array.from(container.querySelectorAll('[data-ludo-token]'))
+      .map((token) => token.getAttribute('transform'));
+    expect(new Set(transforms).size).toBe(16);
+    expect(container.querySelector('[data-ludo-token="red-0"]')).toHaveAttribute(
+      'transform',
+      'translate(282 304)',
+    );
+    expect(container.querySelector('[data-ludo-token="green-0"]')).toHaveAttribute(
+      'transform',
+      'translate(356 282)',
+    );
+    expect(container.querySelector('[data-ludo-token="yellow-0"]')).toHaveAttribute(
+      'transform',
+      'translate(378 356)',
+    );
+    expect(container.querySelector('[data-ludo-token="blue-0"]')).toHaveAttribute(
+      'transform',
+      'translate(304 378)',
+    );
+  });
+
+  it('gives all sixteen pawns non-overlapping full-slot hitboxes on one safe square', () => {
+    const players = [
+      makePlayer('p1', LudoColor.RED, [14, 14, 14, 14]),
+      makePlayer('p2', LudoColor.GREEN, [1, 1, 1, 1]),
+      makePlayer('p3', LudoColor.YELLOW, [40, 40, 40, 40]),
+      makePlayer('p4', LudoColor.BLUE, [27, 27, 27, 27]),
+    ];
+
+    const { container } = render(
+      <LudoBoard
+        {...defaultProps}
+        players={players}
+        availableMoves={[[{ tokenId: 0, steps: 2 }]]}
+      />,
+    );
+
+    const tokens = Array.from(container.querySelectorAll('[data-ludo-token]'));
+    expect(tokens.every((token) => token.getAttribute('data-stack-count') === '16')).toBe(true);
+    expect(new Set(tokens.map((token) => token.getAttribute('transform'))).size).toBe(16);
+    const hitbox = container.querySelector('[data-ludo-hitbox="red-0"]');
+    expect(Number(hitbox?.getAttribute('width'))).toBeGreaterThan(10);
+    expect(Number(hitbox?.getAttribute('height'))).toBeGreaterThan(10);
+    expect(hitbox).toHaveAttribute('pointer-events', 'all');
   });
 
   it('aligns each center triangle with its matching home lane', () => {

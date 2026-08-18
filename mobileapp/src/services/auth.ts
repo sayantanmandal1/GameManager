@@ -73,3 +73,16 @@ function publicApiError(payload: unknown, status: number): string {
   }
   return 'Unable to sign in right now.';
 }
+
+export function isTokenExpired(token: string): boolean {
+  try {
+    const payloadPart = token.split('.')[1];
+    if (!payloadPart) return true;
+    const normalized = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+    const payload = JSON.parse(globalThis.atob(padded)) as { exp?: number };
+    return typeof payload.exp !== 'number' || payload.exp * 1000 <= Date.now();
+  } catch {
+    return true;
+  }
+}

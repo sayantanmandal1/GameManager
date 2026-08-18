@@ -172,6 +172,7 @@ describe('Event Constants', () => {
     it('should have all required events', () => {
       expect(AUTH_EVENTS.AUTHENTICATE).toBeDefined();
       expect(AUTH_EVENTS.AUTHENTICATED).toBeDefined();
+      expect(AUTH_EVENTS.SESSION_INVALID).toBeDefined();
       expect(AUTH_EVENTS.ERROR).toBeDefined();
     });
 

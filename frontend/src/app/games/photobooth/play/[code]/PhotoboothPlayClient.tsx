@@ -9,6 +9,7 @@ import { usePhotoboothStore } from '@/stores/photoboothStore';
 import { useSocket } from '@/hooks/useSocket';
 import { usePhotoboothSocket } from '@/hooks/usePhotoboothSocket';
 import { getSocket } from '@/lib/socket';
+import { RematchButton } from '@/components/lobby/RematchButton';
 import {
   LOBBY_EVENTS,
   PhotoboothPhase,
@@ -464,6 +465,7 @@ export default function PhotoboothPlayClient({ code }: Props) {
                 >
                   {S.review.newSession}
                 </button>
+                {complete && <RematchButton lobbyCode={code} />}
               </div>
 
               <p className="text-center text-xs text-zinc-400 lg:text-left">

@@ -86,7 +86,11 @@ export default function UnoLandingPage() {
       targetScore: showFormat ? target : null,
       ...toggles,
     };
-    socket.emit(LOBBY_EVENTS.CREATE, { gameType: GameType.UNO, maxPlayers: 4, unoRules });
+    socket.emit(LOBBY_EVENTS.CREATE, {
+      gameType: GameType.UNO,
+      maxPlayers: 4,
+      unoRules,
+    });
   };
 
   const seg = (active: boolean) =>

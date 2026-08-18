@@ -52,7 +52,12 @@ export const useConnectFourStore = create<ConnectFourStoreState>()((set, get) =>
   },
   applyState: (payload) => {
     if (!get().lobbyCode || payload.lobbyCode !== get().lobbyCode) return;
-    set({ gameId: payload.gameId, view: payload.view, error: null });
+    set((state) => ({
+      gameId: payload.gameId,
+      view: payload.view,
+      result: state.gameId && state.gameId !== payload.gameId ? null : state.result,
+      error: null,
+    }));
   },
   initListeners: () => {
     const socket = getSocket();

@@ -15,7 +15,22 @@ afterEach(() => {
 });
 
 // Import after mocking
-import { apiPost } from './api';
+import { apiGet, apiPost } from './api';
+
+describe('apiGet', () => {
+  it('requests JSON resources without credentials or a body', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([{ key: 'three-grid' }]),
+    });
+
+    await expect(apiGet('/games/catalog')).resolves.toEqual([{ key: 'three-grid' }]);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/games/catalog'),
+      { method: 'GET', headers: { Accept: 'application/json' } },
+    );
+  });
+});
 
 describe('apiPost', () => {
   it('should make a POST request with JSON body', async () => {

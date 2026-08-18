@@ -6,6 +6,7 @@ import { LoginScreen } from './src/screens/LoginScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { GameWebView } from './src/screens/GameWebView';
 import { deleteSession, loadSession, saveSession } from './src/services/session';
+import { isTokenExpired, loginGuest } from './src/services/auth';
 import type { GuestSession, WebDestination } from './src/types';
 
 export default function App() {
@@ -16,9 +17,17 @@ export default function App() {
   useEffect(() => {
     let active = true;
     loadSession()
+      .then(async (stored) => {
+        if (!stored) return null;
+        if (!isTokenExpired(stored.token)) return stored;
+        const renewed = await loginGuest(stored.user.username);
+        await saveSession(renewed);
+        return renewed;
+      })
       .then((stored) => {
         if (active) setSession(stored);
       })
+      .catch(() => deleteSession().catch(() => undefined))
       .finally(() => {
         if (active) setBooting(false);
       });
@@ -38,6 +47,11 @@ export default function App() {
     await deleteSession();
   }, []);
 
+  const handleSessionChange = useCallback(async (nextSession: GuestSession) => {
+    setSession(nextSession);
+    await saveSession(nextSession);
+  }, []);
+
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />
@@ -51,6 +65,7 @@ export default function App() {
         <GameWebView
           destination={destination}
           session={session}
+          onSessionChange={handleSessionChange}
           onClose={() => setDestination(null)}
         />
       ) : (

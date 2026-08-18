@@ -22,6 +22,8 @@ import {
   UNO_EVENTS,
   TICTACTOE_EVENTS,
   CONNECTFOUR_EVENTS,
+  ARCADE_EVENTS,
+  AUTH_EVENTS,
   GameType,
   LobbyStatus,
   CreateLobbyPayload,
@@ -38,6 +40,7 @@ export class LobbyGateway
 
   /** Track which lobby each socket is in: socketId → lobbyCode */
   private socketLobbyMap = new Map<string, string>();
+  private rematchVotes = new Map<string, Set<string>>();
 
   constructor(
     private readonly lobbyService: LobbyService,
@@ -47,14 +50,26 @@ export class LobbyGateway
     private readonly userService: UserService,
   ) {}
 
-  handleConnection(client: Socket): void {
+  async handleConnection(client: Socket): Promise<void> {
     const user = getSocketUser(client, this.jwtService);
     if (!user) {
-      client.disconnect();
+      client.emit(AUTH_EVENTS.SESSION_INVALID, { reason: 'invalid_token' });
+      client.disconnect(true);
       return;
     }
-    // Track user activity on connect
-    this.userService.updateLastActive(user.sub).catch(() => {});
+
+    try {
+      const storedUser = await this.userService.findById(user.sub);
+      if (!storedUser) {
+        client.emit(AUTH_EVENTS.SESSION_INVALID, { reason: 'user_not_found' });
+        client.disconnect(true);
+        return;
+      }
+      await this.userService.updateLastActive(user.sub);
+    } catch {
+      client.emit(AUTH_EVENTS.ERROR, { message: 'Session validation unavailable' });
+      client.disconnect(true);
+    }
   }
 
   async handleDisconnect(client: Socket): Promise<void> {
@@ -62,6 +77,8 @@ export class LobbyGateway
     const code = this.socketLobbyMap.get(client.id);
     if (user && code) {
       this.socketLobbyMap.delete(client.id);
+      const votes = this.rematchVotes.get(code);
+      if (user) votes?.delete(user.sub);
       client.leave(`lobby:${code}`);
       try {
         const currentLobby = await this.lobbyService.getLobby(code);
@@ -96,6 +113,7 @@ export class LobbyGateway
         data.timeControl ?? null,
         data.unoRules ?? null,
         data.tictactoeMode ?? null,
+        data.gameKey,
       );
       client.join(`lobby:${lobby.code}`);
       this.socketLobbyMap.set(client.id, lobby.code);
@@ -116,6 +134,9 @@ export class LobbyGateway
       } else if (raw === 'invalid_tictactoe_mode') {
         code = 'INVALID_TICTACTOE_MODE';
         message = 'Invalid Tic Tac Toe mode';
+      } else if (raw === 'invalid_game_key') {
+        code = 'INVALID_GAME';
+        message = 'Unknown or mismatched game selection';
       }
       client.emit(LOBBY_EVENTS.ERROR, { message, code });
     }
@@ -159,6 +180,7 @@ export class LobbyGateway
 
     try {
       const lobby = await this.lobbyService.leaveLobby(code, user.sub);
+      this.rematchVotes.get(code)?.delete(user.sub);
       this.socketLobbyMap.delete(client.id);
       client.leave(`lobby:${code}`);
       if (lobby) {
@@ -220,6 +242,7 @@ export class LobbyGateway
         });
         return;
       }
+      this.rematchVotes.delete(code);
 
       // Start the game based on game type
       let gameId: string;
@@ -240,6 +263,9 @@ export class LobbyGateway
         gameId = result.gameId;
       } else if (lobby.gameType === GameType.CONNECTFOUR) {
         const result = await this.gameService.startConnectFourGame(code);
+        gameId = result.gameId;
+      } else if (lobby.gameType === GameType.ARCADE) {
+        const result = await this.gameService.startArcadeGame(code);
         gameId = result.gameId;
       } else {
         const result = await this.gameService.startBingoGame(code);
@@ -288,6 +314,11 @@ export class LobbyGateway
             if (view) {
               s.emit(CONNECTFOUR_EVENTS.STATE, { gameId, lobbyCode: code, view });
             }
+          } else if (lobby.gameType === GameType.ARCADE) {
+            const view = this.gameService.getArcadePlayerView(gameId, sUser.sub);
+            if (view) {
+              s.emit(ARCADE_EVENTS.STATE, { gameId, lobbyCode: code, view });
+            }
           } else {
             const view = this.gameService.getPlayerView(gameId, sUser.sub);
             if (view) {
@@ -300,7 +331,10 @@ export class LobbyGateway
       // Tell all clients the game is starting (triggers frontend navigation)
       this.server
         .to(lobbyRoom)
-        .emit(LOBBY_EVENTS.GAME_STARTING, { lobbyCode: code });
+        .emit(LOBBY_EVENTS.GAME_STARTING, {
+          lobbyCode: code,
+          gameKey: lobby.gameKey,
+        });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to start game';
       client.emit(LOBBY_EVENTS.ERROR, { message, code: 'START_FAILED' });
@@ -324,6 +358,78 @@ export class LobbyGateway
     } catch {
       // ignore
     }
+  }
+
+  @SubscribeMessage(LOBBY_EVENTS.REMATCH_REQUEST)
+  async handleRematchRequest(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { lobbyCode?: string } = {},
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const requestedCode = data.lobbyCode;
+    const code = /^\d{6}$/.test(requestedCode ?? '')
+      ? requestedCode!
+      : this.socketLobbyMap.get(client.id);
+    if (!code) {
+      client.emit(LOBBY_EVENTS.ERROR, { message: 'Lobby not found', code: 'NOT_FOUND' });
+      return;
+    }
+
+    const lobby = await this.lobbyService.getLobby(code);
+    if (!lobby || !lobby.players.some((player) => player.id === user.sub)) {
+      client.emit(LOBBY_EVENTS.ERROR, { message: 'Lobby not found', code: 'NOT_FOUND' });
+      return;
+    }
+    client.join(`lobby:${code}`);
+    this.socketLobbyMap.set(client.id, code);
+    if (lobby.status !== LobbyStatus.WAITING) {
+      client.emit(LOBBY_EVENTS.ERROR, {
+        message: 'Rematch is available after the current game ends',
+        code: 'REMATCH_UNAVAILABLE',
+      });
+      return;
+    }
+    if (!this.gameService.getGameIdForLobby(code)) {
+      client.emit(LOBBY_EVENTS.ERROR, {
+        message: 'No completed game is available to replay',
+        code: 'REMATCH_UNAVAILABLE',
+      });
+      return;
+    }
+
+    const votes = this.rematchVotes.get(code) ?? new Set<string>();
+    votes.add(user.sub);
+    this.rematchVotes.set(code, votes);
+    this.server.to(`lobby:${code}`).emit(LOBBY_EVENTS.REMATCH_STATE, {
+      requestedBy: [...votes],
+      required: lobby.players.length,
+    });
+
+    if (votes.size !== lobby.players.length) return;
+    const sockets = await this.server.in(`lobby:${code}`).fetchSockets();
+    const hostSocket = sockets.find((socket) => socket.data?.user?.sub === lobby.hostId);
+    if (!hostSocket) {
+      client.emit(LOBBY_EVENTS.ERROR, {
+        message: 'The host must be connected to restart',
+        code: 'HOST_OFFLINE',
+      });
+      return;
+    }
+
+    for (const player of lobby.players) {
+      if (!player.isHost && !player.isReady) {
+        await this.lobbyService.setReady(code, player.id, true);
+      }
+    }
+
+    this.rematchVotes.delete(code);
+    this.server.to(`lobby:${code}`).emit(LOBBY_EVENTS.REMATCH_STATE, {
+      requestedBy: [],
+      required: lobby.players.length,
+      starting: true,
+    });
+    await this.handleStartGame(hostSocket as unknown as Socket);
   }
 
   @SubscribeMessage(LOBBY_EVENTS.CHAT_MESSAGE)

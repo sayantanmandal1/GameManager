@@ -53,6 +53,14 @@ describe('LobbyStore', () => {
       // isLoading should be set by the time awaiting resolves
       await promise;
     });
+
+    it('should include an allow-listed catalog key when selected', async () => {
+      await useLobbyStore.getState().createLobby('arcade' as any, 'memory-animals');
+      expect(mockSocket.emit).toHaveBeenCalledWith('lobby:create', {
+        gameType: 'arcade',
+        gameKey: 'memory-animals',
+      });
+    });
   });
 
   describe('joinLobby', () => {

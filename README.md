@@ -6,16 +6,18 @@ A real-time multiplayer gaming platform built with **Next.js**, **NestJS**, **So
 
 ## Supported Games
 
-| Game | Players | Notes |
-|------|---------|-------|
-| Bingo | 2–8 | Custom 5×5 boards with server-authoritative turns and win detection. |
-| Ludo | 2–4 | Standard 15×15 board, safe squares, blocks, capture, exact finish, and offline bots. |
-| Chess | 2 | `chess.js` rules, optional clocks, spectators, resign, and draw offers. |
-| Photobooth | 2 | Synchronized camera session and shared photo strip. |
-| UNO | 2–4 | Classic, custom, No Mercy, and Flip modes with per-player private state. |
-| Tic Tac Toe | 2 | Classic and three-piece movement modes; online play and local minimax bot. |
-| Connect Four | 2 | Server-authoritative gravity and wins; online play and local alpha-beta bot. |
-| Sudoku | 1 | Resumable local puzzles with notes, hints, mistakes, timer, and four difficulties. |
+GameVerse ships **100 multiplayer titles** plus the existing solo Sudoku. The authoritative catalog is served from `GET /games/catalog`; web and mobile consume the same response, so names, routes, player limits, search categories, and presets cannot drift.
+
+| Family | Multiplayer titles | Players | Mechanics |
+|--------|-------------------:|---------|-----------|
+| Established engines | 20 | 2–8 | Bingo, timed Chess presets, UNO modes, Ludo tables, Photobooth, Tic Tac Toe, and Connect Four. |
+| Alignment | 25 | 2 | Configurable boards, target lines, gravity, misère wins, Gomoku sizes, and limited-piece movement. |
+| Take-away | 20 | 2 | Nim heaps and single/multi-pile subtraction games with normal or misère endings. |
+| Dice race | 20 | 2–4 | Server-generated dice, configurable tracks, exact finishes, and deterministic shortcuts/setbacks. |
+| Memory | 15 | 2–4 | Server-hidden decks, verified pair matching, scoring, and turn handoff. |
+| Sudoku | 1 solo title | 1 | Resumable local puzzles with notes, hints, mistakes, timer, and four difficulties. |
+
+The game library supports full-text search, category filters, and a global six-digit room join. Every multiplayer completion screen offers unanimous in-room rematch without repeating lobby ready/start steps.
 
 ---
 
@@ -35,10 +37,12 @@ A real-time multiplayer gaming platform built with **Next.js**, **NestJS**, **So
 ```
 
 - **Server-authoritative**: All game state lives on the server; clients receive only their own view.
+- **Catalog-driven**: 100 multiplayer title definitions map to eleven engine families through allow-listed server presets.
+- **Private projections**: Hidden Memory tiles and UNO hands are redacted per player; dice are generated server-side.
 - **WebRTC voice chat**: Peer-to-peer mesh topology (≤ 8 players), signaling through Socket.IO.
-- **Crossplay**: Android and browser users share the same authentication, lobby, game, and Socket.IO contracts.
+- **Crossplay**: Android and browser users share the same catalog, authentication, lobby, game UI, rematch, and Socket.IO contracts.
 - **Secure mobile session**: Guest credentials are stored with the platform keystore via `expo-secure-store`.
-- **Extensible game engine**: Implement `IGameEngine<TState, TMove, TPlayerView, TWinResult>` and register it.
+- **Self-healing guest sessions**: Expired JWTs or cleaned-up guest rows renew once with the existing username; transient outages do not silently replace identity.
 
 ---
 
@@ -58,8 +62,9 @@ A real-time multiplayer gaming platform built with **Next.js**, **NestJS**, **So
 # 1. Clone & enter the project
 cd multiplayer-games
 
-# 2. Copy env file and adjust if needed
-cp .env.example .env
+# 2. Configure required secrets in your shell or a root .env file
+# DATABASE_PASSWORD=<REPLACE_ME>
+# JWT_SECRET=<REPLACE_ME>
 
 # 3. Start everything
 docker compose up -d
@@ -73,17 +78,18 @@ docker compose up -d
 ## Local Development
 
 ```bash
-# 1. Install dependencies (from project root)
-npm install
+# 1. Install dependencies
+cd backend && npm ci
+cd ../frontend && npm ci
+cd ../mobileapp && npm ci
+cd ..
 
 # 2. Start infrastructure (Postgres)
 docker compose up -d postgres
 
-# 3. Copy env file
-cp .env.example .env
-
-# 4. Start all apps in dev mode (hot reload)
-npm run dev
+# 3. Start backend and frontend in separate terminals
+cd backend && npm run dev
+cd frontend && npm run dev
 ```
 
 | App      | URL                     |
@@ -95,16 +101,18 @@ npm run dev
 
 ```bash
 # Backend only
-npm run dev --workspace=apps/backend
+cd backend && npm run dev
 
 # Frontend only
-npm run dev --workspace=apps/frontend
+cd frontend && npm run dev
 
-# Build all
-npm run build
+# Build backend and frontend
+cd backend && npm run build
+cd frontend && npm run build
 
-# Lint all
-npm run lint
+# Lint backend and frontend
+cd backend && npm run lint
+cd frontend && npm run lint
 ```
 
 ---
@@ -115,14 +123,15 @@ Copy `.env.example` to `.env` at the project root. Key variables:
 
 | Variable              | Default               | Description                   |
 |-----------------------|-----------------------|-------------------------------|
-| `DB_HOST`             | `localhost`           | PostgreSQL host               |
-| `DB_PORT`             | `5432`                | PostgreSQL port               |
-| `DB_USERNAME`         | `gameverse`           | PostgreSQL user               |
-| `DB_PASSWORD`         | `gameverse_secret`    | PostgreSQL password            |
-| `DB_DATABASE`         | `gameverse`           | PostgreSQL database name      |
+| `DATABASE_HOST`       | `localhost`           | PostgreSQL host               |
+| `DATABASE_PORT`       | `5432`                | PostgreSQL port               |
+| `DATABASE_USER`       | `postgres`            | PostgreSQL user               |
+| `DATABASE_PASSWORD`   | *(required)*          | PostgreSQL password           |
+| `DATABASE_NAME`       | `multiplayer_games`   | PostgreSQL database name      |
+| `DATABASE_URL`        | *(optional)*          | Full PostgreSQL connection URL |
+| `DATABASE_SSL_CA`     | *(production required)* | Trusted PostgreSQL CA certificate |
 | `JWT_SECRET`          | *(change in prod)*    | JWT signing secret            |
-| `JWT_EXPIRATION`      | `24h`                 | Token lifetime                |
-| `BINGO_DRAW_INTERVAL` | `4000`                | ms between number draws       |
+| `JWT_EXPIRATION`      | `7d`                  | Token lifetime                |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000`| Backend URL for the frontend |
 | `NEXT_PUBLIC_WS_URL`  | `http://localhost:8000`| WebSocket URL for the frontend|
 | `NEXT_PUBLIC_TURN_URLS` | *(optional)* | Comma-separated TURN/TURNS relay URLs for reliable voice across restrictive networks |
@@ -146,23 +155,11 @@ GameManager/
 
 ## How to Add a New Game
 
-1. **Define mirrored types** in `backend/src/shared/types/` and `frontend/src/shared/types/`, then add the game to `GameType`.
-
-2. **Implement the engine** in `backend/src/game/engines/your-game/` with server-side validation and focused tests.
-   ```ts
-   IGameEngine<YourGameState, YourMove, YourPlayerView, YourWinResult>
-   ```
-
-3. **Register it** in `backend/src/game/game-registry.ts`:
-   ```ts
-   this.engines.set(GameType.YOUR_GAME, new YourGameEngine());
-   ```
-
-4. **Add orchestration** in `GameService` for game-specific lifecycle (timers, turns, etc.).
-
-5. **Build the frontend** under `frontend/src/app/games/your-game/` and game-specific components.
-
-6. **Add the card** to the game selection page at `apps/frontend/src/app/games/page.tsx`.
+1. Prefer adding a validated preset to `backend/src/shared/game-catalog.ts` when an existing family already supports the mechanics. The backend catalog test enforces stable unique keys/routes and valid player limits.
+2. For a new family, implement its authoritative engine under `backend/src/game/engines/`, including untrusted-action validation, per-player projection, terminal result, and focused rule tests.
+3. Register only the family engine in `backend/src/game/game-registry.ts`; do not add one gateway namespace or state map per title.
+4. Add mirrored transport types and one family renderer/store in the frontend. Mobile consumes the same catalog and shared web game route automatically.
+5. Extend `frontend/scripts/runtime-e2e.js` with a real lobby/start/action/result flow for the family.
 
 ---
 
@@ -183,6 +180,11 @@ npm run build
 cd ../mobileapp
 npm run typecheck
 npx expo export --platform android
+
+# Production-like REST and Socket.IO flow (100-title catalog, all families,
+# rematch, reconnect, existing games, and voice signaling)
+cd ../frontend
+npm run test:e2e:runtime
 ```
 
 ## Android APK Releases

@@ -15,7 +15,7 @@ jest.mock('@/lib/socket', () => ({
 // Mock zustand persist to avoid localStorage issues in tests
 const actualZustand = jest.requireActual('zustand');
 
-import { useAuthStore } from './authStore';
+import { isTokenExpired, useAuthStore } from './authStore';
 import { apiPost } from '@/lib/api';
 import { connectSocket, disconnectSocket } from '@/lib/socket';
 
@@ -55,6 +55,25 @@ describe('AuthStore', () => {
       expect(useAuthStore.getState().hasHydrated).toBe(false);
       useAuthStore.getState().setHasHydrated(true);
       expect(useAuthStore.getState().hasHydrated).toBe(true);
+    });
+  });
+
+  describe('persisted token validation', () => {
+    const tokenWithExpiry = (expirySeconds: number) => {
+      const payload = btoa(JSON.stringify({ exp: expirySeconds }))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+      return `header.${payload}.signature`;
+    };
+
+    it('accepts an unexpired persisted token', () => {
+      expect(isTokenExpired(tokenWithExpiry(Math.floor(Date.now() / 1000) + 60))).toBe(false);
+    });
+
+    it('rejects expired and malformed persisted tokens', () => {
+      expect(isTokenExpired(tokenWithExpiry(Math.floor(Date.now() / 1000) - 60))).toBe(true);
+      expect(isTokenExpired('not-a-jwt')).toBe(true);
     });
   });
 
@@ -104,6 +123,74 @@ describe('AuthStore', () => {
       await useAuthStore.getState().login('test');
 
       expect(useAuthStore.getState().error).toBe('Login failed');
+    });
+  });
+
+  describe('renewSession', () => {
+    it('replaces a stale guest identity while preserving the username', async () => {
+      useAuthStore.setState({
+        user: { id: 'old-id', username: 'Alice', avatar: 'old' },
+        token: 'stale-token',
+        isAuthenticated: true,
+      });
+      const renewed = {
+        user: { id: 'new-id', username: 'Alice', avatar: 'new' },
+        token: 'fresh-token',
+      };
+      (apiPost as jest.Mock).mockResolvedValue(renewed);
+
+      await useAuthStore.getState().renewSession();
+
+      expect(apiPost).toHaveBeenCalledWith('/auth/guest', { username: 'Alice' });
+      expect(connectSocket).toHaveBeenCalledWith('fresh-token');
+      expect(useAuthStore.getState()).toMatchObject({
+        user: renewed.user,
+        token: renewed.token,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+    });
+
+    it('coalesces simultaneous renewal requests', async () => {
+      useAuthStore.setState({
+        user: { id: 'old-id', username: 'Alice', avatar: 'old' },
+        token: 'stale-token',
+        isAuthenticated: true,
+      });
+      let resolveRequest: ((value: unknown) => void) | undefined;
+      (apiPost as jest.Mock).mockReturnValue(
+        new Promise((resolve) => {
+          resolveRequest = resolve;
+        }),
+      );
+
+      const first = useAuthStore.getState().renewSession();
+      const second = useAuthStore.getState().renewSession();
+      resolveRequest?.({
+        user: { id: 'new-id', username: 'Alice', avatar: 'new' },
+        token: 'fresh-token',
+      });
+      await Promise.all([first, second]);
+
+      expect(apiPost).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not discard the persisted identity on a transient renewal failure', async () => {
+      useAuthStore.setState({
+        user: { id: 'old-id', username: 'Alice', avatar: 'old' },
+        token: 'stale-token',
+        isAuthenticated: true,
+      });
+      (apiPost as jest.Mock).mockRejectedValue(new Error('Service unavailable'));
+
+      await useAuthStore.getState().renewSession();
+
+      expect(useAuthStore.getState()).toMatchObject({
+        user: { id: 'old-id', username: 'Alice' },
+        token: 'stale-token',
+        isAuthenticated: true,
+        error: 'Service unavailable',
+      });
     });
   });
 

@@ -9,6 +9,7 @@ import { LudoDice } from '@/components/ludo/LudoDice';
 import { LudoPlayerPanel } from '@/components/ludo/LudoPlayerPanel';
 import { LudoMoveSelector } from '@/components/ludo/LudoMoveSelector';
 import { GameChat } from '@/components/chat/GameChat';
+import { RematchButton } from '@/components/lobby/RematchButton';
 import { VoiceChat } from '@/components/voice/VoiceChat';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -223,12 +224,10 @@ function LudoPlayContent() {
                 ))}
               </div>
 
-              <Button
-                className="mt-6"
-                onClick={handleBackToLobby}
-              >
-                Back to Lobby
-              </Button>
+              <div className="mt-6 flex justify-center gap-3">
+                <RematchButton lobbyCode={lobbyCode} />
+                <Button onClick={handleBackToLobby}>Back to Lobby</Button>
+              </div>
             </motion.div>
           </motion.div>
         )}
