@@ -5,7 +5,7 @@ import { ChessMoveDto, ChessResignDto, ChessRejoinDto } from './dto/chess.dto';
 import { PhotoboothCaptureDto } from './dto/photobooth.dto';
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
-import { ARCADE_EVENTS, CHESS_EVENTS, GAME_EVENTS, LUDO_EVENTS } from '../shared';
+import { CHESS_EVENTS, GAME_EVENTS, LUDO_EVENTS } from '../shared';
 
 // ─── DTO-level validation tests (exercise the actual validators the
 // ValidationPipe uses at runtime). Gateway-level rate-limit + auth tests
@@ -116,7 +116,6 @@ describe('GameGateway handlers', () => {
         turnSkipped: true,
         turnCanceled: false,
       }),
-      arcadeAction: jest.fn().mockResolvedValue({ ok: true }),
     };
     jwtService = {
       verify: jest.fn(),
@@ -163,40 +162,6 @@ describe('GameGateway handlers', () => {
     expect(roomEmit).not.toHaveBeenCalled();
     expect(sock.emit).toHaveBeenCalledWith(GAME_EVENTS.ERROR, {
       message: 'Game does not belong to this lobby',
-    });
-  });
-
-  it('forwards an authenticated arcade action to the authoritative service', async () => {
-    const sock = mkSocket({ sub: 'user1', username: 'A' });
-    const action = { type: 'take' as const, heap: 0, count: 2 };
-
-    await gateway.handleArcadeAction(sock as never, {
-      gameId: '123e4567-e89b-12d3-a456-426614174000',
-      lobbyCode: '123456',
-      action,
-    });
-
-    expect(gameService.arcadeAction).toHaveBeenCalledWith(
-      '123e4567-e89b-12d3-a456-426614174000',
-      'user1',
-      action,
-      '123456',
-    );
-    expect(sock.emit).not.toHaveBeenCalledWith(ARCADE_EVENTS.ERROR, expect.anything());
-  });
-
-  it('rejects malformed arcade actions before service dispatch', async () => {
-    const sock = mkSocket({ sub: 'user1', username: 'A' });
-
-    await gateway.handleArcadeAction(sock as never, {
-      gameId: 'not-a-uuid',
-      lobbyCode: '../bad',
-      action: { type: 'take', heap: -1, count: 999999 },
-    });
-
-    expect(gameService.arcadeAction).not.toHaveBeenCalled();
-    expect(sock.emit).toHaveBeenCalledWith(ARCADE_EVENTS.ERROR, {
-      message: 'Invalid arcade action',
     });
   });
 

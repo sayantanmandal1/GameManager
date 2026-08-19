@@ -14,19 +14,10 @@ export interface WebDestination {
   route: string;
 }
 
-export type GameCategory = 'board' | 'cards' | 'party' | 'strategy' | 'race' | 'puzzle';
-
-export interface GameDefinition {
-  key: string;
-  name: string;
-  gameType: string;
-  family: string;
-  category: GameCategory;
+export interface GameDefinition extends WebDestination {
+  id: string;
   mark: string;
   description: string;
-  route: string;
-  minPlayers: number;
-  maxPlayers: number;
   accent: string;
   surface: string;
 }

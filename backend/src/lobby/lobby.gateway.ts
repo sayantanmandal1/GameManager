@@ -22,7 +22,6 @@ import {
   UNO_EVENTS,
   TICTACTOE_EVENTS,
   CONNECTFOUR_EVENTS,
-  ARCADE_EVENTS,
   AUTH_EVENTS,
   GameType,
   LobbyStatus,
@@ -113,7 +112,6 @@ export class LobbyGateway
         data.timeControl ?? null,
         data.unoRules ?? null,
         data.tictactoeMode ?? null,
-        data.gameKey,
       );
       client.join(`lobby:${lobby.code}`);
       this.socketLobbyMap.set(client.id, lobby.code);
@@ -134,9 +132,6 @@ export class LobbyGateway
       } else if (raw === 'invalid_tictactoe_mode') {
         code = 'INVALID_TICTACTOE_MODE';
         message = 'Invalid Tic Tac Toe mode';
-      } else if (raw === 'invalid_game_key') {
-        code = 'INVALID_GAME';
-        message = 'Unknown or mismatched game selection';
       }
       client.emit(LOBBY_EVENTS.ERROR, { message, code });
     }
@@ -264,9 +259,6 @@ export class LobbyGateway
       } else if (lobby.gameType === GameType.CONNECTFOUR) {
         const result = await this.gameService.startConnectFourGame(code);
         gameId = result.gameId;
-      } else if (lobby.gameType === GameType.ARCADE) {
-        const result = await this.gameService.startArcadeGame(code);
-        gameId = result.gameId;
       } else {
         const result = await this.gameService.startBingoGame(code);
         gameId = result.gameId;
@@ -314,11 +306,6 @@ export class LobbyGateway
             if (view) {
               s.emit(CONNECTFOUR_EVENTS.STATE, { gameId, lobbyCode: code, view });
             }
-          } else if (lobby.gameType === GameType.ARCADE) {
-            const view = this.gameService.getArcadePlayerView(gameId, sUser.sub);
-            if (view) {
-              s.emit(ARCADE_EVENTS.STATE, { gameId, lobbyCode: code, view });
-            }
           } else {
             const view = this.gameService.getPlayerView(gameId, sUser.sub);
             if (view) {
@@ -331,10 +318,7 @@ export class LobbyGateway
       // Tell all clients the game is starting (triggers frontend navigation)
       this.server
         .to(lobbyRoom)
-        .emit(LOBBY_EVENTS.GAME_STARTING, {
-          lobbyCode: code,
-          gameKey: lobby.gameKey,
-        });
+        .emit(LOBBY_EVENTS.GAME_STARTING, { lobbyCode: code });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to start game';
       client.emit(LOBBY_EVENTS.ERROR, { message, code: 'START_FAILED' });

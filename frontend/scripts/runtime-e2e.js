@@ -8,7 +8,6 @@ const SOCKET_URL = process.env.E2E_SOCKET_URL || 'http://127.0.0.1:8000';
 const TIMEOUT_MS = 10_000;
 
 async function main() {
-  await verifyGameCatalog();
   const suffix = String(Date.now()).slice(-7);
   const alpha = await login(`Alpha${suffix}`);
   const beta = await login(`Beta${suffix}`);
@@ -25,7 +24,6 @@ async function main() {
     alphaSocket.disconnect();
     alphaSocket = await connect(alpha.token);
     await restoreTicTacToeAndFinish(ttt, alpha, beta, alphaSocket, betaSocket);
-    await verifyArcadeFamilies(alpha, beta, alphaSocket, betaSocket);
 
     await verifyConnectFour(alpha, beta, alphaSocket, betaSocket);
     await verifyBingo(alpha, beta, alphaSocket, betaSocket);
@@ -42,26 +40,12 @@ async function main() {
     await verifyVoiceRelay(alphaSocket, betaSocket);
 
     console.log(
-      'Runtime E2E passed: 100-game catalog, arcade families, rematch, lobby, reconnect, Bingo, Ludo, Chess, Photobooth, UNO, TTT, Connect Four, voice.',
+      'Runtime E2E passed: rematch, lobby, reconnect, Bingo, Ludo, Chess, Photobooth, UNO, TTT, Connect Four, voice.',
     );
   } finally {
     alphaSocket.disconnect();
     betaSocket.disconnect();
   }
-}
-
-async function verifyGameCatalog() {
-  const response = await fetch(`${API_URL}/games/catalog`);
-  assert.equal(response.status, 200);
-  const catalog = await response.json();
-  assert.equal(catalog.length, 101);
-  assert.equal(new Set(catalog.map((game) => game.key)).size, 101);
-  assert.equal(catalog.filter((game) => game.minPlayers >= 2).length, 100);
-  assert.equal(catalog.find((game) => game.key === 'sudoku')?.minPlayers, 1);
-  assert.deepEqual(
-    new Set(catalog.filter((game) => game.gameType === 'arcade').map((game) => game.family)),
-    new Set(['alignment', 'takeaway', 'race', 'memory']),
-  );
 }
 
 async function verifyTicTacToeAndHostTransfer(alpha, beta, alphaSocket, betaSocket) {
@@ -239,101 +223,6 @@ async function restoreTicTacToeAndFinish(game, alpha, beta, alphaSocket, betaSoc
   const [alphaFresh, betaFresh] = await Promise.all([alphaRematch, betaRematch]);
   assert.notEqual(alphaFresh.gameId, game.gameId);
   assert.equal(alphaFresh.gameId, betaFresh.gameId);
-}
-
-async function verifyArcadeFamilies(alpha, beta, alphaSocket, betaSocket) {
-  await verifyArcadeAction(
-    'three-grid',
-    { type: 'place', index: 0 },
-    (view) => view.alignment?.board?.filter(Boolean).length === 1,
-    alpha,
-    beta,
-    alphaSocket,
-    betaSocket,
-  );
-  await verifyArcadeAction(
-    'take-15',
-    { type: 'take', heap: 0, count: 2 },
-    (view) => view.takeaway?.heaps?.[0] === 13,
-    alpha,
-    beta,
-    alphaSocket,
-    betaSocket,
-  );
-  await verifyArcadeAction(
-    'sprint-30',
-    { type: 'roll' },
-    (view) => Number.isInteger(view.race?.lastRoll?.value),
-    alpha,
-    beta,
-    alphaSocket,
-    betaSocket,
-  );
-  await verifyArcadeAction(
-    'memory-sprint',
-    { type: 'flip', index: 0 },
-    (view) => view.memory?.tiles?.filter(Boolean).length === 1,
-    alpha,
-    beta,
-    alphaSocket,
-    betaSocket,
-    (initialView) => assert(initialView.memory.tiles.every((tile) => tile === null)),
-  );
-}
-
-async function verifyArcadeAction(
-  gameKey,
-  action,
-  changed,
-  alpha,
-  beta,
-  alphaSocket,
-  betaSocket,
-  inspectInitial = () => {},
-) {
-  const lobby = (await emitAndWait(
-    alphaSocket,
-    'lobby:create',
-    { gameType: 'arcade', gameKey },
-    'lobby:state',
-    (payload) => payload.lobby?.gameKey === gameKey,
-  )).lobby;
-  assert.equal(lobby.gameKey, gameKey);
-  await joinAndReady(alphaSocket, betaSocket, lobby.code, beta.user.id);
-  const alphaStatePromise = waitForEvent(
-    alphaSocket,
-    'arcade:state',
-    (payload) => payload.view?.gameKey === gameKey,
-  );
-  const betaStatePromise = waitForEvent(
-    betaSocket,
-    'arcade:state',
-    (payload) => payload.view?.gameKey === gameKey,
-  );
-  alphaSocket.emit('lobby:start_game');
-  const [alphaState, betaState] = await Promise.all([alphaStatePromise, betaStatePromise]);
-  inspectInitial(alphaState.view);
-  inspectInitial(betaState.view);
-  const actorSocket = alphaState.view.currentTurn === alpha.user.id ? alphaSocket : betaSocket;
-  const observerSocket = actorSocket === alphaSocket ? betaSocket : alphaSocket;
-  const changedState = waitForEvent(
-    observerSocket,
-    'arcade:state',
-    (payload) => payload.gameId === alphaState.gameId && changed(payload.view),
-  );
-  actorSocket.emit('arcade:action', {
-    gameId: alphaState.gameId,
-    lobbyCode: lobby.code,
-    action,
-  });
-  await changedState;
-  const result = waitForEvent(
-    alphaSocket,
-    'arcade:result',
-    (payload) => payload.gameId === alphaState.gameId,
-  );
-  actorSocket.emit('game:surrender', { gameId: alphaState.gameId, lobbyCode: lobby.code });
-  await result;
 }
 
 async function verifyConnectFour(alpha, beta, alphaSocket, betaSocket) {

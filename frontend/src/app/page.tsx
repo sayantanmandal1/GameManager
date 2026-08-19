@@ -77,7 +77,7 @@ export default function HomePage() {
             GameVerse
           </h1>
           <p className="mt-5 max-w-xl text-lg leading-7 text-[#c9cec6]">
-            One hundred multiplayer games across strategy, cards, racing, puzzles, and party play.
+            Bingo, chess, ludo, UNO and shared moments around one live table.
           </p>
           <Button
             size="lg"

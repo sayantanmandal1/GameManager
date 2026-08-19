@@ -3,8 +3,7 @@
 Expo SDK 57 Android/iOS shell for the GameVerse platform. The app provides:
 
 - native guest authentication stored with `expo-secure-store`;
-- a native, searchable 100-multiplayer-game catalog loaded from the same authoritative backend response as web;
-- category filters and a global six-digit room join flow;
+- a native, touch-focused eight-game library and global six-digit room join flow;
 - full crossplay by opening the production GameVerse routes in a restricted same-origin WebView;
 - synchronized guest-session renewal between the WebView and `expo-secure-store`;
 - microphone and camera support for voice chat and Photobooth;
@@ -27,7 +26,7 @@ EXPO_PUBLIC_WEB_URL=https://game-manager-two.vercel.app
 
 Both values must use HTTPS. These are public application endpoints, not secrets.
 
-The native shell fetches `GET /games/catalog` and validates all 101 entries (100 multiplayer plus solo Sudoku) before rendering them. Gameplay uses the shared web route in the same-origin WebView, so rule controls, rematch state, accessibility, and visual fixes remain identical on web and mobile.
+Gameplay uses the shared web route in the same-origin WebView, so rule controls, rematch state, accessibility, and visual fixes remain identical on web and mobile.
 
 ## Development
 

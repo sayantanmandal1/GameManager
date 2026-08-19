@@ -22,9 +22,6 @@ export class LobbyEntity {
   @Column({ length: 32 })
   gameType: string;
 
-  @Column({ type: 'varchar', length: 64, nullable: true })
-  gameKey: string | null;
-
   @Column('jsonb', { default: [] })
   playerIds: string[];
 

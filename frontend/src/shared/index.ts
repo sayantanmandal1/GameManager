@@ -6,14 +6,6 @@ export type {
   JoinLobbyPayload,
 } from './types/lobby';
 export { LobbyStatus, GameType } from './types/lobby';
-export type { GameCatalogEntry, GameCategory, GameFamily } from './types/game-catalog';
-export type {
-  ArcadePlayer,
-  ArcadeAction,
-  ArcadePlayerView,
-  ArcadeResult,
-} from './types/arcade';
-export { ArcadePhase } from './types/arcade';
 export type { GameRecord } from './types/game';
 export { GameStatus } from './types/game';
 export type {
@@ -148,7 +140,6 @@ export {
   GAME_EVENTS,
   BINGO_EVENTS,
   LUDO_EVENTS,
-  ARCADE_EVENTS,
   CHESS_EVENTS,
   PHOTOBOOTH_EVENTS,
   UNO_EVENTS,

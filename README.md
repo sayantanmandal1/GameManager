@@ -6,18 +6,18 @@ A real-time multiplayer gaming platform built with **Next.js**, **NestJS**, **So
 
 ## Supported Games
 
-GameVerse ships **100 multiplayer titles** plus the existing solo Sudoku. The authoritative catalog is served from `GET /games/catalog`; web and mobile consume the same response, so names, routes, player limits, search categories, and presets cannot drift.
+| Game | Players | Notes |
+|------|---------|-------|
+| Bingo | 2–8 | Custom 5×5 boards with server-authoritative turns and win detection. |
+| Ludo | 2–4 | Standard 15×15 board, safe squares, blocks, capture, exact finish, and offline bots. |
+| Chess | 2 | `chess.js` rules, optional clocks, spectators, resign, and draw offers. |
+| Photobooth | 2 | Synchronized camera session and shared photo strip. |
+| UNO | 2–4 | Classic, custom, No Mercy, and Flip modes with per-player private state. |
+| Tic Tac Toe | 2 | Classic and three-piece movement modes; online play and local minimax bot. |
+| Connect Four | 2 | Server-authoritative gravity and wins; online play and local alpha-beta bot. |
+| Sudoku | 1 | Resumable local puzzles with notes, hints, mistakes, timer, and four difficulties. |
 
-| Family | Multiplayer titles | Players | Mechanics |
-|--------|-------------------:|---------|-----------|
-| Established engines | 20 | 2–8 | Bingo, timed Chess presets, UNO modes, Ludo tables, Photobooth, Tic Tac Toe, and Connect Four. |
-| Alignment | 25 | 2 | Configurable boards, target lines, gravity, misère wins, Gomoku sizes, and limited-piece movement. |
-| Take-away | 20 | 2 | Nim heaps and single/multi-pile subtraction games with normal or misère endings. |
-| Dice race | 20 | 2–4 | Server-generated dice, configurable tracks, exact finishes, and deterministic shortcuts/setbacks. |
-| Memory | 15 | 2–4 | Server-hidden decks, verified pair matching, scoring, and turn handoff. |
-| Sudoku | 1 solo title | 1 | Resumable local puzzles with notes, hints, mistakes, timer, and four difficulties. |
-
-The game library supports full-text search, category filters, and a global six-digit room join. Every multiplayer completion screen offers unanimous in-room rematch without repeating lobby ready/start steps.
+The game library includes global six-digit room joining. Every multiplayer completion screen offers unanimous in-room rematch without repeating lobby ready/start steps.
 
 ---
 
@@ -37,10 +37,9 @@ The game library supports full-text search, category filters, and a global six-d
 ```
 
 - **Server-authoritative**: All game state lives on the server; clients receive only their own view.
-- **Catalog-driven**: 100 multiplayer title definitions map to eleven engine families through allow-listed server presets.
-- **Private projections**: Hidden Memory tiles and UNO hands are redacted per player; dice are generated server-side.
+- **Private projections**: UNO hands are redacted per player; dice are generated server-side.
 - **WebRTC voice chat**: Peer-to-peer mesh topology (≤ 8 players), signaling through Socket.IO.
-- **Crossplay**: Android and browser users share the same catalog, authentication, lobby, game UI, rematch, and Socket.IO contracts.
+- **Crossplay**: Android and browser users share the same eight-game library, authentication, lobby, game UI, rematch, and Socket.IO contracts.
 - **Secure mobile session**: Guest credentials are stored with the platform keystore via `expo-secure-store`.
 - **Self-healing guest sessions**: Expired JWTs or cleaned-up guest rows renew once with the existing username; transient outages do not silently replace identity.
 
@@ -155,11 +154,11 @@ GameManager/
 
 ## How to Add a New Game
 
-1. Prefer adding a validated preset to `backend/src/shared/game-catalog.ts` when an existing family already supports the mechanics. The backend catalog test enforces stable unique keys/routes and valid player limits.
-2. For a new family, implement its authoritative engine under `backend/src/game/engines/`, including untrusted-action validation, per-player projection, terminal result, and focused rule tests.
-3. Register only the family engine in `backend/src/game/game-registry.ts`; do not add one gateway namespace or state map per title.
-4. Add mirrored transport types and one family renderer/store in the frontend. Mobile consumes the same catalog and shared web game route automatically.
-5. Extend `frontend/scripts/runtime-e2e.js` with a real lobby/start/action/result flow for the family.
+1. Implement a dedicated authoritative rules engine under `backend/src/game/engines/`. A mode, board-size change, timer, theme, or scoring preset does not count as a new game.
+2. Add focused rule-conformance tests for setup, legal/illegal actions, hidden information, terminal states, surrender, and reconnect projection.
+3. Register the game in `GameType`, `GameRegistry`, lobby dispatch, and the per-player Socket.IO projection path.
+4. Build its dedicated web interaction surface and expose the same route through the mobile crossplay shell.
+5. Add a real lobby/start/action/result flow to `frontend/scripts/runtime-e2e.js` before displaying the game in the production shelf.
 
 ---
 
@@ -181,8 +180,8 @@ cd ../mobileapp
 npm run typecheck
 npx expo export --platform android
 
-# Production-like REST and Socket.IO flow (100-title catalog, all families,
-# rematch, reconnect, existing games, and voice signaling)
+# Production-like REST and Socket.IO flow (rematch, reconnect, existing games,
+# and voice signaling)
 cd ../frontend
 npm run test:e2e:runtime
 ```

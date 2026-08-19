@@ -7,7 +7,6 @@ import { PhotoboothEngine } from './engines/photobooth/photobooth.engine';
 import { UnoEngine } from './engines/uno/uno.engine';
 import { TicTacToeEngine } from './engines/tictactoe/tictactoe.engine';
 import { ConnectFourEngine } from './engines/connectfour/connectfour.engine';
-import { ArcadeEngine } from './engines/arcade/arcade.engine';
 
 export type AnyGameEngine =
   | BingoEngine
@@ -16,8 +15,7 @@ export type AnyGameEngine =
   | PhotoboothEngine
   | UnoEngine
   | TicTacToeEngine
-  | ConnectFourEngine
-  | ArcadeEngine;
+  | ConnectFourEngine;
 
 @Injectable()
 export class GameRegistry {
@@ -31,7 +29,6 @@ export class GameRegistry {
     this.engines.set(GameType.UNO, new UnoEngine());
     this.engines.set(GameType.TICTACTOE, new TicTacToeEngine());
     this.engines.set(GameType.CONNECTFOUR, new ConnectFourEngine());
-    this.engines.set(GameType.ARCADE, new ArcadeEngine());
   }
 
   getEngine(gameType: GameType): AnyGameEngine {

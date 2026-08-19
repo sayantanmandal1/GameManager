@@ -12,7 +12,6 @@ export enum GameType {
   UNO = 'uno',
   TICTACTOE = 'tictactoe',
   CONNECTFOUR = 'connectfour',
-  ARCADE = 'arcade',
   SUDOKU = 'sudoku',
 }
 
@@ -30,7 +29,6 @@ export interface Lobby {
   code: string;
   hostId: string;
   gameType: GameType;
-  gameKey?: string;
   players: LobbyPlayer[];
   status: LobbyStatus;
   maxPlayers: number;
@@ -45,7 +43,6 @@ export interface Lobby {
 
 export interface CreateLobbyPayload {
   gameType: GameType;
-  gameKey?: string;
   maxPlayers?: number;
   /** Only honored when gameType === 'chess'. null or undefined ⇒ untimed. */
   timeControl?: import('./chess').TimeControl | null;

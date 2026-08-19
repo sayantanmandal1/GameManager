@@ -21,7 +21,6 @@ import {
   GAME_EVENTS,
   BINGO_EVENTS,
   LUDO_EVENTS,
-  ARCADE_EVENTS,
   CHESS_EVENTS,
   PHOTOBOOTH_EVENTS,
   UNO_EVENTS,
@@ -29,7 +28,6 @@ import {
   CONNECTFOUR_EVENTS,
   GameType,
   LudoMoveAction,
-  ArcadeAction,
   CHESS_MOVE_RATE_CAPACITY,
   CHESS_MOVE_RATE_REFILL_PER_SEC,
   PHOTOBOOTH_CAPTURE_RATE_CAPACITY,
@@ -66,37 +64,6 @@ import { ConnectFourDropDto } from './dto/connectfour.dto';
 interface RateBucket {
   tokens: number;
   lastRefillMs: number;
-}
-
-interface ArcadeActionPayload {
-  gameId: string;
-  lobbyCode: string;
-  action: ArcadeAction;
-}
-
-function isArcadeActionPayload(value: unknown): value is ArcadeActionPayload {
-  if (!value || typeof value !== 'object') return false;
-  const payload = value as Record<string, unknown>;
-  if (
-    typeof payload.gameId !== 'string' ||
-    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(payload.gameId) ||
-    typeof payload.lobbyCode !== 'string' ||
-    !/^\d{6}$/.test(payload.lobbyCode) ||
-    !payload.action ||
-    typeof payload.action !== 'object'
-  ) return false;
-
-  const action = payload.action as Record<string, unknown>;
-  if (action.type === 'place' || action.type === 'flip') {
-    return Number.isInteger(action.index) && Number(action.index) >= 0 && Number(action.index) < 400;
-  }
-  if (action.type === 'take') {
-    return (
-      Number.isInteger(action.heap) && Number(action.heap) >= 0 && Number(action.heap) < 8 &&
-      Number.isInteger(action.count) && Number(action.count) >= 1 && Number(action.count) <= 100
-    );
-  }
-  return action.type === 'roll' || action.type === 'continue';
 }
 
 const CHESS_TICK_INTERVAL_MS = 500;
@@ -288,17 +255,6 @@ export class GameGateway
         result,
       });
     };
-    this.gameService.onArcadeStateChanged = (gameId, lobbyCode) => {
-      this.broadcastArcadePlayerViews(gameId, lobbyCode);
-    };
-    this.gameService.onArcadeGameFinished = (gameId, lobbyCode, result) => {
-      this.broadcastArcadePlayerViews(gameId, lobbyCode);
-      this.server.to(`game:${lobbyCode}`).emit(ARCADE_EVENTS.RESULT, {
-        gameId,
-        result,
-      });
-    };
-
     // Clock-tick loop (server-authoritative, ≤1Hz broadcast per game).
     this.chessTickTimer = setInterval(() => {
       this.gameService.chessTick().catch((err) => {
@@ -435,15 +391,6 @@ export class GameGateway
       const view = this.gameService.getLudoPlayerView(gameId, user.sub);
       if (view) {
         client.emit(GAME_EVENTS.STATE, { gameId, view, gameType: GameType.LUDO });
-      }
-    } else if (gameType === GameType.ARCADE) {
-      const view = this.gameService.getArcadePlayerView(gameId, user.sub);
-      if (view) {
-        client.emit(ARCADE_EVENTS.STATE, {
-          gameId,
-          lobbyCode: data.lobbyCode,
-          view,
-        });
       }
     } else if (gameType === GameType.TICTACTOE) {
       const view = this.gameService.getTicTacToePlayerView(gameId, user.sub);
@@ -663,28 +610,6 @@ export class GameGateway
     }
   }
 
-  @SubscribeMessage(ARCADE_EVENTS.ACTION)
-  async handleArcadeAction(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: unknown,
-  ): Promise<void> {
-    const user = getSocketUser(client, this.jwtService);
-    if (!user) return;
-    // SECURITY_NOTE: Socket.IO payloads are untrusted. Bound every numeric
-    // field and allow-list action discriminants before engine dispatch.
-    if (!isArcadeActionPayload(data)) {
-      client.emit(ARCADE_EVENTS.ERROR, { message: 'Invalid arcade action' });
-      return;
-    }
-    const result = await this.gameService.arcadeAction(
-      data.gameId,
-      user.sub,
-      data.action,
-      data.lobbyCode,
-    );
-    if (!result.ok) client.emit(ARCADE_EVENTS.ERROR, { message: result.error });
-  }
-
   // ─── Generic Surrender Handler (works for all game types) ───
 
   @SubscribeMessage(GAME_EVENTS.SURRENDER)
@@ -710,12 +635,6 @@ export class GameGateway
       );
     } else if (gameType === GameType.CONNECTFOUR) {
       result = await this.gameService.connectfourSurrender(
-        data.gameId,
-        user.sub,
-        data.lobbyCode,
-      );
-    } else if (gameType === GameType.ARCADE) {
-      result = await this.gameService.arcadeSurrender(
         data.gameId,
         user.sub,
         data.lobbyCode,
@@ -773,19 +692,6 @@ export class GameGateway
       if (!user) continue;
       const view = this.gameService.getConnectFourPlayerView(gameId, user.sub);
       if (view) socket.emit(CONNECTFOUR_EVENTS.STATE, { gameId, lobbyCode, view });
-    }
-  }
-
-  private async broadcastArcadePlayerViews(
-    gameId: string,
-    lobbyCode: string,
-  ): Promise<void> {
-    const sockets = await this.server.in(`game:${lobbyCode}`).fetchSockets();
-    for (const socket of sockets) {
-      const user = socket.data?.user;
-      if (!user) continue;
-      const view = this.gameService.getArcadePlayerView(gameId, user.sub);
-      if (view) socket.emit(ARCADE_EVENTS.STATE, { gameId, lobbyCode, view });
     }
   }
 

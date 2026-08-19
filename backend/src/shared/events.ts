@@ -43,13 +43,6 @@ export const LUDO_EVENTS = {
   REMOVE_BOT: 'ludo:remove_bot',
 } as const;
 
-export const ARCADE_EVENTS = {
-  STATE: 'arcade:state',
-  ACTION: 'arcade:action',
-  RESULT: 'arcade:result',
-  ERROR: 'arcade:error',
-} as const;
-
 // ─── Chess-Specific Events ───
 // Client → Server: move, resign, draw_offer, draw_response, rejoin, spectate.
 // Server → Room / Sender: state, move_applied, move_rejected, clock_tick,

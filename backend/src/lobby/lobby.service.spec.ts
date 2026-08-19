@@ -114,59 +114,6 @@ describe('LobbyService', () => {
       ).rejects.toThrow('invalid_tictactoe_mode');
     });
 
-    it('derives engine, seats, and rules from an allow-listed catalog key', async () => {
-      mockUserService.findById!.mockResolvedValue(fakeUser);
-
-      const lobby = await service.createLobby(
-        'user1',
-        GameType.CHESS,
-        8,
-        { baseMs: 999999, incrementMs: 999 },
-        null,
-        null,
-        'chess-bullet-1',
-      );
-
-      expect(lobby).toMatchObject({
-        gameType: GameType.CHESS,
-        gameKey: 'chess-bullet-1',
-        maxPlayers: 2,
-        timeControl: { baseMs: 60000, incrementMs: 0 },
-      });
-      expect(mockLobbyRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ gameKey: 'chess-bullet-1' }),
-      );
-    });
-
-    it('creates an arcade lobby from its catalog definition', async () => {
-      mockUserService.findById!.mockResolvedValue(fakeUser);
-
-      const lobby = await service.createLobby(
-        'user1',
-        GameType.ARCADE,
-        8,
-        null,
-        null,
-        null,
-        'memory-animals',
-      );
-
-      expect(lobby.gameKey).toBe('memory-animals');
-      expect(lobby.gameType).toBe(GameType.ARCADE);
-      expect(lobby.maxPlayers).toBe(4);
-    });
-
-    it('rejects unknown and mismatched catalog keys', async () => {
-      mockUserService.findById!.mockResolvedValue(fakeUser);
-
-      await expect(
-        service.createLobby('user1', GameType.ARCADE, 2, null, null, null, 'missing-game'),
-      ).rejects.toThrow('invalid_game_key');
-      await expect(
-        service.createLobby('user1', GameType.BINGO, 2, null, null, null, 'memory-animals'),
-      ).rejects.toThrow('invalid_game_key');
-    });
-
     it('caps legacy Ludo rooms at four seats', async () => {
       mockUserService.findById!.mockResolvedValue(fakeUser);
       const lobby = await service.createLobby('user1', GameType.LUDO, 8);

@@ -15,7 +15,6 @@ import { useLudoStore } from '@/stores/ludoStore';
 import { useSocket } from '@/hooks/useSocket';
 import { LOBBY_EVENTS, GameType } from '@/shared';
 import { getSocket } from '@/lib/socket';
-import { useGameCatalog } from '@/hooks/useGameCatalog';
 
 export default function LobbyPage() {
   const params = useParams();
@@ -30,7 +29,6 @@ export default function LobbyPage() {
   const [copied, setCopied] = useState(false);
   const isLeavingRef = useRef(false);
   const { isConnected } = useSocket();
-  const { games } = useGameCatalog();
 
   // Set up listeners and auto-rejoin lobby when socket is connected
   useEffect(() => {
@@ -70,9 +68,6 @@ export default function LobbyPage() {
         router.push(`/games/tictactoe/play/${code}`);
       } else if (gameType === GameType.CONNECTFOUR) {
         router.push(`/games/connectfour/play/${code}`);
-      } else if (gameType === GameType.ARCADE) {
-        const gameKey = useLobbyStore.getState().lobby?.gameKey;
-        if (gameKey) router.push(`/games/arcade/${gameKey}/play/${code}`);
       } else {
         router.push(`/games/bingo/play?lobby=${code}`);
       }
@@ -94,8 +89,7 @@ export default function LobbyPage() {
     .every((p) => p.isReady);
   const canStart =
     isHost && allReady && (lobby?.players.length ?? 0) >= 2;
-  const catalogName = games.find((game) => game.key === lobby?.gameKey)?.name;
-  const gameName = catalogName ?? (lobby
+  const gameName = lobby
     ? ({
         [GameType.BINGO]: 'Bingo',
         [GameType.LUDO]: 'Ludo',
@@ -104,10 +98,9 @@ export default function LobbyPage() {
         [GameType.UNO]: 'UNO',
         [GameType.TICTACTOE]: 'Tic Tac Toe',
         [GameType.CONNECTFOUR]: 'Connect Four',
-        [GameType.ARCADE]: 'Arcade',
         [GameType.SUDOKU]: 'Sudoku',
       } as Record<GameType, string>)[lobby.gameType]
-    : '');
+    : '';
 
   const copyCode = async () => {
     await navigator.clipboard.writeText(code);
@@ -129,8 +122,6 @@ export default function LobbyPage() {
       router.push('/games/tictactoe');
     } else if (gameType === GameType.CONNECTFOUR) {
       router.push('/games/connectfour');
-    } else if (gameType === GameType.ARCADE && lobby?.gameKey) {
-      router.push(`/games/arcade/${lobby.gameKey}`);
     } else if (gameType === GameType.CHESS) {
       router.push('/games/chess');
     } else {
