@@ -1424,8 +1424,10 @@ async function verifyDistinctGames(
       );
     }
 
-    for (const client of activeClients.slice(1)) client.socket.emit('lobby:leave');
-    alphaSocket.emit('lobby:leave');
+    for (const client of activeClients.slice(1)) {
+      await leaveLobbyAndWait(client.socket, lobby.code);
+    }
+    await leaveLobbyAndWait(alphaSocket, lobby.code);
   }
 
   await verifyContractBridge(clients);
@@ -1732,6 +1734,17 @@ async function joinAndReady(hostSocket, guestSocket, code, guestId) {
   );
   guestSocket.emit('lobby:player_ready', { ready: true });
   await ready;
+}
+
+async function leaveLobbyAndWait(socket, code) {
+  await emitAndWait(
+    socket,
+    'lobby:leave',
+    undefined,
+    'lobby:left',
+    (payload) => payload?.lobbyCode === code,
+    `${code}: leave lobby`,
+  );
 }
 
 async function choosePartnershipTeams(clients, code, observerSocket) {

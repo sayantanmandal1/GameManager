@@ -152,7 +152,7 @@ export class GameService {
     | ((gameId: string, lobbyCode: string, result: ConnectFourResult) => void)
     | null = null;
   onDistinctGameStateChanged:
-    | ((gameId: string, lobbyCode: string, gameKey: DistinctGameKey) => void)
+    | ((gameId: string, lobbyCode: string, gameKey: DistinctGameKey) => void | Promise<void>)
     | null = null;
   onDistinctGameFinished:
     | ((
@@ -160,7 +160,7 @@ export class GameService {
         lobbyCode: string,
         gameKey: DistinctGameKey,
         result: DistinctGameResult,
-      ) => void)
+      ) => void | Promise<void>)
     | null = null;
 
   constructor(
@@ -585,7 +585,7 @@ export class GameService {
       await this.finalizeDistinctGame(gameId, lobbyCode, outcome.result);
     } else {
       const gameKey = this.distinctGameLifecycle.getGameKey(gameId)!;
-      this.onDistinctGameStateChanged?.(gameId, lobbyCode, gameKey);
+      await this.onDistinctGameStateChanged?.(gameId, lobbyCode, gameKey);
     }
     return { ok: true };
   }
@@ -623,7 +623,7 @@ export class GameService {
     });
     await this.lobbyService.setStatus(lobbyCode, LobbyStatus.WAITING);
     const gameKey = this.distinctGameLifecycle.getGameKey(gameId)!;
-    this.onDistinctGameFinished?.(gameId, lobbyCode, gameKey, result);
+    await this.onDistinctGameFinished?.(gameId, lobbyCode, gameKey, result);
   }
 
   async bingoSurrender(

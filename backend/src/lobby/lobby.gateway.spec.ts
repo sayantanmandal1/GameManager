@@ -96,6 +96,27 @@ describe('LobbyGateway connection handling', () => {
     expect(socket.disconnect).toHaveBeenCalledWith(true);
   });
 
+  it('does not let a stale leave completion erase a newer lobby mapping', async () => {
+    const socket = makeSocket();
+    let completeLeave!: (lobby: null) => void;
+    lobbyService.leaveLobby.mockReturnValue(new Promise((resolve) => {
+      completeLeave = resolve;
+    }));
+    gateway.getSocketLobbyMap().set(socket.id, '111111');
+
+    const leaving = gateway.handleLeave(socket as never);
+    await Promise.resolve();
+    gateway.getSocketLobbyMap().set(socket.id, '222222');
+    completeLeave(null);
+    await leaving;
+
+    expect(gateway.getSocketLobbyMap().get(socket.id)).toBe('222222');
+    expect(socket.leave).toHaveBeenCalledWith('lobby:111111');
+    expect(socket.emit).toHaveBeenCalledWith(LOBBY_EVENTS.LEFT, {
+      lobbyCode: '111111',
+    });
+  });
+
   it('broadcasts rematch vote progress without restarting early', async () => {
     const socket = makeSocket();
     gateway.getSocketLobbyMap().set(socket.id, '123456');

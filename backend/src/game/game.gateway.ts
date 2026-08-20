@@ -258,10 +258,10 @@ export class GameGateway
       });
     };
     this.gameService.onDistinctGameStateChanged = (gameId, lobbyCode) => {
-      this.broadcastDistinctPlayerViews(gameId, lobbyCode);
+      return this.broadcastDistinctPlayerViews(gameId, lobbyCode);
     };
-    this.gameService.onDistinctGameFinished = (gameId, lobbyCode, gameKey, result) => {
-      this.broadcastDistinctPlayerViews(gameId, lobbyCode);
+    this.gameService.onDistinctGameFinished = async (gameId, lobbyCode, gameKey, result) => {
+      await this.broadcastDistinctPlayerViews(gameId, lobbyCode);
       this.server.to(`game:${lobbyCode}`).emit(DISTINCT_GAME_EVENTS.RESULT, {
         gameId,
         lobbyCode,
@@ -756,21 +756,26 @@ export class GameGateway
     gameId: string,
     lobbyCode: string,
   ): Promise<void> {
-    const sockets = await this.server.in(`game:${lobbyCode}`).fetchSockets();
-    const gameKey = this.gameService.getDistinctGameKey(gameId);
-    if (!gameKey) return;
-    for (const socket of sockets) {
-      const user = socket.data?.user;
-      if (!user) continue;
-      const view = this.gameService.getDistinctPlayerView(gameId, user.sub);
-      if (view) {
-        socket.emit(DISTINCT_GAME_EVENTS.STATE, {
-          gameId,
-          lobbyCode,
-          gameKey,
-          view,
-        });
+    try {
+      const sockets = await this.server.in(`game:${lobbyCode}`).fetchSockets();
+      const gameKey = this.gameService.getDistinctGameKey(gameId);
+      if (!gameKey) return;
+      for (const socket of sockets) {
+        const user = socket.data?.user;
+        if (!user) continue;
+        const view = this.gameService.getDistinctPlayerView(gameId, user.sub);
+        if (view) {
+          socket.emit(DISTINCT_GAME_EVENTS.STATE, {
+            gameId,
+            lobbyCode,
+            gameKey,
+            view,
+          });
+        }
       }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'unknown error';
+      this.logger.error(`distinct.broadcast_failed gameId=${gameId} lobbyCode=${lobbyCode}: ${message}`);
     }
   }
 

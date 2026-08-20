@@ -2,6 +2,7 @@ export const LOBBY_EVENTS = {
   CREATE: 'lobby:create',
   JOIN: 'lobby:join',
   LEAVE: 'lobby:leave',
+  LEFT: 'lobby:left',
   PLAYER_READY: 'lobby:player_ready',
   TEAM_SELECT: 'lobby:team_select',
   STATE: 'lobby:state',

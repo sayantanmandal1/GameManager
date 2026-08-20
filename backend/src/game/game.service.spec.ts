@@ -218,6 +218,38 @@ describe('GameService', () => {
       expect(service.getDistinctPlayerView(gameId, 'outside')).toBeNull();
     });
 
+    it('waits for multiplayer state fanout before completing an action', async () => {
+      mockLobbyService.getLobby!.mockResolvedValue(distinctLobby);
+      const { gameId } = await service.startDistinctGame('123456');
+      let releaseBroadcast!: () => void;
+      const broadcast = new Promise<void>((resolve) => {
+        releaseBroadcast = resolve;
+      });
+      service.onDistinctGameStateChanged = jest.fn(() => broadcast);
+
+      const action = service.distinctGameAction(
+        gameId,
+        'player1',
+        { cell: 19 },
+        '123456',
+      );
+      let completed = false;
+      void action.then(() => {
+        completed = true;
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(completed).toBe(false);
+      releaseBroadcast();
+      await expect(action).resolves.toEqual({ ok: true });
+      expect(service.onDistinctGameStateChanged).toHaveBeenCalledWith(
+        gameId,
+        '123456',
+        'reversi',
+      );
+    });
+
     it('rejects a distinct action paired with another lobby', async () => {
       mockLobbyService.getLobby!.mockResolvedValue(distinctLobby);
       const { gameId } = await service.startDistinctGame('123456');

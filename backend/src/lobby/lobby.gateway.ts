@@ -188,8 +188,11 @@ export class LobbyGateway
     try {
       const lobby = await this.lobbyService.leaveLobby(code, user.sub);
       this.rematchVotes.get(code)?.delete(user.sub);
-      this.socketLobbyMap.delete(client.id);
+      if (this.socketLobbyMap.get(client.id) === code) {
+        this.socketLobbyMap.delete(client.id);
+      }
       client.leave(`lobby:${code}`);
+      client.emit(LOBBY_EVENTS.LEFT, { lobbyCode: code });
       if (lobby) {
         this.server.to(`lobby:${code}`).emit(LOBBY_EVENTS.STATE, { lobby });
       }
