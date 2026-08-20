@@ -12,6 +12,8 @@ import { PhotoboothEngine } from './engines/photobooth/photobooth.engine';
 import { UnoEngine, UnoActionResult } from './engines/uno/uno.engine';
 import { TicTacToeEngine } from './engines/tictactoe/tictactoe.engine';
 import { ConnectFourEngine } from './engines/connectfour/connectfour.engine';
+import { DistinctGameLifecycle } from './distinct-game.lifecycle';
+import type { DistinctGameResult } from './engines/distinct-game.adapter';
 import {
   GameType,
   GameStatus,
@@ -49,6 +51,7 @@ import {
   ConnectFourGameState,
   ConnectFourPlayerView,
   ConnectFourResult,
+  DistinctGameKey,
 } from '../shared';
 
 export interface ChessMoveApplied {
@@ -148,12 +151,24 @@ export class GameService {
   onConnectFourGameFinished:
     | ((gameId: string, lobbyCode: string, result: ConnectFourResult) => void)
     | null = null;
+  onDistinctGameStateChanged:
+    | ((gameId: string, lobbyCode: string, gameKey: DistinctGameKey) => void)
+    | null = null;
+  onDistinctGameFinished:
+    | ((
+        gameId: string,
+        lobbyCode: string,
+        gameKey: DistinctGameKey,
+        result: DistinctGameResult,
+      ) => void)
+    | null = null;
 
   constructor(
     @InjectRepository(GameEntity)
     private readonly gameRepo: Repository<GameEntity>,
     @Inject(CACHE_CLIENT) private readonly redis: CacheClient,
     private readonly lobbyService: LobbyService,
+    private readonly distinctGameLifecycle: DistinctGameLifecycle = new DistinctGameLifecycle(),
   ) {}
 
   async startBingoGame(
@@ -493,6 +508,122 @@ export class GameService {
     });
     await this.lobbyService.setStatus(lobbyCode, LobbyStatus.WAITING);
     this.onConnectFourGameFinished?.(gameId, lobbyCode, result);
+  }
+
+  async startDistinctGame(
+    lobbyCode: string,
+  ): Promise<{ gameId: string; gameKey: DistinctGameKey; state: object }> {
+    const lobby = await this.lobbyService.getLobby(lobbyCode);
+    if (!lobby || lobby.gameType !== GameType.DISTINCT || !lobby.gameKey) {
+      throw new Error('Distinct game lobby not found');
+    }
+
+    const adapter = this.distinctGameLifecycle.getDefinition(lobby.gameKey);
+    if (
+      lobby.players.length < adapter.minPlayers ||
+      lobby.players.length > adapter.maxPlayers
+    ) {
+      throw new Error('invalid_distinct_player_count');
+    }
+    const orderedPlayers = this.lobbyService.orderPlayersForGame(lobby);
+    const playerIds = orderedPlayers.map((player) => player.id);
+    const playerNames = Object.fromEntries(
+      orderedPlayers.map((player) => [player.id, player.username]),
+    );
+    const entity = this.gameRepo.create({
+      lobbyId: lobby.id,
+      gameType: GameType.DISTINCT,
+      gameKey: adapter.key,
+      playerIds,
+      status: GameStatus.IN_PROGRESS,
+    });
+    const saved = await this.gameRepo.save(entity);
+    const state = this.distinctGameLifecycle.start(
+      saved.id,
+      adapter.key,
+      playerIds,
+      playerNames,
+    );
+
+    this.lobbyGameMap.set(lobbyCode, saved.id);
+    this.lobbyGameTypeMap.set(lobbyCode, GameType.DISTINCT);
+    await this.redis.set(`game:${saved.id}`, JSON.stringify(state), 'EX', 3600);
+    await this.lobbyService.setStatus(lobbyCode, LobbyStatus.IN_PROGRESS);
+    return { gameId: saved.id, gameKey: adapter.key, state };
+  }
+
+  getDistinctGameState(gameId: string): object | undefined {
+    return this.distinctGameLifecycle.getState(gameId);
+  }
+
+  getDistinctGameKey(gameId: string): DistinctGameKey | undefined {
+    return this.distinctGameLifecycle.getGameKey(gameId);
+  }
+
+  getDistinctPlayerView(gameId: string, playerId: string): object | null {
+    return this.distinctGameLifecycle.getPlayerView(gameId, playerId);
+  }
+
+  async distinctGameAction(
+    gameId: string,
+    playerId: string,
+    action: object,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (
+      this.lobbyGameMap.get(lobbyCode) !== gameId ||
+      this.lobbyGameTypeMap.get(lobbyCode) !== GameType.DISTINCT
+    ) {
+      return { ok: false, error: 'Game not found' };
+    }
+    const outcome = this.distinctGameLifecycle.applyAction(gameId, playerId, action);
+    if (!outcome.valid) return { ok: false, error: outcome.reason };
+
+    const state = this.distinctGameLifecycle.getState(gameId)!;
+    await this.redis.set(`game:${gameId}`, JSON.stringify(state), 'EX', 3600);
+    if (outcome.result) {
+      await this.finalizeDistinctGame(gameId, lobbyCode, outcome.result);
+    } else {
+      const gameKey = this.distinctGameLifecycle.getGameKey(gameId)!;
+      this.onDistinctGameStateChanged?.(gameId, lobbyCode, gameKey);
+    }
+    return { ok: true };
+  }
+
+  async distinctGameSurrender(
+    gameId: string,
+    playerId: string,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (
+      this.lobbyGameMap.get(lobbyCode) !== gameId ||
+      this.lobbyGameTypeMap.get(lobbyCode) !== GameType.DISTINCT
+    ) {
+      return { ok: false, error: 'Game not found' };
+    }
+    const outcome = this.distinctGameLifecycle.surrender(gameId, playerId);
+    if (!outcome.valid || !outcome.result) {
+      return { ok: false, error: outcome.reason };
+    }
+    const state = this.distinctGameLifecycle.getState(gameId)!;
+    await this.redis.set(`game:${gameId}`, JSON.stringify(state), 'EX', 3600);
+    await this.finalizeDistinctGame(gameId, lobbyCode, outcome.result);
+    return { ok: true };
+  }
+
+  private async finalizeDistinctGame(
+    gameId: string,
+    lobbyCode: string,
+    result: DistinctGameResult,
+  ): Promise<void> {
+    await this.gameRepo.update(gameId, {
+      winnerId: result.winnerId,
+      status: GameStatus.FINISHED,
+      finishedAt: new Date(),
+    });
+    await this.lobbyService.setStatus(lobbyCode, LobbyStatus.WAITING);
+    const gameKey = this.distinctGameLifecycle.getGameKey(gameId)!;
+    this.onDistinctGameFinished?.(gameId, lobbyCode, gameKey, result);
   }
 
   async bingoSurrender(

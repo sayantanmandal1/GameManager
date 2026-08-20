@@ -88,6 +88,13 @@ describe('LobbyStore', () => {
     });
   });
 
+  describe('selectTeam', () => {
+    it('should emit the server-authoritative team choice', () => {
+      useLobbyStore.getState().selectTeam(1);
+      expect(mockSocket.emit).toHaveBeenCalledWith('lobby:team_select', { team: 1 });
+    });
+  });
+
   describe('startGame', () => {
     it('should emit lobby:start_game', () => {
       useLobbyStore.getState().startGame();

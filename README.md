@@ -16,8 +16,44 @@ A real-time multiplayer gaming platform built with **Next.js**, **NestJS**, **So
 | Tic Tac Toe | 2 | Classic and three-piece movement modes; online play and local minimax bot. |
 | Connect Four | 2 | Server-authoritative gravity and wins; online play and local alpha-beta bot. |
 | Sudoku | 1 | Resumable local puzzles with notes, hints, mistakes, timer, and four difficulties. |
+| Reversi | 2 | Standard 8x8 bracketing, eight-direction flips, automatic passes, and count scoring. |
+| Checkers | 2 | English draughts with mandatory captures, multi-jumps, kings, and blocked-player wins. |
+| Mancala | 2 | Kalah with six pits, store skipping, opposite capture, extra turns, and terminal sweep. |
+| Dots and Boxes | 2 | A 4x4 box board with unique edges, double-box claims, and scoring turns. |
+| Pig | 2 | Server-generated d6 rolls, busts, holds, and a race to 100 points. |
+| Grid Salvo | 2 | Private 10x10 fleet placement, alternating shots, hits, sunk ships, and fleet elimination. |
+| Peg Codebreaker | 2 | Private four-color code, duplicate-aware feedback, and a ten-guess limit. |
+| Hangman | 2–8 | Private host phrase, rotating guessers, and a shared eight-miss limit. |
+| Go Fish | 2–5 | Shuffled 52-card deck, rank requests, private hands, books, and score resolution. |
+| Crazy Eights | 2–5 | Ordinary cards, suit/rank matching, suit-changing eights, and draw play. |
+| Five-Dice Yacht | 2–8 | Three-roll turns and thirteen standard scorecard categories. |
+| Liar's Dice | 2–6 | Private dice, ascending bids, challenges, die loss, and elimination rounds. |
+| Farkle | 2–8 | Standard scoring groups, hot dice, entry threshold, and a 10,000-point final round. |
+| Shut the Box | 2–4 | Per-player tiles, exact roll combinations, and lowest open-tile score. |
+| Draw Dominoes | 2–4 | Double-six draw set, oriented open-end play, and blocked pip scoring. |
+| Hearts | 4 | Full 52-card deal, rotating passes, broken hearts, moon shots, and lowest score at 100. |
+| Spades | 4 | Fixed partnerships, individual bids, nils, bags, trump control, and a 500-point target. |
+| Gin Rummy | 2 | Private hands, optimal meld/deadwood analysis, layoffs, gin, undercuts, and rounds to 100. |
+| Card War | 2 | Server-driven battles, three-down wars on ties, and complete-deck elimination. |
+| Old Maid | 2–8 | A 51-card deck, automatic pair removal, hidden-index draws, safe ranking, and one unmatched queen. |
+| Hex | 2 | Standard 11x11 connection board with top-bottom and left-right paths. |
+| Nine Men's Morris | 2 | Standard 24-node graph, sixteen mills, removals, adjacent movement, and three-stone flying. |
+| Cee-lo | 2–8 | Traditional banker-versus-challenger qualifying rolls with points, triples, 4-5-6, and 1-2-3. |
+| Trivia Quiz Bowl | 2–10 | Ten server-selected questions from an original 40-question bank with simultaneous private answers. |
+| Memory Match | 2–4 | One 24-tile field, extra turns on matches, visible mismatch acknowledgment, and pair scoring. |
+| Contract Bridge | 4 | Rubber, Duplicate, and custom Home scoring with complete auction, dummy control, trick play, session scoring, and chosen partnerships. |
+| Bourré | 2–7 | Strict Louisiana obligations, dealer decisions, redraws, cinch play, split pots, and bourré matching. |
+| Bluff | 2–8 | Face-down claims, forced rank sequence, challenges, pile collection, and private card identities. |
+| Sevens | 3–8 | Mandatory seven-of-hearts opening, adjacent suit building, forced passes, and cumulative rounds. |
+| Ninety-Nine | 2–8 | Three-card hands, standard special-rank values, token loss, elimination, and automatic redraws. |
+| Euchre | 4 | Two-round trump auction, bowers, lone hands, dealer discard, selected partnerships, and play to ten. |
+| Whist | 4 | Full thirteen-card deal, exposed dealer trump, selected partnerships, legal trick play, and odd-trick scoring. |
+| Oh Hell | 3–7 | Complete 7–1–7 deal schedule, dealer hook, exact bids, trump tricks, and cumulative scoring. |
+| President | 3–8 | Equal-group climbing, re-enterable passes, complete ranking, title exchange, and eight scored rounds. |
+| Slapjack | 2–8 | Server-ordered flips and slap windows, false-slap penalties, recovery chances, and hidden stacks. |
+| Spoons | 3–8 | Continuous pass pipeline, quartet-triggered spoon rush, letters, elimination, and private hands. |
 
-The game library includes global six-digit room joining. Every multiplayer completion screen offers unanimous in-room rematch without repeating lobby ready/start steps.
+The library contains **44 implemented games**: the original eight plus 36 separately registered multiplayer rules engines. Global six-digit room joining works across the library, and every multiplayer completion screen offers unanimous in-room rematch without repeating lobby ready/start steps. Bridge, Hearts, Spades, Euchre, and Whist use one responsive felt table with three hidden opponent hands and the local hand face-up. Bridge, Spades, Euchre, and Whist require players to choose balanced two-versus-two partnerships in the lobby before the host can start.
 
 ---
 
@@ -37,9 +73,11 @@ The game library includes global six-digit room joining. Every multiplayer compl
 ```
 
 - **Server-authoritative**: All game state lives on the server; clients receive only their own view.
-- **Private projections**: UNO hands are redacted per player; dice are generated server-side.
+- **Distinct-game framework**: Thirty-six games use one lifecycle and Socket.IO namespace while retaining separate engines, strongly typed contracts, and unique ruleset IDs.
+- **Private projections**: Hands, fleets, secret codes, phrases, and dice are redacted per player; all random outcomes are generated server-side.
+- **Shared catalog**: `GET /games/catalog` is the source for the web and mobile 44-game shelves; lobby records persist the validated distinct-game key.
 - **WebRTC voice chat**: Peer-to-peer mesh topology (≤ 8 players), signaling through Socket.IO.
-- **Crossplay**: Android and browser users share the same eight-game library, authentication, lobby, game UI, rematch, and Socket.IO contracts.
+- **Crossplay**: Android and browser users share the same 44-game library, authentication, lobby, game UI, rematch, and Socket.IO contracts.
 - **Secure mobile session**: Guest credentials are stored with the platform keystore via `expo-secure-store`.
 - **Self-healing guest sessions**: Expired JWTs or cleaned-up guest rows renew once with the existing username; transient outages do not silently replace identity.
 
@@ -133,9 +171,6 @@ Copy `.env.example` to `.env` at the project root. Key variables:
 | `JWT_EXPIRATION`      | `7d`                  | Token lifetime                |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000`| Backend URL for the frontend |
 | `NEXT_PUBLIC_WS_URL`  | `http://localhost:8000`| WebSocket URL for the frontend|
-| `NEXT_PUBLIC_TURN_URLS` | *(optional)* | Comma-separated TURN/TURNS relay URLs for reliable voice across restrictive networks |
-| `NEXT_PUBLIC_TURN_USERNAME` | *(optional)* | Short-lived browser TURN username |
-| `NEXT_PUBLIC_TURN_CREDENTIAL` | *(optional)* | Short-lived browser TURN credential; do not use a long-lived infrastructure secret |
 
 ---
 
@@ -156,7 +191,7 @@ GameManager/
 
 1. Implement a dedicated authoritative rules engine under `backend/src/game/engines/`. A mode, board-size change, timer, theme, or scoring preset does not count as a new game.
 2. Add focused rule-conformance tests for setup, legal/illegal actions, hidden information, terminal states, surrender, and reconnect projection.
-3. Register the game in `GameType`, `GameRegistry`, lobby dispatch, and the per-player Socket.IO projection path.
+3. Register the game in `GameRegistry`, assign a unique ruleset ID, and expose it through the distinct-game lifecycle and per-player projection path.
 4. Build its dedicated web interaction surface and expose the same route through the mobile crossplay shell.
 5. Add a real lobby/start/action/result flow to `frontend/scripts/runtime-e2e.js` before displaying the game in the production shelf.
 
@@ -180,8 +215,8 @@ cd ../mobileapp
 npm run typecheck
 npx expo export --platform android
 
-# Production-like REST and Socket.IO flow (rematch, reconnect, existing games,
-# and voice signaling)
+# Production-like REST and Socket.IO flow (44-entry catalog, rematch,
+# reconnect, all multiplayer games, and voice signaling)
 cd ../frontend
 npm run test:e2e:runtime
 ```
@@ -200,7 +235,7 @@ Before directing users to a release:
 2. Set `NODE_ENV=production`, a strong `JWT_SECRET`, the PostgreSQL connection values, and `DATABASE_SSL_CA` for verified database TLS.
 3. Set `CORS_ORIGIN` to the exact comma-separated browser origins, for example `https://game-manager-two.vercel.app`. Never use `*` with credentials.
 4. Build the web app with production `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_WS_URL` values. Confirm `/health` returns `{"status":"ok"}` after deployment.
-5. Configure `NEXT_PUBLIC_TURN_URLS`, `NEXT_PUBLIC_TURN_USERNAME`, and `NEXT_PUBLIC_TURN_CREDENTIAL` from a managed TURN provider. STUN-only voice cannot be guaranteed across carrier-grade or symmetric NAT.
+5. Voice uses direct peer-to-peer WebRTC with public STUN discovery and requires microphone permission in the browser or mobile WebView.
 6. Configure the four stable Android signing secrets from `mobileapp/README.md`. Ephemeral-signed CI APKs are installable but cannot upgrade one another.
 7. Confirm both GitHub Actions workflows pass. `CI` runs all unit/build jobs plus the Dockerized REST/Socket.IO runtime E2E suite; `Mobile APK` builds and attaches the commit APK to a prerelease.
 

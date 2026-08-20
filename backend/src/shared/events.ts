@@ -4,6 +4,7 @@ export const LOBBY_EVENTS = {
   JOIN: 'lobby:join',
   LEAVE: 'lobby:leave',
   PLAYER_READY: 'lobby:player_ready',
+  TEAM_SELECT: 'lobby:team_select',
   STATE: 'lobby:state',
   ERROR: 'lobby:error',
   PLAYER_JOINED: 'lobby:player_joined',
@@ -121,6 +122,13 @@ export const CONNECTFOUR_EVENTS = {
   STATE: 'connectfour:state',
   RESULT: 'connectfour:result',
   ERROR: 'connectfour:error',
+} as const;
+
+export const DISTINCT_GAME_EVENTS = {
+  ACTION: 'distinct:action',
+  STATE: 'distinct:state',
+  RESULT: 'distinct:result',
+  ERROR: 'distinct:error',
 } as const;
 
 // ─── Voice Chat Events (WebRTC Signaling) ───

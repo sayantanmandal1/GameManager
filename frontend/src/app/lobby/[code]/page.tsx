@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { LobbyPlayerCard } from '@/components/lobby/LobbyPlayer';
+import { PartnershipTeamPicker } from '@/components/lobby/PartnershipTeamPicker';
 import { GameChat } from '@/components/chat/GameChat';
 import { VoiceChat } from '@/components/voice/VoiceChat';
 import { useAuthStore } from '@/stores/authStore';
@@ -13,8 +14,28 @@ import { useLobbyStore } from '@/stores/lobbyStore';
 import { useGameStore } from '@/stores/gameStore';
 import { useLudoStore } from '@/stores/ludoStore';
 import { useSocket } from '@/hooks/useSocket';
-import { LOBBY_EVENTS, GameType } from '@/shared';
+import { LOBBY_EVENTS, GameType, isPartnershipGameKey, type Lobby } from '@/shared';
 import { getSocket } from '@/lib/socket';
+import { DISTINCT_GAME_UI } from '@/lib/distinctGames';
+
+const LEGACY_GAME_NAMES: Partial<Record<GameType, string>> = {
+  [GameType.BINGO]: 'Bingo',
+  [GameType.LUDO]: 'Ludo',
+  [GameType.CHESS]: 'Chess',
+  [GameType.PHOTOBOOTH]: 'Photobooth',
+  [GameType.UNO]: 'UNO',
+  [GameType.TICTACTOE]: 'Tic Tac Toe',
+  [GameType.CONNECTFOUR]: 'Connect Four',
+  [GameType.SUDOKU]: 'Sudoku',
+};
+
+function getGameName(lobby: Lobby | null): string {
+  if (!lobby) return '';
+  if (lobby.gameType === GameType.DISTINCT && lobby.gameKey) {
+    return DISTINCT_GAME_UI[lobby.gameKey].name;
+  }
+  return LEGACY_GAME_NAMES[lobby.gameType] ?? 'Game';
+}
 
 export default function LobbyPage() {
   const params = useParams();
@@ -22,7 +43,7 @@ export default function LobbyPage() {
   const code = params.code as string;
 
   const { isAuthenticated, hasHydrated, user } = useAuthStore();
-  const { lobby, joinLobby, leaveLobby, setReady, startGame, initListeners } =
+  const { lobby, error, joinLobby, leaveLobby, setReady, selectTeam, startGame, initListeners } =
     useLobbyStore();
   const { initListeners: initGameListeners, reset: resetGame } = useGameStore();
   const { initListeners: initLudoListeners, reset: resetLudo } = useLudoStore();
@@ -68,6 +89,9 @@ export default function LobbyPage() {
         router.push(`/games/tictactoe/play/${code}`);
       } else if (gameType === GameType.CONNECTFOUR) {
         router.push(`/games/connectfour/play/${code}`);
+      } else if (gameType === GameType.DISTINCT) {
+        const gameKey = useLobbyStore.getState().lobby?.gameKey;
+        if (gameKey) router.push(`/games/${gameKey}/play/${code}`);
       } else {
         router.push(`/games/bingo/play?lobby=${code}`);
       }
@@ -87,20 +111,17 @@ export default function LobbyPage() {
   const allReady = lobby?.players
     .filter((p) => !p.isHost)
     .every((p) => p.isReady);
+  const isPartnershipGame = lobby?.gameType === GameType.DISTINCT
+    && isPartnershipGameKey(lobby.gameKey);
+  const teamsComplete = !isPartnershipGame || (
+    lobby.players.length === 4
+    && lobby.players.filter((player) => player.team === 0).length === 2
+    && lobby.players.filter((player) => player.team === 1).length === 2
+  );
+  const minimumPlayers = isPartnershipGame ? 4 : 2;
   const canStart =
-    isHost && allReady && (lobby?.players.length ?? 0) >= 2;
-  const gameName = lobby
-    ? ({
-        [GameType.BINGO]: 'Bingo',
-        [GameType.LUDO]: 'Ludo',
-        [GameType.CHESS]: 'Chess',
-        [GameType.PHOTOBOOTH]: 'Photobooth',
-        [GameType.UNO]: 'UNO',
-        [GameType.TICTACTOE]: 'Tic Tac Toe',
-        [GameType.CONNECTFOUR]: 'Connect Four',
-        [GameType.SUDOKU]: 'Sudoku',
-      } as Record<GameType, string>)[lobby.gameType]
-    : '';
+    isHost && allReady && teamsComplete && (lobby?.players.length ?? 0) >= minimumPlayers;
+  const gameName = getGameName(lobby);
 
   const copyCode = async () => {
     await navigator.clipboard.writeText(code);
@@ -124,6 +145,8 @@ export default function LobbyPage() {
       router.push('/games/connectfour');
     } else if (gameType === GameType.CHESS) {
       router.push('/games/chess');
+    } else if (gameType === GameType.DISTINCT && lobby?.gameKey) {
+      router.push(`/games/${lobby.gameKey}`);
     } else {
       router.push('/games/bingo');
     }
@@ -158,6 +181,7 @@ export default function LobbyPage() {
           <div className="sm:text-right">
             <p className="mb-1 text-xs font-bold text-game-muted">INVITE CODE</p>
             <button
+              type="button"
               onClick={copyCode}
               className="rounded-lg border border-white/15 bg-[#1c1f1b] px-4 py-2 font-mono text-2xl font-black text-white transition-colors hover:border-game-mint/60"
               title="Copy lobby code"
@@ -181,6 +205,13 @@ export default function LobbyPage() {
                 {lobby.players.length}/{lobby.maxPlayers}
               </span>
             </div>
+            {isPartnershipGame && user?.id && (
+              <PartnershipTeamPicker
+                players={lobby.players}
+                currentUserId={user.id}
+                onSelect={selectTeam}
+              />
+            )}
             <div className="space-y-2">
               <AnimatePresence>
                 {lobby.players.map((player) => (
@@ -218,9 +249,12 @@ export default function LobbyPage() {
             </div>
             {!canStart && isHost && (
               <p className="mt-3 text-xs text-game-muted">
-                At least two players are required and every guest must be ready.
+                {isPartnershipGame && !teamsComplete
+                  ? 'Choose two players for each team before starting.'
+                  : `At least ${minimumPlayers} players are required and every guest must be ready.`}
               </p>
             )}
+            {error && <p role="alert" className="mt-3 text-sm text-red-300">{error}</p>}
           </Card>
 
           <div className="space-y-4">

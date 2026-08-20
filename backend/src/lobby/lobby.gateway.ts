@@ -22,11 +22,13 @@ import {
   UNO_EVENTS,
   TICTACTOE_EVENTS,
   CONNECTFOUR_EVENTS,
+  DISTINCT_GAME_EVENTS,
   AUTH_EVENTS,
   GameType,
   LobbyStatus,
   CreateLobbyPayload,
   JoinLobbyPayload,
+  LobbyTeam,
   getCorsOrigins,
 } from '../shared';
 
@@ -112,6 +114,7 @@ export class LobbyGateway
         data.timeControl ?? null,
         data.unoRules ?? null,
         data.tictactoeMode ?? null,
+        data.gameKey ?? null,
       );
       client.join(`lobby:${lobby.code}`);
       this.socketLobbyMap.set(client.id, lobby.code);
@@ -132,6 +135,15 @@ export class LobbyGateway
       } else if (raw === 'invalid_tictactoe_mode') {
         code = 'INVALID_TICTACTOE_MODE';
         message = 'Invalid Tic Tac Toe mode';
+      } else if (raw === 'invalid_game_type') {
+        code = 'INVALID_GAME_TYPE';
+        message = 'Invalid game type';
+      } else if (raw === 'invalid_game_key') {
+        code = 'INVALID_GAME_KEY';
+        message = 'Invalid game selection';
+      } else if (raw === 'mismatched_game_key') {
+        code = 'MISMATCHED_GAME_KEY';
+        message = 'Game selection does not match the game type';
       }
       client.emit(LOBBY_EVENTS.ERROR, { message, code });
     }
@@ -211,6 +223,25 @@ export class LobbyGateway
     }
   }
 
+  @SubscribeMessage(LOBBY_EVENTS.TEAM_SELECT)
+  async handleTeamSelect(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { team: LobbyTeam },
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const code = this.socketLobbyMap.get(client.id);
+    if (!code) return;
+
+    try {
+      const lobby = await this.lobbyService.setTeam(code, user.sub, data?.team);
+      this.server.to(`lobby:${code}`).emit(LOBBY_EVENTS.STATE, { lobby });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to select team';
+      client.emit(LOBBY_EVENTS.ERROR, { message, code: 'TEAM_FAILED' });
+    }
+  }
+
   @SubscribeMessage(LOBBY_EVENTS.START_GAME)
   async handleStartGame(@ConnectedSocket() client: Socket): Promise<void> {
     const user = getSocketUser(client, this.jwtService);
@@ -259,6 +290,9 @@ export class LobbyGateway
       } else if (lobby.gameType === GameType.CONNECTFOUR) {
         const result = await this.gameService.startConnectFourGame(code);
         gameId = result.gameId;
+      } else if (lobby.gameType === GameType.DISTINCT) {
+        const result = await this.gameService.startDistinctGame(code);
+        gameId = result.gameId;
       } else {
         const result = await this.gameService.startBingoGame(code);
         gameId = result.gameId;
@@ -305,6 +339,16 @@ export class LobbyGateway
             const view = this.gameService.getConnectFourPlayerView(gameId, sUser.sub);
             if (view) {
               s.emit(CONNECTFOUR_EVENTS.STATE, { gameId, lobbyCode: code, view });
+            }
+          } else if (lobby.gameType === GameType.DISTINCT) {
+            const view = this.gameService.getDistinctPlayerView(gameId, sUser.sub);
+            if (view && lobby.gameKey) {
+              s.emit(DISTINCT_GAME_EVENTS.STATE, {
+                gameId,
+                lobbyCode: code,
+                gameKey: lobby.gameKey,
+                view,
+              });
             }
           } else {
             const view = this.gameService.getPlayerView(gameId, sUser.sub);

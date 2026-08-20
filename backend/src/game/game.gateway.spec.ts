@@ -3,6 +3,7 @@ import { GameService } from './game.service';
 import { JwtService } from '@nestjs/jwt';
 import { ChessMoveDto, ChessResignDto, ChessRejoinDto } from './dto/chess.dto';
 import { PhotoboothCaptureDto } from './dto/photobooth.dto';
+import { DistinctGameActionDto } from './dto/distinct-game.dto';
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { CHESS_EVENTS, GAME_EVENTS, LUDO_EVENTS } from '../shared';
@@ -70,6 +71,146 @@ describe('chess DTOs — class-validator', () => {
     const dto = plainToInstance(ChessRejoinDto, { lobbyCode: '123456' });
     const errors = await validate(dto);
     expect(errors).toHaveLength(0);
+  });
+});
+
+describe('distinct game DTOs - class-validator', () => {
+  it('accepts a bounded game action', async () => {
+    const dto = plainToInstance(DistinctGameActionDto, {
+      gameId: '123e4567-e89b-12d3-a456-426614174000',
+      lobbyCode: '123456',
+      action: { cell: 19 },
+    });
+
+    await expect(
+      validate(dto, { whitelist: true, forbidNonWhitelisted: true }),
+    ).resolves.toHaveLength(0);
+  });
+
+  it('rejects a client-supplied Pig die value', async () => {
+    const dto = plainToInstance(DistinctGameActionDto, {
+      gameId: '123e4567-e89b-12d3-a456-426614174000',
+      lobbyCode: '123456',
+      action: { type: 'roll', value: 6 },
+    });
+    const errors = await validate(dto, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
+
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('accepts a bounded nested Grid Salvo fleet', async () => {
+    const dto = plainToInstance(DistinctGameActionDto, {
+      gameId: '123e4567-e89b-12d3-a456-426614174000',
+      lobbyCode: '123456',
+      action: {
+        type: 'place_fleet',
+        ships: [
+          { start: 0, end: 4 },
+          { start: 10, end: 13 },
+          { start: 20, end: 22 },
+          { start: 30, end: 32 },
+          { start: 40, end: 41 },
+        ],
+      },
+    });
+
+    await expect(
+      validate(dto, { whitelist: true, forbidNonWhitelisted: true }),
+    ).resolves.toHaveLength(0);
+  });
+
+  it('rejects oversized fleet, dice, and tile arrays', async () => {
+    const actions = [
+      { type: 'place_fleet', ships: Array.from({ length: 6 }, () => ({ start: 0, end: 1 })) },
+      { type: 'select_dice', indices: [0, 1, 2, 3, 4, 5, 5] },
+      { type: 'close_tiles', tiles: [1, 2, 3, 4, 5, 6, 7, 8, 9, 9] },
+    ];
+
+    for (const action of actions) {
+      const dto = plainToInstance(DistinctGameActionDto, {
+        gameId: '123e4567-e89b-12d3-a456-426614174000',
+        lobbyCode: '123456',
+        action,
+      });
+      const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+      expect(errors.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('rejects overlong or non-letter Hangman phrases', async () => {
+    for (const phrase of ['A'.repeat(41), 'SAFE PHRASE 2']) {
+      const dto = plainToInstance(DistinctGameActionDto, {
+        gameId: '123e4567-e89b-12d3-a456-426614174000',
+        lobbyCode: '123456',
+        action: { type: 'set_phrase', phrase },
+      });
+      const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+      expect(errors.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('rejects client-controlled random results for every dice game', async () => {
+    for (const action of [
+      { type: 'roll_dice', heldIndices: [], dice: [6, 6, 6, 6, 6] },
+      { type: 'roll_farkle', dice: [1, 1, 1, 1, 1, 1] },
+      { type: 'roll_box', roll: [6, 6] },
+      { type: 'roll_ceelo', dice: [4, 5, 6] },
+    ]) {
+      const dto = plainToInstance(DistinctGameActionDto, {
+        gameId: '123e4567-e89b-12d3-a456-426614174000',
+        lobbyCode: '123456',
+        action,
+      });
+      const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+      expect(errors.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('accepts bounded actions for the expanded games', async () => {
+    const actions = [
+      { type: 'pass_cards', cardIds: ['c-clubs-A', 'c-hearts-2', 'c-spades-Q'] },
+      { type: 'bid_spades', bid: 13 },
+      { type: 'gin_discard', cardId: 'c-diamonds-10', knock: true },
+      { type: 'draw_from_player', handIndex: 50 },
+      { type: 'place_hex', cell: 120 },
+      { type: 'place_stone', node: 23 },
+      { type: 'answer_trivia', answerIndex: 3 },
+      { type: 'reveal_tile', tileIndex: 23 },
+    ];
+
+    for (const action of actions) {
+      const dto = plainToInstance(DistinctGameActionDto, {
+        gameId: '123e4567-e89b-12d3-a456-426614174000',
+        lobbyCode: '123456',
+        action,
+      });
+      await expect(validate(dto, { whitelist: true, forbidNonWhitelisted: true })).resolves.toHaveLength(0);
+    }
+  });
+
+  it('rejects out-of-range expanded-game fields and malformed card arrays', async () => {
+    const actions = [
+      { type: 'pass_cards', cardIds: ['c-clubs-A', 'invalid card'] },
+      { type: 'bid_spades', bid: 14 },
+      { type: 'draw_from_player', handIndex: 51 },
+      { type: 'place_hex', cell: 121 },
+      { type: 'place_stone', node: 24 },
+      { type: 'answer_trivia', answerIndex: 4 },
+      { type: 'reveal_tile', tileIndex: 24 },
+    ];
+
+    for (const action of actions) {
+      const dto = plainToInstance(DistinctGameActionDto, {
+        gameId: '123e4567-e89b-12d3-a456-426614174000',
+        lobbyCode: '123456',
+        action,
+      });
+      const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+      expect(errors.length).toBeGreaterThan(0);
+    }
   });
 });
 

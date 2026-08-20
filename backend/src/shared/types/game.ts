@@ -8,6 +8,7 @@ export interface GameRecord {
   id: string;
   lobbyId: string;
   gameType: string;
+  gameKey?: string | null;
   playerIds: string[];
   winnerId: string | null;
   status: GameStatus;

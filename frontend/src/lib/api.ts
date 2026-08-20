@@ -17,3 +17,13 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
 
   return parseResponse<T>(res);
 }
+
+export async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+
+  return parseResponse<T>(res);
+}

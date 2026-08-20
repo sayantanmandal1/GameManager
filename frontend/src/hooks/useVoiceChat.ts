@@ -5,20 +5,33 @@ import { getSocket } from '@/lib/socket';
 import { useVoiceStore } from '@/stores/voiceStore';
 import { VOICE_EVENTS } from '@/shared';
 
-const iceServers: RTCIceServer[] = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-];
-const turnUrls = (process.env.NEXT_PUBLIC_TURN_URLS ?? '')
-  .split(',')
-  .map((url) => url.trim())
-  .filter(Boolean);
-const turnUsername = process.env.NEXT_PUBLIC_TURN_USERNAME;
-const turnCredential = process.env.NEXT_PUBLIC_TURN_CREDENTIAL;
-if (turnUrls.length > 0 && turnUsername && turnCredential) {
-  iceServers.push({ urls: turnUrls, username: turnUsername, credential: turnCredential });
+const ICE_SERVERS: RTCConfiguration = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
+  ],
+  bundlePolicy: 'max-bundle',
+};
+
+function getMediaErrorMessage(error: unknown): string {
+  if (error instanceof DOMException && error.name === 'NotAllowedError') {
+    return 'Microphone permission was denied. Allow microphone access and try again.';
+  }
+  if (error instanceof DOMException && error.name === 'NotFoundError') {
+    return 'No microphone was found on this device.';
+  }
+  return 'Unable to start voice chat.';
 }
-const ICE_SERVERS: RTCConfiguration = { iceServers };
+
+function addMissingAudioTracks(pc: RTCPeerConnection, stream: MediaStream): void {
+  const existingTrackIds = new Set(
+    pc.getSenders().map((sender) => sender.track?.id).filter(Boolean),
+  );
+  for (const track of stream.getAudioTracks()) {
+    if (!existingTrackIds.has(track.id)) pc.addTrack(track, stream);
+  }
+}
 
 export function useVoiceChat(roomId: string) {
   const peerConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
@@ -28,6 +41,8 @@ export function useVoiceChat(roomId: string) {
    * This is the primary fix for the silent-drop race condition.
    */
   const pendingCandidates = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
+  const restartAttempts = useRef<Map<string, number>>(new Map());
+  const restartTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   /** Keep audio elements attached to the DOM for autoplay policy compliance */
   const audioElements = useRef<Map<string, HTMLAudioElement>>(new Map());
   const audioContainerRef = useRef<HTMLDivElement | null>(null);
@@ -50,7 +65,12 @@ export function useVoiceChat(roomId: string) {
     if (!audioContainerRef.current) {
       const container = document.createElement('div');
       container.id = 'voice-audio-container';
-      container.style.display = 'none';
+      container.style.position = 'fixed';
+      container.style.width = '1px';
+      container.style.height = '1px';
+      container.style.opacity = '0';
+      container.style.pointerEvents = 'none';
+      container.style.overflow = 'hidden';
       document.body.appendChild(container);
       audioContainerRef.current = container;
     }
@@ -62,6 +82,8 @@ export function useVoiceChat(roomId: string) {
         audio.remove();
       });
       audioElements.current.clear();
+      restartTimers.current.forEach((timer) => clearTimeout(timer));
+      restartTimers.current.clear();
       if (audioContainerRef.current) {
         audioContainerRef.current.remove();
         audioContainerRef.current = null;
@@ -87,6 +109,7 @@ export function useVoiceChat(roomId: string) {
 
     const audio = document.createElement('audio');
     audio.autoplay = true;
+    audio.volume = 1;
     audio.setAttribute('playsinline', 'true');
     audio.muted = useVoiceStore.getState().isSpeakerOff;
     audio.srcObject = stream;
@@ -125,6 +148,10 @@ export function useVoiceChat(roomId: string) {
       peerConnections.current.delete(socketId);
     }
     pendingCandidates.current.delete(socketId);
+    restartAttempts.current.delete(socketId);
+    const restartTimer = restartTimers.current.get(socketId);
+    if (restartTimer) clearTimeout(restartTimer);
+    restartTimers.current.delete(socketId);
     const audio = audioElements.current.get(socketId);
     if (audio) {
       audio.pause();
@@ -154,6 +181,36 @@ export function useVoiceChat(roomId: string) {
     }
   }, []);
 
+  const scheduleIceRestart = useCallback((
+    pc: RTCPeerConnection,
+    targetSocketId: string,
+  ): void => {
+    if (restartTimers.current.has(targetSocketId)) return;
+    const delay = pc.connectionState === 'failed' ? 0 : 1500;
+    const timer = setTimeout(async () => {
+      restartTimers.current.delete(targetSocketId);
+      if (pc.connectionState === 'connected' || pc.connectionState === 'closed') return;
+      const socket = getSocket();
+      const shouldRestart = !!socket?.id && socket.id.localeCompare(targetSocketId) > 0;
+      const attempts = restartAttempts.current.get(targetSocketId) ?? 0;
+      if (!shouldRestart || attempts >= 2) {
+        setConnectionError('Peer-to-peer voice could not connect on this network.');
+        return;
+      }
+      restartAttempts.current.set(targetSocketId, attempts + 1);
+      try {
+        pc.restartIce();
+        const offer = await pc.createOffer({ iceRestart: true });
+        await pc.setLocalDescription(offer);
+        socket.emit(VOICE_EVENTS.OFFER, { targetSocketId, offer });
+        setConnectionError('Restoring peer-to-peer voice…');
+      } catch {
+        setConnectionError('Unable to restore peer-to-peer voice.');
+      }
+    }, delay);
+    restartTimers.current.set(targetSocketId, timer);
+  }, [setConnectionError]);
+
   const createPeerConnection = useCallback(
     (targetSocketId: string): RTCPeerConnection => {
       const socket = getSocket();
@@ -176,10 +233,13 @@ export function useVoiceChat(roomId: string) {
 
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === 'connected') {
+          restartAttempts.current.delete(targetSocketId);
+          const timer = restartTimers.current.get(targetSocketId);
+          if (timer) clearTimeout(timer);
+          restartTimers.current.delete(targetSocketId);
           setConnectionError(null);
-        } else if (pc.connectionState === 'failed') {
-          setConnectionError('Voice connection failed. A TURN relay may be required on this network.');
-          cleanupPeer(targetSocketId);
+        } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+          scheduleIceRestart(pc, targetSocketId);
         }
       };
 
@@ -193,7 +253,7 @@ export function useVoiceChat(roomId: string) {
       peerConnections.current.set(targetSocketId, pc);
       return pc;
     },
-    [createAudioElement, cleanupPeer, setConnectionError],
+    [createAudioElement, scheduleIceRestart, setConnectionError],
   );
 
   const joinVoice = useCallback(async (): Promise<boolean> => {
@@ -220,6 +280,17 @@ export function useVoiceChat(roomId: string) {
         track.enabled = !useVoiceStore.getState().isMuted;
       });
 
+      // A signaling event can create a peer before getUserMedia resolves.
+      // Backfill the microphone track and renegotiate those existing peers.
+      for (const [targetSocketId, pc] of peerConnections.current) {
+        addMissingAudioTracks(pc, localStream.current);
+        if (socket.id && socket.id.localeCompare(targetSocketId) > 0) {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          socket.emit(VOICE_EVENTS.OFFER, { targetSocketId, offer });
+        }
+      }
+
       socket.emit(VOICE_EVENTS.JOIN, { roomId });
       setVoiceActive(true);
       setVoiceJoining(false);
@@ -227,13 +298,7 @@ export function useVoiceChat(roomId: string) {
     } catch (err) {
       localStream.current?.getTracks().forEach((track) => track.stop());
       localStream.current = null;
-      const message =
-        err instanceof DOMException && err.name === 'NotAllowedError'
-          ? 'Microphone permission was denied. Allow microphone access and try again.'
-          : err instanceof DOMException && err.name === 'NotFoundError'
-            ? 'No microphone was found on this device.'
-            : 'Unable to start voice chat.';
-      setConnectionError(message);
+      setConnectionError(getMediaErrorMessage(err));
       setVoiceJoining(false);
       setVoiceActive(false);
       return false;
@@ -256,6 +321,9 @@ export function useVoiceChat(roomId: string) {
     peerConnections.current.clear();
     audioElements.current.clear();
     pendingCandidates.current.clear();
+    restartTimers.current.forEach((timer) => clearTimeout(timer));
+    restartTimers.current.clear();
+    restartAttempts.current.clear();
 
     // Stop local stream
     localStream.current?.getTracks().forEach((t) => t.stop());
@@ -329,10 +397,8 @@ export function useVoiceChat(roomId: string) {
       offer: RTCSessionDescriptionInit;
     }) => {
       try {
-        let pc = peerConnections.current.get(data.socketId);
-        if (!pc) {
-          pc = createPeerConnection(data.socketId);
-        }
+        const pc = peerConnections.current.get(data.socketId)
+          ?? createPeerConnection(data.socketId);
 
         if (pc.signalingState === 'have-local-offer') {
           await pc.setLocalDescription({ type: 'rollback' });
@@ -358,7 +424,7 @@ export function useVoiceChat(roomId: string) {
     }) => {
       try {
         const pc = peerConnections.current.get(data.socketId);
-        if (pc && pc.signalingState === 'have-local-offer') {
+        if (pc?.signalingState === 'have-local-offer') {
           await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
           // Flush any ICE candidates that arrived before remoteDescription was set
           await flushPendingCandidates(data.socketId);
@@ -374,7 +440,12 @@ export function useVoiceChat(roomId: string) {
     }) => {
       try {
         const pc = peerConnections.current.get(data.socketId);
-        if (!pc) return;
+        if (!pc) {
+          const buffered = pendingCandidates.current.get(data.socketId) ?? [];
+          buffered.push(data.candidate);
+          pendingCandidates.current.set(data.socketId, buffered);
+          return;
+        }
         if (pc.remoteDescription) {
           // Remote description already set — add immediately
           await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
@@ -440,6 +511,9 @@ export function useVoiceChat(roomId: string) {
     peerConnections.current.forEach((pc) => pc.close());
     peerConnections.current.clear();
     pendingCandidates.current.clear();
+    restartTimers.current.forEach((timer) => clearTimeout(timer));
+    restartTimers.current.clear();
+    restartAttempts.current.clear();
     localStream.current.getTracks().forEach((track) => track.stop());
     localStream.current = null;
     useVoiceStore.getState().clearPeers();

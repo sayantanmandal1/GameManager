@@ -3,6 +3,8 @@ import {
   ActivityIndicator,
   BackHandler,
   Linking,
+  PermissionsAndroid,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -17,10 +19,10 @@ import type { GuestSession, WebDestination } from '../types';
 import { isGuestSession } from '../services/auth';
 
 interface GameWebViewProps {
-  destination: WebDestination;
-  session: GuestSession;
-  onSessionChange: (session: GuestSession) => Promise<void>;
-  onClose: () => void;
+  readonly destination: WebDestination;
+  readonly session: GuestSession;
+  readonly onSessionChange: (session: GuestSession) => Promise<void>;
+  readonly onClose: () => void;
 }
 
 export function GameWebView({ destination, session, onSessionChange, onClose }: GameWebViewProps) {
@@ -31,6 +33,13 @@ export function GameWebView({ destination, session, onSessionChange, onClose }: 
   const uri = useMemo(() => `${WEB_URL}${safeRoute(destination.route)}`, [destination.route]);
   const authScript = useMemo(() => createAuthInjection(session), [session]);
   const authFallbackScript = useMemo(() => createAuthFallbackInjection(session), [session]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO).catch(
+      () => undefined,
+    );
+  }, []);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {

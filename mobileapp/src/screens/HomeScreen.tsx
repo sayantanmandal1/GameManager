@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Pressable,
@@ -14,17 +15,7 @@ import * as Haptics from 'expo-haptics';
 import { BrandMark } from '../components/BrandMark';
 import { colors } from '../theme';
 import type { GameDefinition, GuestSession, WebDestination } from '../types';
-
-const GAMES: GameDefinition[] = [
-  { id: 'bingo', title: 'Bingo', mark: '75', description: 'Build five lines first.', route: '/games/bingo', accent: colors.coral, surface: '#351d19' },
-  { id: 'chess', title: 'Chess', mark: 'N', description: 'Live clocks and legal play.', route: '/games/chess', accent: colors.blue, surface: '#182938' },
-  { id: 'ludo', title: 'Ludo', mark: 'O', description: 'Race four tokens home.', route: '/games/ludo', accent: colors.mint, surface: '#173126' },
-  { id: 'photobooth', title: 'Photobooth', mark: 'C', description: 'Make a shared photo strip.', route: '/games/photobooth', accent: '#ff8db3', surface: '#351d2a' },
-  { id: 'uno', title: 'UNO', mark: '7', description: 'Match, stack, call UNO.', route: '/games/uno', accent: colors.sun, surface: '#382d16' },
-  { id: 'tictactoe', title: 'Tic Tac Toe', mark: 'X', description: 'Classic or three-piece.', route: '/games/tictactoe', accent: '#d7a7ff', surface: '#2c2036' },
-  { id: 'connectfour', title: 'Connect Four', mark: '4', description: 'Drop discs into a line.', route: '/games/connectfour', accent: '#ffcf4a', surface: '#26304a' },
-  { id: 'sudoku', title: 'Sudoku', mark: '9', description: 'Focused solo puzzles.', route: '/games/sudoku', accent: '#8dd8c1', surface: '#1d302d' },
-];
+import { getGameCatalog } from '../services/catalog';
 
 interface HomeScreenProps {
   session: GuestSession;
@@ -35,7 +26,24 @@ interface HomeScreenProps {
 export function HomeScreen({ session, onOpen, onLogout }: Readonly<HomeScreenProps>) {
   const { width } = useWindowDimensions();
   const [joinCode, setJoinCode] = useState('');
+  const [games, setGames] = useState<GameDefinition[]>([]);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
   const cardWidth = useMemo(() => Math.floor((Math.min(width, 760) - 56) / 2), [width]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getGameCatalog(controller.signal)
+      .then((catalog) => {
+        setGames(catalog);
+        setCatalogError(null);
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setCatalogError(error instanceof Error ? error.message : 'Game catalog unavailable');
+      });
+    return () => controller.abort();
+  }, [catalogAttempt]);
 
   const open = async (destination: WebDestination) => {
     await Haptics.selectionAsync();
@@ -57,7 +65,7 @@ export function HomeScreen({ session, onOpen, onLogout }: Readonly<HomeScreenPro
   return (
     <SafeAreaView style={styles.safeArea}>
       <FlatList
-        data={GAMES}
+        data={games}
         keyExtractor={(game) => game.id}
         numColumns={2}
         columnWrapperStyle={styles.row}
@@ -106,9 +114,24 @@ export function HomeScreen({ session, onOpen, onLogout }: Readonly<HomeScreenPro
 
             <View style={styles.sectionRow}>
               <Text style={styles.sectionTitle}>Choose a game</Text>
-              <Text style={styles.sectionMeta}>{GAMES.length} tables</Text>
+              <Text style={styles.sectionMeta}>{games.length || 23} tables</Text>
             </View>
           </View>
+        }
+        ListEmptyComponent={
+          catalogError ? (
+            <View style={styles.catalogState}>
+              <Text style={styles.catalogError}>{catalogError}</Text>
+              <Pressable onPress={() => setCatalogAttempt((attempt) => attempt + 1)} style={styles.retryButton}>
+                <Text style={styles.retryText}>Try again</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.catalogState}>
+              <ActivityIndicator color={colors.mint} />
+              <Text style={styles.catalogLoading}>Loading game library</Text>
+            </View>
+          )
         }
         renderItem={({ item }) => (
           <Pressable
@@ -164,4 +187,9 @@ const styles = StyleSheet.create({
   cardMarkText: { color: '#17201a', fontSize: 22, fontWeight: '900' },
   cardTitle: { color: colors.text, fontSize: 17, fontWeight: '900' },
   cardDescription: { color: '#c4c9c1', fontSize: 12, lineHeight: 17, marginTop: 5 },
+  catalogState: { minHeight: 160, alignItems: 'center', justifyContent: 'center' },
+  catalogLoading: { color: colors.muted, fontSize: 13, marginTop: 10 },
+  catalogError: { color: colors.coral, fontSize: 13, textAlign: 'center' },
+  retryButton: { minHeight: 44, minWidth: 104, borderRadius: 10, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center', marginTop: 14 },
+  retryText: { color: '#17201a', fontWeight: '900' },
 });

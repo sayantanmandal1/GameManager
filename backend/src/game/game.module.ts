@@ -5,6 +5,9 @@ import { GameService } from './game.service';
 import { GameGateway } from './game.gateway';
 import { LobbyModule } from '../lobby/lobby.module';
 import { AuthModule } from '../auth/auth.module';
+import { GameRegistry } from './game-registry';
+import { GameCatalogController } from './game-catalog.controller';
+import { DistinctGameLifecycle } from './distinct-game.lifecycle';
 
 @Module({
   imports: [
@@ -12,7 +15,8 @@ import { AuthModule } from '../auth/auth.module';
     forwardRef(() => LobbyModule),
     AuthModule,
   ],
-  providers: [GameService, GameGateway],
-  exports: [GameService],
+  controllers: [GameCatalogController],
+  providers: [GameService, GameGateway, GameRegistry, DistinctGameLifecycle],
+  exports: [GameService, GameRegistry],
 })
 export class GameModule {}

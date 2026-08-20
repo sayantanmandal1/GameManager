@@ -6,15 +6,21 @@ const { io } = require('socket.io-client');
 const API_URL = process.env.E2E_API_URL || 'http://127.0.0.1:8000';
 const SOCKET_URL = process.env.E2E_SOCKET_URL || 'http://127.0.0.1:8000';
 const TIMEOUT_MS = 10_000;
+const PARTNERSHIP_GAMES = new Set(['contract-bridge', 'spades', 'euchre', 'whist']);
 
 async function main() {
   const suffix = String(Date.now()).slice(-7);
   const alpha = await login(`Alpha${suffix}`);
   const beta = await login(`Beta${suffix}`);
+  const gamma = await login(`Gamma${suffix}`);
+  const delta = await login(`Delta${suffix}`);
   let alphaSocket = await connect(alpha.token);
   const betaSocket = await connect(beta.token);
+  const gammaSocket = await connect(gamma.token);
+  const deltaSocket = await connect(delta.token);
 
   try {
+    await verifyCatalog();
     const ttt = await verifyTicTacToeAndHostTransfer(
       alpha,
       beta,
@@ -37,15 +43,83 @@ async function main() {
     alphaSocket = await connect(alpha.token);
 
     await verifyLudoProjection(alpha, beta, alphaSocket, betaSocket);
+    await verifyDistinctGames(
+      alpha,
+      beta,
+      gamma,
+      delta,
+      alphaSocket,
+      betaSocket,
+      gammaSocket,
+      deltaSocket,
+    );
     await verifyVoiceRelay(alphaSocket, betaSocket);
 
     console.log(
-      'Runtime E2E passed: rematch, lobby, reconnect, Bingo, Ludo, Chess, Photobooth, UNO, TTT, Connect Four, voice.',
+      'Runtime E2E passed: 44-game catalog, rematch, lobby, reconnect, eight existing games, thirty-six distinct games, voice.',
     );
   } finally {
     alphaSocket.disconnect();
     betaSocket.disconnect();
+    gammaSocket.disconnect();
+    deltaSocket.disconnect();
   }
+}
+
+async function verifyCatalog() {
+  const response = await fetch(`${API_URL}/games/catalog`);
+  assert.equal(response.status, 200);
+  const catalog = await response.json();
+  assert.equal(catalog.total, 44);
+  assert.deepEqual(
+    catalog.games.map((game) => game.key),
+    [
+      'bingo',
+      'chess',
+      'ludo',
+      'photobooth',
+      'uno',
+      'tictactoe',
+      'connectfour',
+      'sudoku',
+      'reversi',
+      'checkers',
+      'mancala',
+      'dotsandboxes',
+      'pig',
+      'grid-salvo',
+      'peg-codebreaker',
+      'hangman',
+      'go-fish',
+      'crazy-eights',
+      'five-dice-yacht',
+      'liars-dice',
+      'farkle',
+      'shut-the-box',
+      'draw-dominoes',
+      'hearts',
+      'spades',
+      'gin-rummy',
+      'card-war',
+      'old-maid',
+      'hex',
+      'nine-mens-morris',
+      'cee-lo',
+      'trivia-quiz-bowl',
+      'memory-match',
+      'contract-bridge',
+      'bourre',
+      'bluff',
+      'sevens',
+      'ninety-nine',
+      'euchre',
+      'whist',
+      'oh-hell',
+      'president',
+      'slapjack',
+      'spoons',
+    ],
+  );
 }
 
 async function verifyTicTacToeAndHostTransfer(alpha, beta, alphaSocket, betaSocket) {
@@ -593,6 +667,1015 @@ async function verifyLudoProjection(alpha, beta, alphaSocket, betaSocket) {
   }
 }
 
+async function verifyDistinctGames(
+  alpha,
+  beta,
+  gamma,
+  delta,
+  alphaSocket,
+  betaSocket,
+  gammaSocket,
+  deltaSocket,
+) {
+  const clients = [
+    { user: alpha.user, socket: alphaSocket },
+    { user: beta.user, socket: betaSocket },
+    { user: gamma.user, socket: gammaSocket },
+    { user: delta.user, socket: deltaSocket },
+  ];
+  const alphaFleet = [
+    { start: 0, end: 4 },
+    { start: 10, end: 13 },
+    { start: 20, end: 22 },
+    { start: 30, end: 32 },
+    { start: 40, end: 41 },
+  ];
+  const betaFleet = [
+    { start: 5, end: 45 },
+    { start: 6, end: 36 },
+    { start: 7, end: 27 },
+    { start: 8, end: 28 },
+    { start: 9, end: 19 },
+  ];
+  const scenarios = [
+    {
+      gameKey: 'reversi',
+      action: { cell: 19 },
+      assertTransition: (view) => {
+        assert.equal(view.board[19], 'black');
+        assert.equal(view.board[27], 'black');
+        assert.equal(view.scores.black, 4);
+      },
+    },
+    {
+      gameKey: 'checkers',
+      action: { from: 40, to: 33 },
+      assertTransition: (view) => {
+        assert.equal(view.board[40], null);
+        assert.equal(view.board[33].playerId, alpha.user.id);
+      },
+    },
+    {
+      gameKey: 'mancala',
+      action: { pit: 0 },
+      assertTransition: (view) => {
+        assert.deepEqual(view.pits[0], [0, 5, 5, 5, 5, 4]);
+        assert.equal(view.currentTurnId, beta.user.id);
+      },
+    },
+    {
+      gameKey: 'dotsandboxes',
+      action: { orientation: 'horizontal', row: 0, column: 0 },
+      assertTransition: (view) => {
+        assert.equal(view.horizontalEdges[0][0], true);
+        assert.equal(view.currentTurnId, beta.user.id);
+      },
+    },
+    {
+      gameKey: 'pig',
+      action: { type: 'roll' },
+      assertTransition: (view) => {
+        assert(Number.isInteger(view.lastRoll));
+        assert(view.lastRoll >= 1 && view.lastRoll <= 6);
+        if (view.lastRoll === 1) {
+          assert.equal(view.turnTotal, 0);
+          assert.equal(view.currentTurnId, beta.user.id);
+        } else {
+          assert.equal(view.turnTotal, view.lastRoll);
+          assert.equal(view.currentTurnId, alpha.user.id);
+        }
+      },
+    },
+    {
+      gameKey: 'grid-salvo',
+      expectedMaxPlayers: 2,
+      prepare: async ({ initialState, betaInitial, lobby }) => {
+        assert.equal(initialState.view.phase, 'placement');
+        assert.equal(initialState.view.yourOcean.every((cell) => cell === 'empty'), true);
+        assert.equal(betaInitial.view.opponentOcean.every((cell) => cell === 'unknown'), true);
+
+        const betaSeesAlphaReady = waitForEvent(
+          betaSocket,
+          'distinct:state',
+          (payload) =>
+            payload.gameId === initialState.gameId &&
+            payload.view?.opponentReady === true &&
+            payload.view?.yourReady === false,
+        );
+        alphaSocket.emit('distinct:action', {
+          gameId: initialState.gameId,
+          lobbyCode: lobby.code,
+          action: { type: 'place_fleet', ships: alphaFleet },
+        });
+        const redacted = await betaSeesAlphaReady;
+        assert.equal(redacted.view.opponentOcean.every((cell) => cell === 'unknown'), true);
+
+        const alphaPlaying = waitForEvent(
+          alphaSocket,
+          'distinct:state',
+          (payload) => payload.gameId === initialState.gameId && payload.view?.phase === 'playing',
+        );
+        const betaPlaying = waitForEvent(
+          betaSocket,
+          'distinct:state',
+          (payload) => payload.gameId === initialState.gameId && payload.view?.phase === 'playing',
+        );
+        betaSocket.emit('distinct:action', {
+          gameId: initialState.gameId,
+          lobbyCode: lobby.code,
+          action: { type: 'place_fleet', ships: betaFleet },
+        });
+        const [alphaReady] = await Promise.all([alphaPlaying, betaPlaying]);
+        return alphaReady;
+      },
+      action: { type: 'shoot', cell: 5 },
+      assertTransition: (view) => {
+        assert.equal(view.yourOcean[5], 'hit');
+        assert.equal(view.currentTurnId, beta.user.id);
+      },
+    },
+    {
+      gameKey: 'peg-codebreaker',
+      expectedMaxPlayers: 2,
+      action: { type: 'set_code', colors: ['red', 'blue', 'green', 'yellow'] },
+      assertInitial: (_alphaView, betaView) => {
+        assert.equal(betaView.yourSecret, null);
+        assert.equal(betaView.revealedSecret, null);
+      },
+      assertTransition: (view) => {
+        assert.equal(view.phase, 'guessing');
+        assert.equal(view.currentTurnId, beta.user.id);
+        assert.equal(view.revealedSecret, null);
+      },
+    },
+    {
+      gameKey: 'hangman',
+      expectedMaxPlayers: 8,
+      action: { type: 'set_phrase', phrase: 'HIDDEN WORD' },
+      assertTransition: (view) => {
+        assert.equal(view.phase, 'playing');
+        assert.equal(view.currentTurnId, beta.user.id);
+        assert.equal(view.pattern, '______ ____');
+        assert.equal(view.revealedPhrase, null);
+        assert.equal(JSON.stringify(view).includes('HIDDEN WORD'), false);
+      },
+    },
+    {
+      gameKey: 'go-fish',
+      expectedMaxPlayers: 5,
+      action: (view) => ({
+        type: 'ask',
+        targetPlayerId: view.legalTargets[0],
+        rank: view.legalRanks[0],
+      }),
+      assertInitial: (alphaView, betaView) => {
+        assert(alphaView.legalRanks.length > 0);
+        assert.equal(Object.prototype.hasOwnProperty.call(betaView.players[0], 'hand'), false);
+      },
+      assertTransition: (view) => {
+        assert.notEqual(view.lastEvent, 'Cards dealt');
+        assert.equal(Object.prototype.hasOwnProperty.call(view.players[0], 'hand'), false);
+      },
+    },
+    {
+      gameKey: 'crazy-eights',
+      expectedMaxPlayers: 5,
+      action: (view) => {
+        const legalId = view.legalCardIds[0];
+        if (!legalId) return { type: 'draw_card' };
+        const card = view.yourHand.find((candidate) => candidate.id === legalId);
+        return card?.rank === '8'
+          ? { type: 'play_card', cardId: legalId, chosenSuit: 'clubs' }
+          : { type: 'play_card', cardId: legalId };
+      },
+      assertInitial: (_alphaView, betaView) => {
+        assert.equal(Object.prototype.hasOwnProperty.call(betaView.players[0], 'hand'), false);
+      },
+      assertTransition: (view, previousView) => {
+        const alphaPublic = view.players.find((player) => player.id === alpha.user.id);
+        assert(alphaPublic);
+        assert.notEqual(
+          `${view.topCard.id}:${alphaPublic.handCount}:${view.drawPileCount}`,
+          `${previousView.topCard.id}:${previousView.yourHand.length}:${previousView.drawPileCount}`,
+        );
+      },
+    },
+    {
+      gameKey: 'five-dice-yacht',
+      expectedMaxPlayers: 8,
+      action: { type: 'roll_dice', heldIndices: [] },
+      assertTransition: (view) => {
+        assert.equal(view.dice.length, 5);
+        assert.equal(view.rollsUsed, 1);
+        assert(view.dice.every((die) => Number.isInteger(die) && die >= 1 && die <= 6));
+      },
+    },
+    {
+      gameKey: 'liars-dice',
+      expectedMaxPlayers: 6,
+      action: { type: 'bid', quantity: 1, face: 1 },
+      assertInitial: (_alphaView, betaView) => {
+        assert.equal(betaView.yourDice.length, 5);
+        assert.equal(Object.prototype.hasOwnProperty.call(betaView.players[0], 'dice'), false);
+      },
+      assertTransition: (view) => {
+        assert.deepEqual(view.currentBid, { quantity: 1, face: 1, bidderId: alpha.user.id });
+        assert.equal(view.currentTurnId, beta.user.id);
+      },
+    },
+    {
+      gameKey: 'farkle',
+      expectedMaxPlayers: 8,
+      action: { type: 'roll_farkle' },
+      assertTransition: (view) => {
+        assert(
+          (view.phase === 'selecting' && view.dice.length === 6) ||
+          (view.phase === 'rolling' && view.currentTurnId === beta.user.id && view.lastEvent.startsWith('Farkle')),
+        );
+      },
+    },
+    {
+      gameKey: 'shut-the-box',
+      expectedMaxPlayers: 4,
+      action: { type: 'roll_box' },
+      assertTransition: (view) => {
+        assert.equal(view.phase, 'closing');
+        assert.equal(view.roll.length, 2);
+        assert(view.roll.every((die) => Number.isInteger(die) && die >= 1 && die <= 6));
+      },
+    },
+    {
+      gameKey: 'draw-dominoes',
+      expectedMaxPlayers: 4,
+      action: (view) => ({
+        type: 'play_domino',
+        dominoId: view.yourHand[0].id,
+        end: 'right',
+        flip: false,
+      }),
+      assertInitial: (_alphaView, betaView) => {
+        assert.equal(Object.prototype.hasOwnProperty.call(betaView.players[0], 'hand'), false);
+      },
+      assertTransition: (view) => {
+        assert.equal(view.chain.length, 1);
+        assert.equal(view.currentTurnId, beta.user.id);
+      },
+    },
+    {
+      gameKey: 'hearts',
+      playerCount: 4,
+      expectedMaxPlayers: 4,
+      skipInitialTurnAssertion: true,
+      prepare: async ({ playerStates, lobby, actor }) => {
+        for (let index = 0; index < playerStates.length; index += 1) {
+          const state = playerStates[index];
+          const cardIds = state.view.yourHand
+            .filter((card) => card.id !== 'c-clubs-2')
+            .slice(0, 3)
+            .map((card) => card.id);
+          if (index < playerStates.length - 1) {
+            await emitDistinctActionAndWait(
+              clients[index].socket,
+              actor.socket,
+              {
+                gameId: playerStates[0].gameId,
+                lobbyCode: lobby.code,
+                action: { type: 'pass_cards', cardIds },
+              },
+              (payload) => payload.gameId === playerStates[0].gameId && payload.view?.players?.find((player) => player.id === state.view.youId)?.passed,
+            );
+            console.log(`Runtime E2E hearts: pass ${index + 1} accepted`);
+          } else {
+            const ready = await emitDistinctActionAndWait(
+              clients[index].socket,
+              actor.socket,
+              {
+                gameId: playerStates[0].gameId,
+                lobbyCode: lobby.code,
+                action: { type: 'pass_cards', cardIds },
+              },
+              (payload) => payload.gameId === playerStates[0].gameId && payload.view?.phase === 'playing',
+            );
+            console.log('Runtime E2E hearts: pass 4 accepted, trick play started');
+            return ready;
+          }
+        }
+        throw new Error('Hearts pass setup did not complete');
+      },
+      actorFromView: (view) => view.currentTurnId,
+      action: (view) => ({ type: 'play_card', cardId: view.legalCardIds[0] }),
+      isTransition: (view) => view?.trick?.length === 1,
+      assertInitial: (_alphaView, _betaView, views) => {
+        assert(views.every((view) => view.yourHand.length === 13));
+        assert(views.every((view) => Object.prototype.hasOwnProperty.call(view.players[0], 'hand') === false));
+      },
+      assertTransition: (view) => {
+        assert.equal(view.trick.length, 1);
+        assert.equal(view.trick[0].card.id, 'c-clubs-2');
+      },
+    },
+    {
+      gameKey: 'spades',
+      playerCount: 4,
+      expectedMaxPlayers: 4,
+      prepare: async ({ initialState, lobby }) => {
+        let latest = initialState;
+        for (let index = 0; index < 3; index += 1) {
+          const next = waitForEvent(
+            alphaSocket,
+            'distinct:state',
+            (payload) => payload.gameId === initialState.gameId && payload.view?.players?.filter((player) => player.bid !== null).length === index + 1,
+          );
+          clients[index].socket.emit('distinct:action', {
+            gameId: initialState.gameId,
+            lobbyCode: lobby.code,
+            action: { type: 'bid_spades', bid: index + 1 },
+          });
+          latest = await next;
+        }
+        return latest;
+      },
+      actorFromView: (view) => view.currentTurnId,
+      action: { type: 'bid_spades', bid: 4 },
+      assertInitial: (_alphaView, _betaView, views) => {
+        assert(views.every((view) => view.yourHand.length === 13));
+        assert.deepEqual(views[0].players.map((player) => player.team), [0, 1, 0, 1]);
+      },
+      assertTransition: (view) => {
+        assert.equal(view.phase, 'playing');
+        assert.deepEqual(view.players.map((player) => player.bid), [1, 2, 3, 4]);
+      },
+    },
+    {
+      gameKey: 'gin-rummy',
+      expectedMaxPlayers: 2,
+      action: { type: 'gin_draw', source: 'stock' },
+      assertInitial: (alphaView, betaView) => {
+        assert.equal(alphaView.yourHand.length, 10);
+        assert.equal(betaView.players[0].handCount, 10);
+        assert.equal(JSON.stringify(betaView).includes(alphaView.yourHand[0].id), false);
+      },
+      assertTransition: (view) => {
+        assert.equal(view.phase, 'discarding');
+        assert.equal(view.players.find((player) => player.id === alpha.user.id).handCount, 11);
+        assert.equal(view.stockCount, 30);
+      },
+    },
+    {
+      gameKey: 'card-war',
+      expectedMaxPlayers: 2,
+      action: { type: 'battle' },
+      assertInitial: (alphaView) => {
+        assert.deepEqual(alphaView.players.map((player) => player.cardCount), [26, 26]);
+        assert.equal(Object.prototype.hasOwnProperty.call(alphaView, 'decks'), false);
+      },
+      assertTransition: (view) => {
+        assert.equal(view.battleNumber, 1);
+        assert(view.lastBattle.potSize >= 2);
+      },
+    },
+    {
+      gameKey: 'old-maid',
+      playerCount: 4,
+      expectedMaxPlayers: 8,
+      skipInitialTurnAssertion: true,
+      actorFromView: (view) => view.currentTurnId,
+      action: { type: 'draw_from_player', handIndex: 0 },
+      assertInitial: (alphaView, _betaView, views) => {
+        assert.equal(Object.prototype.hasOwnProperty.call(alphaView.players[1], 'hand'), false);
+        assert(views.find((view) => view.canAct)?.targetHandCount > 0);
+      },
+      assertTransition: (view, previousView) => {
+        assert.notEqual(view.lastEvent, previousView.lastEvent);
+      },
+    },
+    {
+      gameKey: 'hex',
+      expectedMaxPlayers: 2,
+      action: { type: 'place_hex', cell: 0 },
+      assertTransition: (view) => {
+        assert.equal(view.board[0], 'vertical');
+        assert.equal(view.currentTurnId, beta.user.id);
+      },
+    },
+    {
+      gameKey: 'nine-mens-morris',
+      expectedMaxPlayers: 2,
+      action: { type: 'place_stone', node: 0 },
+      assertTransition: (view) => {
+        assert.equal(view.board[0], alpha.user.id);
+        assert.equal(view.currentTurnId, beta.user.id);
+      },
+    },
+    {
+      gameKey: 'cee-lo',
+      expectedMaxPlayers: 8,
+      action: { type: 'roll_ceelo' },
+      assertTransition: (view) => {
+        assert.equal(view.phase, 'challenger_roll');
+        assert.equal(view.bankerRoll.dice.length, 3);
+        assert(view.bankerRoll.dice.every((die) => Number.isInteger(die) && die >= 1 && die <= 6));
+      },
+    },
+    {
+      gameKey: 'trivia-quiz-bowl',
+      expectedMaxPlayers: 10,
+      skipInitialTurnAssertion: true,
+      action: { type: 'answer_trivia', answerIndex: 0 },
+      assertInitial: (alphaView) => {
+        assert.equal(alphaView.question.number, 1);
+        assert.equal(alphaView.question.options.length, 4);
+        assert.equal(alphaView.reveal, null);
+        assert.equal(Object.prototype.hasOwnProperty.call(alphaView.question, 'correctAnswerIndex'), false);
+      },
+      assertTransition: (view) => {
+        assert.equal(view.answeredPlayerIds.includes(alpha.user.id), true);
+        assert.equal(view.reveal, null);
+      },
+    },
+    {
+      gameKey: 'memory-match',
+      expectedMaxPlayers: 4,
+      action: { type: 'reveal_tile', tileIndex: 0 },
+      assertInitial: (alphaView) => {
+        assert.equal(alphaView.tiles.length, 24);
+        assert.equal(alphaView.tiles.every((tile) => tile.symbol === null), true);
+      },
+      assertTransition: (view) => {
+        assert.equal(view.revealedIndices.length, 1);
+        assert.notEqual(view.tiles[0].symbol, null);
+      },
+    },
+    {
+      gameKey: 'bourre',
+      playerCount: 4,
+      expectedMaxPlayers: 7,
+      skipInitialTurnAssertion: true,
+      actorFromView: (view) => view.currentTurnId,
+      action: { type: 'bourre_decide', play: true, discardIds: [] },
+      assertInitial: (_alphaView, _betaView, views) => {
+        assert(views.every((view) => view.yourHand.length === 5));
+        const trumpCardId = views[0].trumpCard.id;
+        for (let viewer = 0; viewer < views.length; viewer += 1) {
+          const serialized = JSON.stringify(views[viewer]);
+          for (let owner = 0; owner < views.length; owner += 1) {
+            if (owner === viewer) continue;
+            for (const hiddenCard of views[owner].yourHand) {
+              if (hiddenCard.id !== trumpCardId) assert.equal(serialized.includes(`"${hiddenCard.id}"`), false);
+            }
+          }
+        }
+      },
+      assertTransition: (view, previousView) => {
+        assert.equal(view.players.find((player) => player.id === previousView.currentTurnId).decision, 'stayed');
+        assert.notEqual(view.currentTurnId, previousView.currentTurnId);
+      },
+    },
+    {
+      gameKey: 'bluff',
+      expectedMaxPlayers: 8,
+      action: (view) => ({ type: 'bluff_play', cardIds: [view.yourHand[0].id] }),
+      assertInitial: (alphaView, betaView) => {
+        assert.equal(alphaView.yourHand.length, 26);
+        assert.equal(betaView.yourHand.length, 26);
+        assert.equal(JSON.stringify(betaView).includes(alphaView.yourHand[0].id), false);
+      },
+      assertTransition: (view) => {
+        assert.equal(view.phase, 'challenge');
+        assert.equal(view.pendingClaim.count, 1);
+        assert.equal(view.pendingClaim.rank, 'A');
+        assert.equal(Object.prototype.hasOwnProperty.call(view.pendingClaim, 'cardIds'), false);
+      },
+    },
+    {
+      gameKey: 'sevens',
+      playerCount: 3,
+      expectedMaxPlayers: 8,
+      skipInitialTurnAssertion: true,
+      actorFromView: (view) => view.currentTurnId,
+      action: (view) => ({ type: 'play_sevens_card', cardId: view.legalCardIds[0] }),
+      assertInitial: (_alphaView, _betaView, views) => {
+        assert.equal(views.reduce((sum, view) => sum + view.yourHand.length, 0), 52);
+        const actor = views.find((view) => view.canAct);
+        assert.deepEqual(actor.legalCardIds, ['c-hearts-7']);
+      },
+      assertTransition: (view) => {
+        assert.deepEqual(view.layout.hearts, { low: '7', high: '7' });
+      },
+    },
+    {
+      gameKey: 'ninety-nine',
+      expectedMaxPlayers: 8,
+      action: (view) => ({
+        type: 'play_ninety_nine',
+        cardId: view.legalPlays[0].cardId,
+        chosenValue: view.legalPlays[0].values[0],
+      }),
+      assertInitial: (alphaView, betaView) => {
+        assert.equal(alphaView.yourHand.length, 3);
+        assert.equal(betaView.yourHand.length, 3);
+        assert.deepEqual(alphaView.players.map((player) => player.tokens), [3, 3]);
+        assert.equal(JSON.stringify(betaView).includes(alphaView.yourHand[0].id), false);
+      },
+      assertTransition: (view, previousView) => {
+        assert.equal(view.players.find((player) => player.id === previousView.currentTurnId).handCount, 3);
+        assert.notEqual(view.currentTurnId, previousView.currentTurnId);
+        assert(view.total >= 0 && view.total <= 99);
+      },
+    },
+    {
+      gameKey: 'euchre',
+      playerCount: 4,
+      expectedMaxPlayers: 4,
+      skipInitialTurnAssertion: true,
+      actorFromView: (view) => view.currentTurnId,
+      action: { type: 'euchre_call', euchreCall: { type: 'order_up', alone: false } },
+      assertInitial: (_alphaView, _betaView, views) => {
+        assert(views.every((view) => view.yourHand.length === 5));
+        assert.deepEqual(views[0].players.map((player) => player.team), [0, 1, 0, 1]);
+        const upcardId = views[0].upcard.id;
+        for (let viewer = 0; viewer < views.length; viewer += 1) {
+          const serialized = JSON.stringify(views[viewer]);
+          for (let owner = 0; owner < views.length; owner += 1) {
+            if (owner === viewer) continue;
+            for (const hiddenCard of views[owner].yourHand) {
+              if (hiddenCard.id !== upcardId) assert.equal(serialized.includes(`"${hiddenCard.id}"`), false);
+            }
+          }
+        }
+      },
+      assertTransition: (view, previousView) => {
+        assert.equal(view.phase, 'dealer_discard');
+        assert.equal(view.makerId, previousView.currentTurnId);
+        assert.equal(view.trumpSuit, previousView.upcard.suit);
+        assert.equal(view.players.find((player) => player.id === view.dealerId).handCount, 6);
+      },
+    },
+    {
+      gameKey: 'whist',
+      playerCount: 4,
+      expectedMaxPlayers: 4,
+      skipInitialTurnAssertion: true,
+      actorFromView: (view) => view.currentTurnId,
+      action: (view) => ({ type: 'play_whist_card', cardId: view.legalCardIds[0] }),
+      assertInitial: (_alphaView, _betaView, views) => {
+        assert(views.every((view) => view.yourHand.length === 13));
+        assert.deepEqual(views[0].players.map((player) => player.team), [0, 1, 0, 1]);
+      },
+      assertTransition: (view) => {
+        assert.equal(view.trick.length, 1);
+        assert.equal(view.players.reduce((sum, player) => sum + player.handCount, 0), 51);
+      },
+    },
+    {
+      gameKey: 'oh-hell',
+      playerCount: 4,
+      expectedMaxPlayers: 7,
+      skipInitialTurnAssertion: true,
+      actorFromView: (view) => view.currentTurnId,
+      action: (view) => ({ type: 'bid_oh_hell', bid: view.legalBids[0] }),
+      assertInitial: (_alphaView, _betaView, views) => {
+        assert(views.every((view) => view.yourHand.length === 7));
+        assert.equal(views[0].dealNumber, 1);
+        assert.equal(views[0].handSize, 7);
+      },
+      assertTransition: (view, previousView) => {
+        assert.notEqual(view.currentTurnId, previousView.currentTurnId);
+        assert.notEqual(view.players.find((player) => player.id === previousView.currentTurnId).bid, null);
+      },
+    },
+    {
+      gameKey: 'president',
+      playerCount: 4,
+      expectedMaxPlayers: 8,
+      skipInitialTurnAssertion: true,
+      actorFromView: (view) => view.currentTurnId,
+      action: (view) => ({
+        type: 'play_president_cards',
+        cardIds: view.legalPlays[0].cardIds,
+      }),
+      assertInitial: (_alphaView, _betaView, views) => {
+        assert.equal(views.reduce((sum, view) => sum + view.yourHand.length, 0), 52);
+        for (let viewer = 0; viewer < views.length; viewer += 1) {
+          const serialized = JSON.stringify(views[viewer]);
+          for (let owner = 0; owner < views.length; owner += 1) {
+            if (owner === viewer) continue;
+            for (const hiddenCard of views[owner].yourHand) {
+              assert.equal(serialized.includes(`"${hiddenCard.id}"`), false);
+            }
+          }
+        }
+      },
+      assertTransition: (view, previousView) => {
+        const actor = view.players.find((player) => player.id === previousView.currentTurnId);
+        assert(actor);
+        assert(actor.handCount < previousView.yourHand.length);
+        assert.equal(view.pilePlay?.playerId, previousView.currentTurnId);
+      },
+    },
+    {
+      gameKey: 'slapjack',
+      playerCount: 3,
+      expectedMaxPlayers: 8,
+      skipInitialTurnAssertion: true,
+      actorFromView: (view) => view.currentTurnId,
+      action: { type: 'flip_slapjack' },
+      assertInitial: (alphaView) => {
+        assert.equal(alphaView.players.reduce((sum, player) => sum + player.cardCount, 0), 52);
+        assert.equal(alphaView.topCard, null);
+        assert.equal(Object.prototype.hasOwnProperty.call(alphaView, 'stacks'), false);
+      },
+      assertTransition: (view, previousView) => {
+        assert.equal(view.pileCount, 1);
+        assert(view.topCard);
+        assert.equal(view.topPlayerId, previousView.currentTurnId);
+        assert.equal(view.players.reduce((sum, player) => sum + player.cardCount, 0), 51);
+      },
+    },
+    {
+      gameKey: 'spoons',
+      playerCount: 4,
+      expectedMaxPlayers: 8,
+      action: (view) => ({ type: 'pass_spoon_card', cardId: view.yourHand[0].id }),
+      assertInitial: (alphaView, _betaView, views) => {
+        assert.deepEqual(views.map((view) => view.yourHand.length), [5, 4, 4, 4]);
+        for (let viewer = 0; viewer < views.length; viewer += 1) {
+          const serialized = JSON.stringify(views[viewer]);
+          for (let owner = 0; owner < views.length; owner += 1) {
+            if (owner === viewer) continue;
+            for (const hiddenCard of views[owner].yourHand) {
+              assert.equal(serialized.includes(`"${hiddenCard.id}"`), false);
+            }
+          }
+        }
+        assert.equal(alphaView.spoonsRemaining, 3);
+      },
+      assertTransition: (view, previousView) => {
+        assert.equal(view.players.find((player) => player.id === previousView.currentTurnId).handCount, 4);
+        assert.equal(view.currentTurnId, beta.user.id);
+        assert.equal(view.players.find((player) => player.id === beta.user.id).handCount, 5);
+      },
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    console.log(`Runtime E2E distinct: ${scenario.gameKey}`);
+    const playerCount = scenario.playerCount ?? 2;
+    const activeClients = clients.slice(0, playerCount);
+    const lobby = (await emitAndWait(
+      alphaSocket,
+      'lobby:create',
+      { gameType: 'distinct', gameKey: scenario.gameKey, maxPlayers: 8 },
+      'lobby:state',
+      (payload) => payload.lobby?.gameKey === scenario.gameKey,
+      `${scenario.gameKey}: create lobby`,
+    )).lobby;
+    assert.equal(lobby.gameType, 'distinct');
+    assert.equal(lobby.gameKey, scenario.gameKey);
+    assert.equal(lobby.maxPlayers, scenario.expectedMaxPlayers ?? 2);
+    for (const client of activeClients.slice(1)) {
+      await joinAndReady(alphaSocket, client.socket, lobby.code, client.user.id);
+    }
+    if (PARTNERSHIP_GAMES.has(scenario.gameKey)) {
+      await choosePartnershipTeams(activeClients, lobby.code, alphaSocket);
+    }
+
+    const statePromises = activeClients.map((client) => waitForEvent(
+      client.socket,
+      'distinct:state',
+      (payload) => payload.gameKey === scenario.gameKey,
+    ));
+    alphaSocket.emit('lobby:start_game');
+    const playerStates = await Promise.all(statePromises);
+    if (scenario.gameKey === 'hearts') console.log('Runtime E2E hearts: initial views received');
+    const initialState = playerStates[0];
+    const betaInitial = playerStates[1];
+    if (scenario.gameKey !== 'grid-salvo' && !scenario.skipInitialTurnAssertion) {
+      assert.equal(
+        initialState.view.currentTurnId,
+        alpha.user.id,
+        `${scenario.gameKey} should start with the host action`,
+      );
+    }
+    scenario.assertInitial?.(
+      initialState.view,
+      betaInitial.view,
+      playerStates.map((state) => state.view),
+    );
+
+    const actorId = scenario.actorFromView?.(initialState.view) ?? alpha.user.id;
+    let actor = activeClients.find((client) => client.user.id === actorId);
+    assert(actor, `${scenario.gameKey} action player should be connected`);
+
+    const actionState = scenario.prepare
+      ? await scenario.prepare({ initialState, betaInitial, playerStates, lobby, actor })
+      : initialState;
+    const preparedActorId = scenario.actorFromView?.(actionState.view) ?? actor.user.id;
+    actor = activeClients.find((client) => client.user.id === preparedActorId);
+    assert(actor, `${scenario.gameKey} prepared action player should be connected`);
+    const actorState = actionState.view.youId === actor.user.id
+      ? actionState
+      : await requestGameState(actor.socket, lobby.code, 'distinct:state');
+    const action = typeof scenario.action === 'function'
+      ? scenario.action(actorState.view)
+      : scenario.action;
+
+    const observer = activeClients.find((client) => client.user.id !== actor.user.id) ?? actor;
+    const transitioned = waitForEvent(
+      observer.socket,
+      'distinct:state',
+      (payload) =>
+        payload.gameId === initialState.gameId &&
+        payload.gameKey === scenario.gameKey &&
+        (scenario.isTransition?.(payload.view, actorState.view) ?? true),
+    );
+    actor.socket.emit('distinct:action', {
+      gameId: initialState.gameId,
+      lobbyCode: lobby.code,
+      action,
+    });
+    const nextState = await transitioned;
+    if (scenario.gameKey === 'hearts') console.log('Runtime E2E hearts: first trick card accepted');
+    scenario.assertTransition(nextState.view, actorState.view);
+
+    const resultPromise = waitForEvent(
+      observer.socket,
+      'distinct:result',
+      (payload) => payload.gameId === initialState.gameId,
+    );
+    actor.socket.emit('game:surrender', {
+      gameId: initialState.gameId,
+      lobbyCode: lobby.code,
+    });
+    const result = await resultPromise;
+    if (scenario.gameKey === 'hearts') console.log('Runtime E2E hearts: surrender result received');
+    assert.equal(result.gameKey, scenario.gameKey);
+    assert.equal(result.result.reason, 'surrender');
+    assert.notEqual(result.result.winnerId, actor.user.id);
+
+    if (scenario.gameKey === 'reversi') {
+      await verifyDistinctRematch(
+        lobby.code,
+        initialState.gameId,
+        alpha,
+        beta,
+        alphaSocket,
+        betaSocket,
+      );
+    }
+
+    for (const client of activeClients.slice(1)) client.socket.emit('lobby:leave');
+    alphaSocket.emit('lobby:leave');
+  }
+
+  await verifyContractBridge(clients);
+}
+
+async function verifyContractBridge(clients) {
+  console.log('Runtime E2E distinct: contract-bridge');
+  const host = clients[0];
+  const lobby = (await emitAndWait(
+    host.socket,
+    'lobby:create',
+    { gameType: 'distinct', gameKey: 'contract-bridge', maxPlayers: 8 },
+    'lobby:state',
+    (payload) => payload.lobby?.gameKey === 'contract-bridge',
+  )).lobby;
+  assert.equal(lobby.maxPlayers, 4);
+  for (const client of clients.slice(1)) {
+    await joinAndReady(host.socket, client.socket, lobby.code, client.user.id);
+  }
+  await choosePartnershipTeams(clients, lobby.code, host.socket);
+
+  const initialPromises = clients.map((client) => waitForEvent(
+    client.socket,
+    'distinct:state',
+    (payload) => payload.gameKey === 'contract-bridge',
+  ));
+  host.socket.emit('lobby:start_game');
+  const initialStates = await Promise.all(initialPromises);
+  const gameId = initialStates[0].gameId;
+  assert(initialStates.every((state) => state.view.phase === 'setup'));
+  assert(initialStates.every((state) => state.view.yourHand.length === 0));
+
+  const dealt = await emitDistinctActionAndWait(
+    host.socket,
+    clients[1].socket,
+    {
+      gameId,
+      lobbyCode: lobby.code,
+      action: { type: 'select_bridge_mode', mode: 'duplicate' },
+    },
+    (payload) => payload.gameId === gameId && payload.view?.phase === 'auction',
+  );
+  assert.equal(dealt.view.dealNumber, 1);
+  const privateStates = await Promise.all(clients.map((client) =>
+    requestGameState(client.socket, lobby.code, 'distinct:state')));
+  assert(privateStates.every((state) => state.view.yourHand.length === 13));
+  for (let viewer = 0; viewer < privateStates.length; viewer += 1) {
+    const serialized = JSON.stringify(privateStates[viewer].view);
+    for (let owner = 0; owner < privateStates.length; owner += 1) {
+      if (owner === viewer) continue;
+      for (const hiddenCard of privateStates[owner].view.yourHand) {
+        assert.equal(serialized.includes(`"${hiddenCard.id}"`), false);
+      }
+    }
+  }
+
+  await emitDistinctActionExpectError(
+    host.socket,
+    {
+      gameId,
+      lobbyCode: lobby.code,
+      action: { type: 'bridge_call', call: { type: 'double' } },
+    },
+    'Double is not legal',
+  );
+
+  const auction = [
+    { client: clients[0], call: { type: 'bid', level: 1, strain: 'hearts' } },
+    { client: clients[1], call: { type: 'double' } },
+    { client: clients[2], call: { type: 'redouble' } },
+    { client: clients[3], call: { type: 'pass' } },
+    { client: clients[0], call: { type: 'pass' } },
+    { client: clients[1], call: { type: 'pass' } },
+  ];
+  let latest = dealt;
+  for (const [index, step] of auction.entries()) {
+    const observer = clients.find((client) => client !== step.client);
+    latest = await emitDistinctActionAndWait(
+      step.client.socket,
+      observer.socket,
+      {
+        gameId,
+        lobbyCode: lobby.code,
+        action: { type: 'bridge_call', call: step.call },
+      },
+      (payload) =>
+        payload.gameId === gameId
+        && payload.view?.auction?.length === index + 1
+        && (index < auction.length - 1 || payload.view?.phase === 'opening_lead'),
+    );
+  }
+  assert.equal(latest.view.phase, 'opening_lead');
+  assert.equal(latest.view.contract.doubling, 'redoubled');
+  assert.equal(latest.view.contract.declarerId, clients[0].user.id);
+  assert.equal(latest.view.contract.dummyId, clients[2].user.id);
+
+  const beforeLead = await Promise.all(clients.map((client) =>
+    requestGameState(client.socket, lobby.code, 'distinct:state')));
+  const dummyCards = beforeLead[2].view.yourHand;
+  for (const viewer of [0, 1, 3]) {
+    const serialized = JSON.stringify(beforeLead[viewer].view);
+    assert.equal(beforeLead[viewer].view.dummyHand.length, 0);
+    assert(dummyCards.every((entry) => !serialized.includes(`"${entry.id}"`)));
+  }
+
+  const eastHand = beforeLead[1].view.yourHand;
+  const westHand = beforeLead[3].view.yourHand;
+  const openingCard = eastHand.find((candidate) =>
+    westHand.some((entry) => entry.suit === candidate.suit)
+      && westHand.some((entry) => entry.suit !== candidate.suit),
+  ) ?? eastHand[0];
+  latest = await emitDistinctActionAndWait(
+    clients[1].socket,
+    clients[0].socket,
+    {
+      gameId,
+      lobbyCode: lobby.code,
+      action: { type: 'play_bridge_card', cardId: openingCard.id },
+    },
+    (payload) => payload.gameId === gameId && payload.view?.dummyRevealed === true,
+  );
+  assert.equal(latest.view.currentActorId, clients[0].user.id);
+  assert.equal(latest.view.dummyHand.length, 13);
+
+  await emitDistinctActionExpectError(
+    clients[2].socket,
+    {
+      gameId,
+      lobbyCode: lobby.code,
+      action: { type: 'play_bridge_card', cardId: dummyCards[0].id },
+    },
+    'Not your turn',
+  );
+  let actorState = await requestGameState(clients[0].socket, lobby.code, 'distinct:state');
+  latest = await emitDistinctActionAndWait(
+    clients[0].socket,
+    clients[1].socket,
+    {
+      gameId,
+      lobbyCode: lobby.code,
+      action: { type: 'play_bridge_card', cardId: actorState.view.legalCardIds[0] },
+    },
+    (payload) => payload.gameId === gameId && payload.view?.trick?.length === 2,
+  );
+
+  const westState = await requestGameState(clients[3].socket, lobby.code, 'distinct:state');
+  const illegalWestCard = westState.view.yourHand.find((entry) =>
+    !westState.view.legalCardIds.includes(entry.id));
+  if (illegalWestCard) {
+    await emitDistinctActionExpectError(
+      clients[3].socket,
+      {
+        gameId,
+        lobbyCode: lobby.code,
+        action: { type: 'play_bridge_card', cardId: illegalWestCard.id },
+      },
+      'Must follow suit',
+    );
+  }
+
+  let safety = 0;
+  while (latest.view.phase === 'playing' || latest.view.phase === 'opening_lead') {
+    safety += 1;
+    assert(safety <= 52, 'Bridge deal should complete within 52 card plays');
+    const actor = clients.find((client) => client.user.id === latest.view.currentActorId);
+    assert(actor, 'Bridge current actor should be connected');
+    actorState = await requestGameState(actor.socket, lobby.code, 'distinct:state');
+    const cardId = actorState.view.legalCardIds[0];
+    assert(cardId, 'Bridge actor should receive at least one legal card');
+    const observer = clients.find((client) => client.user.id !== actor.user.id);
+    latest = await emitDistinctActionAndWait(
+      actor.socket,
+      observer.socket,
+      {
+        gameId,
+        lobbyCode: lobby.code,
+        action: { type: 'play_bridge_card', cardId },
+      },
+      (payload) => payload.gameId === gameId,
+    );
+  }
+  assert.equal(latest.view.phase, 'deal_complete');
+  assert.equal(latest.view.dealHistory.length, 1);
+  assert.equal(latest.view.tricksWon[0] + latest.view.tricksWon[1], 13);
+  assert.notEqual(latest.view.sessionScores[0], 0);
+  const sessionScores = [...latest.view.sessionScores];
+
+  const nextDeal = await emitDistinctActionAndWait(
+    host.socket,
+    clients[1].socket,
+    {
+      gameId,
+      lobbyCode: lobby.code,
+      action: { type: 'next_bridge_deal' },
+    },
+    (payload) => payload.gameId === gameId && payload.view?.dealNumber === 2,
+  );
+  assert.deepEqual(nextDeal.view.sessionScores, sessionScores);
+  assert.equal(nextDeal.view.dealerId, clients[1].user.id);
+  assert.deepEqual(nextDeal.view.vulnerability, [true, false]);
+
+  const resultPromise = waitForEvent(
+    clients[1].socket,
+    'distinct:result',
+    (payload) => payload.gameId === gameId,
+  );
+  host.socket.emit('game:surrender', { gameId, lobbyCode: lobby.code });
+  const result = await resultPromise;
+  assert.equal(result.result.reason, 'surrender');
+  assert.equal(result.result.mode, 'duplicate');
+}
+
+async function verifyDistinctRematch(code, previousGameId, alpha, beta, alphaSocket, betaSocket) {
+  const alphaFreshPromise = waitForEvent(
+    alphaSocket,
+    'distinct:state',
+    (payload) => payload.gameKey === 'reversi' && payload.gameId !== previousGameId,
+  );
+  const betaFreshPromise = waitForEvent(
+    betaSocket,
+    'distinct:state',
+    (payload) => payload.gameKey === 'reversi' && payload.gameId !== previousGameId,
+  );
+  const firstVote = waitForEvent(
+    betaSocket,
+    'lobby:rematch_state',
+    (payload) => payload.requestedBy?.includes(alpha.user.id),
+  );
+  alphaSocket.emit('lobby:rematch_request', { lobbyCode: code });
+  await firstVote;
+  betaSocket.emit('lobby:rematch_request', { lobbyCode: code });
+  const [alphaFresh, betaFresh] = await Promise.all([
+    alphaFreshPromise,
+    betaFreshPromise,
+  ]);
+  assert.equal(alphaFresh.gameId, betaFresh.gameId);
+  assert.equal(alphaFresh.view.board.filter(Boolean).length, 4);
+
+  const finished = waitForEvent(
+    betaSocket,
+    'distinct:result',
+    (payload) => payload.gameId === alphaFresh.gameId,
+  );
+  alphaSocket.emit('game:surrender', {
+    gameId: alphaFresh.gameId,
+    lobbyCode: code,
+  });
+  await finished;
+}
+
 async function verifyVoiceRelay(alphaSocket, betaSocket) {
   const roomId = `voice-${String(Date.now()).slice(-6)}`;
   await emitAndWait(
@@ -637,6 +1720,7 @@ async function joinAndReady(hostSocket, guestSocket, code, guestId) {
     hostSocket,
     'lobby:state',
     (payload) => payload.lobby?.players?.some((player) => player.id === guestId),
+    `${code}: join ${guestId}`,
   );
   guestSocket.emit('lobby:join', { code });
   await joined;
@@ -644,9 +1728,37 @@ async function joinAndReady(hostSocket, guestSocket, code, guestId) {
     hostSocket,
     'lobby:state',
     (payload) => payload.lobby?.players?.find((player) => player.id === guestId)?.isReady,
+    `${code}: ready ${guestId}`,
   );
   guestSocket.emit('lobby:player_ready', { ready: true });
   await ready;
+}
+
+async function choosePartnershipTeams(clients, code, observerSocket) {
+  const teams = [0, 1, 0, 1];
+  for (let index = 0; index < clients.length; index += 1) {
+    const client = clients[index];
+    const selected = waitForEvent(
+      observerSocket,
+      'lobby:state',
+      (payload) => payload.lobby?.code === code
+        && payload.lobby.players.find((player) => player.id === client.user.id)?.team === teams[index],
+      `${code}: team ${teams[index]} for ${client.user.id}`,
+    );
+    client.socket.emit('lobby:team_select', { team: teams[index] });
+    await selected;
+  }
+  for (const client of clients.slice(1)) {
+    const ready = waitForEvent(
+      observerSocket,
+      'lobby:state',
+      (payload) => payload.lobby?.code === code
+        && payload.lobby.players.find((player) => player.id === client.user.id)?.isReady === true,
+      `${code}: re-ready ${client.user.id}`,
+    );
+    client.socket.emit('lobby:player_ready', { ready: true });
+    await ready;
+  }
 }
 
 async function requestGameState(socket, lobbyCode, event) {
@@ -688,17 +1800,63 @@ async function connect(token) {
   return socket;
 }
 
-function emitAndWait(socket, emitEvent, payload, resultEvent, predicate) {
-  const result = waitForEvent(socket, resultEvent, predicate);
+function emitAndWait(socket, emitEvent, payload, resultEvent, predicate, label) {
+  const result = waitForEvent(socket, resultEvent, predicate, label);
   socket.emit(emitEvent, payload);
   return result;
 }
 
-function waitForEvent(socket, event, predicate = () => true) {
+function emitDistinctActionAndWait(actor, observer, payload, predicate) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       cleanup();
-      reject(new Error(`Timed out waiting for ${event}`));
+      reject(new Error('Timed out waiting for distinct:state'));
+    }, TIMEOUT_MS);
+    const onState = (state) => {
+      if (!predicate(state)) return;
+      cleanup();
+      resolve(state);
+    };
+    const onError = (error) => {
+      cleanup();
+      reject(new Error(`Distinct action rejected: ${error?.message ?? String(error)}`));
+    };
+    const cleanup = () => {
+      clearTimeout(timer);
+      observer.off('distinct:state', onState);
+      actor.off('distinct:error', onError);
+    };
+    observer.on('distinct:state', onState);
+    actor.on('distinct:error', onError);
+    actor.emit('distinct:action', payload);
+  });
+}
+
+function emitDistinctActionExpectError(actor, payload, expectedMessage) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('Timed out waiting for distinct:error'));
+    }, TIMEOUT_MS);
+    const onError = (error) => {
+      if (error?.message !== expectedMessage) return;
+      cleanup();
+      resolve(error);
+    };
+    const cleanup = () => {
+      clearTimeout(timer);
+      actor.off('distinct:error', onError);
+    };
+    actor.on('distinct:error', onError);
+    actor.emit('distinct:action', payload);
+  });
+}
+
+function waitForEvent(socket, event, predicate = () => true, label = event) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Timed out waiting for ${label}`));
     }, TIMEOUT_MS);
     const onEvent = (payload) => {
       if (!predicate(payload)) return;

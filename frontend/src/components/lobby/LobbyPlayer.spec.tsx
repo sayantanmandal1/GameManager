@@ -55,4 +55,9 @@ describe('LobbyPlayerCard Component', () => {
     render(<LobbyPlayerCard player={basePlayer} isCurrentUser={false} />);
     expect(screen.queryByText('Host')).not.toBeInTheDocument();
   });
+
+  it('shows the server-selected partnership team', () => {
+    render(<LobbyPlayerCard player={{ ...basePlayer, team: 1 }} isCurrentUser />);
+    expect(screen.getByText('Team 2')).toBeInTheDocument();
+  });
 });

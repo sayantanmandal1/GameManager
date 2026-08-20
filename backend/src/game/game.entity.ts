@@ -17,6 +17,9 @@ export class GameEntity {
   @Column({ length: 32 })
   gameType: string;
 
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  gameKey: string | null;
+
   @Column('jsonb', { default: [] })
   playerIds: string[];
 

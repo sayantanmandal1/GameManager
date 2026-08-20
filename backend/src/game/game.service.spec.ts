@@ -47,6 +47,7 @@ describe('GameService', () => {
     mockLobbyService = {
       getLobby: jest.fn(),
       setStatus: jest.fn().mockResolvedValue(undefined),
+      orderPlayersForGame: jest.fn().mockImplementation((lobby) => [...lobby.players]),
     };
 
     service = new GameService(
@@ -188,6 +189,100 @@ describe('GameService', () => {
         '123456',
         expect.objectContaining({ winnerId: 'player1' }),
       );
+    });
+  });
+
+  describe('distinct game lifecycle', () => {
+    const distinctLobby = {
+      ...fakeLobby,
+      gameType: GameType.DISTINCT,
+      gameKey: 'reversi' as const,
+      maxPlayers: 2,
+    };
+
+    it('binds the persisted key and routes actions through its adapter', async () => {
+      mockLobbyService.getLobby!.mockResolvedValue(distinctLobby);
+      const { gameId, gameKey } = await service.startDistinctGame('123456');
+      const changed = jest.fn();
+      service.onDistinctGameStateChanged = changed;
+
+      expect(gameKey).toBe('reversi');
+      expect(service.getDistinctGameKey(gameId)).toBe('reversi');
+      expect(mockGameRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ gameType: GameType.DISTINCT, gameKey: 'reversi' }),
+      );
+      await expect(
+        service.distinctGameAction(gameId, 'player1', { cell: 19 }, '123456'),
+      ).resolves.toEqual({ ok: true });
+      expect(changed).toHaveBeenCalledWith(gameId, '123456', 'reversi');
+      expect(service.getDistinctPlayerView(gameId, 'outside')).toBeNull();
+    });
+
+    it('rejects a distinct action paired with another lobby', async () => {
+      mockLobbyService.getLobby!.mockResolvedValue(distinctLobby);
+      const { gameId } = await service.startDistinctGame('123456');
+
+      await expect(
+        service.distinctGameAction(gameId, 'player1', { cell: 19 }, '654321'),
+      ).resolves.toEqual({ ok: false, error: 'Game not found' });
+    });
+
+    it('finalizes a surrender and returns the lobby to waiting', async () => {
+      mockLobbyService.getLobby!.mockResolvedValue(distinctLobby);
+      const { gameId } = await service.startDistinctGame('123456');
+      const finished = jest.fn();
+      service.onDistinctGameFinished = finished;
+
+      await expect(
+        service.distinctGameSurrender(gameId, 'player1', '123456'),
+      ).resolves.toEqual({ ok: true });
+      expect(mockGameRepo.update).toHaveBeenCalledWith(
+        gameId,
+        expect.objectContaining({ winnerId: 'player2', status: GameStatus.FINISHED }),
+      );
+      expect(mockLobbyService.setStatus).toHaveBeenCalledWith(
+        '123456',
+        LobbyStatus.WAITING,
+      );
+      expect(finished).toHaveBeenCalledWith(
+        gameId,
+        '123456',
+        'reversi',
+        expect.objectContaining({ winnerId: 'player2', reason: 'surrender' }),
+      );
+    });
+
+    it('starts partnership engines in the server-validated team order', async () => {
+      const bridgeLobby = {
+        ...fakeLobby,
+        gameType: GameType.DISTINCT,
+        gameKey: 'contract-bridge' as const,
+        maxPlayers: 4,
+        players: [
+          { id: 'north', username: 'North', team: 0 },
+          { id: 'south', username: 'South', team: 0 },
+          { id: 'east', username: 'East', team: 1 },
+          { id: 'west', username: 'West', team: 1 },
+        ],
+      };
+      const ordered = [
+        bridgeLobby.players[0],
+        bridgeLobby.players[2],
+        bridgeLobby.players[1],
+        bridgeLobby.players[3],
+      ];
+      mockLobbyService.getLobby!.mockResolvedValue(bridgeLobby);
+      mockLobbyService.orderPlayersForGame!.mockReturnValue(ordered);
+
+      const { state } = await service.startDistinctGame('123456');
+
+      expect(mockLobbyService.orderPlayersForGame).toHaveBeenCalledWith(bridgeLobby);
+      expect((state as { players: Array<{ id: string; team: number }> }).players).toEqual([
+        expect.objectContaining({ id: 'north', team: 0 }),
+        expect.objectContaining({ id: 'east', team: 1 }),
+        expect.objectContaining({ id: 'south', team: 0 }),
+        expect.objectContaining({ id: 'west', team: 1 }),
+      ]);
     });
   });
 

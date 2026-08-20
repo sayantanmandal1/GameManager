@@ -4,16 +4,18 @@ import {
   LOBBY_EVENTS,
   type Lobby,
   type GameType,
+  type LobbyTeam,
 } from '@/shared';
 
 interface LobbyState {
   lobby: Lobby | null;
   error: string | null;
   isLoading: boolean;
-  createLobby: (gameType: GameType) => Promise<void>;
+  createLobby: (gameType: GameType, gameKey?: Lobby['gameKey']) => Promise<void>;
   joinLobby: (code: string) => Promise<void>;
   leaveLobby: () => void;
   setReady: (ready: boolean) => void;
+  selectTeam: (team: LobbyTeam) => void;
   startGame: () => void;
   initListeners: () => () => void;
   reset: () => void;
@@ -24,7 +26,7 @@ export const useLobbyStore = create<LobbyState>()((set) => ({
   error: null,
   isLoading: false,
 
-  createLobby: async (gameType: GameType) => {
+  createLobby: async (gameType: GameType, gameKey = null) => {
     set({ isLoading: true, error: null });
     try {
       const socket = await waitForSocket();
@@ -32,7 +34,10 @@ export const useLobbyStore = create<LobbyState>()((set) => ({
         set({ error: 'Not connected to server. Please try again.', isLoading: false });
         return;
       }
-      socket.emit(LOBBY_EVENTS.CREATE, { gameType });
+      socket.emit(
+        LOBBY_EVENTS.CREATE,
+        gameKey ? { gameType, gameKey } : { gameType },
+      );
     } catch {
       set({ error: 'Connection failed. Please try again.', isLoading: false });
     }
@@ -63,6 +68,12 @@ export const useLobbyStore = create<LobbyState>()((set) => ({
     const socket = getSocket();
     if (!socket) return;
     socket.emit(LOBBY_EVENTS.PLAYER_READY, { ready });
+  },
+
+  selectTeam: (team: LobbyTeam) => {
+    const socket = getSocket();
+    if (!socket) return;
+    socket.emit(LOBBY_EVENTS.TEAM_SELECT, { team });
   },
 
   startGame: () => {

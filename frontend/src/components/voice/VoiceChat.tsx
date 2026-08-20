@@ -5,7 +5,7 @@ import { useVoiceChat } from '@/hooks/useVoiceChat';
 import { Button } from '@/components/ui/Button';
 
 interface VoiceChatProps {
-  roomId: string;
+  readonly roomId: string;
 }
 
 export function VoiceChat({ roomId }: VoiceChatProps) {
@@ -22,6 +22,9 @@ export function VoiceChat({ roomId }: VoiceChatProps) {
   } =
     useVoiceStore();
   const { joinVoice, leaveVoice, resumeAudio } = useVoiceChat(roomId);
+  let voiceActionLabel = 'Join';
+  if (isJoining) voiceActionLabel = 'Connecting…';
+  else if (isInVoice) voiceActionLabel = 'Leave';
 
   const handleToggleVoice = async () => {
     if (isInVoice) {
@@ -64,7 +67,7 @@ export function VoiceChat({ roomId }: VoiceChatProps) {
             onClick={handleToggleVoice}
             disabled={isJoining}
           >
-            {isJoining ? 'Connecting…' : isInVoice ? 'Leave' : 'Join'}
+            {voiceActionLabel}
           </Button>
         </div>
       </div>

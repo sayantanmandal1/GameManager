@@ -11,6 +11,7 @@ describe('LobbyGateway connection handling', () => {
     getLobby: jest.Mock;
     leaveLobby: jest.Mock;
     setReady: jest.Mock;
+    setTeam: jest.Mock;
   };
   let roomEmit: jest.Mock;
   let roomSockets: Array<ReturnType<typeof makeSocket>>;
@@ -34,6 +35,7 @@ describe('LobbyGateway connection handling', () => {
       getLobby: jest.fn(),
       leaveLobby: jest.fn(),
       setReady: jest.fn().mockResolvedValue(undefined),
+      setTeam: jest.fn(),
     };
     roomEmit = jest.fn();
     roomSockets = [];
@@ -236,5 +238,31 @@ describe('LobbyGateway connection handling', () => {
     expect(lobbyService.leaveLobby).toHaveBeenCalledWith('123456', 'user-1');
     expect(roomEmit).toHaveBeenCalledWith(LOBBY_EVENTS.STATE, { lobby });
     expect(socket.leave).toHaveBeenCalledWith('lobby:123456');
+  });
+
+  it('broadcasts an accepted team selection', async () => {
+    const socket = makeSocket();
+    const lobby = { code: '123456', players: [{ id: 'user-1', team: 1 }] };
+    gateway.getSocketLobbyMap().set(socket.id, '123456');
+    lobbyService.setTeam.mockResolvedValue(lobby);
+
+    await gateway.handleTeamSelect(socket as never, { team: 1 });
+
+    expect(lobbyService.setTeam).toHaveBeenCalledWith('123456', 'user-1', 1);
+    expect(roomEmit).toHaveBeenCalledWith(LOBBY_EVENTS.STATE, { lobby });
+  });
+
+  it('rejects a forged team without broadcasting state', async () => {
+    const socket = makeSocket();
+    gateway.getSocketLobbyMap().set(socket.id, '123456');
+    lobbyService.setTeam.mockRejectedValue(new Error('Invalid team'));
+
+    await gateway.handleTeamSelect(socket as never, { team: 9 as never });
+
+    expect(socket.emit).toHaveBeenCalledWith(LOBBY_EVENTS.ERROR, {
+      message: 'Invalid team',
+      code: 'TEAM_FAILED',
+    });
+    expect(roomEmit).not.toHaveBeenCalledWith(LOBBY_EVENTS.STATE, expect.anything());
   });
 });

@@ -119,6 +119,55 @@ describe('LobbyService', () => {
       const lobby = await service.createLobby('user1', GameType.LUDO, 8);
       expect(lobby.maxPlayers).toBe(4);
     });
+
+    it('derives distinct capacity and persists the validated game key', async () => {
+      mockUserService.findById!.mockResolvedValue(fakeUser);
+
+      const lobby = await service.createLobby(
+        'user1',
+        GameType.DISTINCT,
+        99,
+        null,
+        null,
+        null,
+        'reversi',
+      );
+
+      expect(lobby).toMatchObject({ gameType: GameType.DISTINCT, gameKey: 'reversi', maxPlayers: 2 });
+      expect(mockLobbyRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ gameKey: 'reversi', maxPlayers: 2 }),
+      );
+    });
+
+    it('rejects unknown and mismatched distinct selections', async () => {
+      mockUserService.findById!.mockResolvedValue(fakeUser);
+
+      await expect(
+        service.createLobby(
+          'user1',
+          GameType.DISTINCT,
+          2,
+          null,
+          null,
+          null,
+          'unknown' as never,
+        ),
+      ).rejects.toThrow('invalid_game_key');
+      await expect(
+        service.createLobby(
+          'user1',
+          GameType.BINGO,
+          2,
+          null,
+          null,
+          null,
+          'reversi',
+        ),
+      ).rejects.toThrow('mismatched_game_key');
+      await expect(
+        service.createLobby('user1', 'forged' as GameType),
+      ).rejects.toThrow('invalid_game_type');
+    });
   });
 
   describe('getLobby', () => {
@@ -331,6 +380,75 @@ describe('LobbyService', () => {
       mockRedis.get!.mockResolvedValue(JSON.stringify(fakeLobby));
 
       await expect(service.setReady('123456', 'user99', true)).rejects.toThrow('Not in lobby');
+    });
+  });
+
+  describe('partnership teams', () => {
+    const partnershipLobby = (): Lobby => ({
+      id: 'lobby1',
+      code: '123456',
+      hostId: 'user1',
+      gameType: GameType.DISTINCT,
+      gameKey: 'contract-bridge',
+      players: [
+        { id: 'user1', username: 'Alice', avatar: 'A', isReady: false, isHost: true, team: null, joinedAt: new Date() },
+        { id: 'user2', username: 'Bob', avatar: 'B', isReady: true, isHost: false, team: 0, joinedAt: new Date() },
+        { id: 'user3', username: 'Cara', avatar: 'C', isReady: true, isHost: false, team: 1, joinedAt: new Date() },
+        { id: 'user4', username: 'Dev', avatar: 'D', isReady: true, isHost: false, team: 1, joinedAt: new Date() },
+      ],
+      status: LobbyStatus.WAITING,
+      maxPlayers: 4,
+      createdAt: new Date(),
+    });
+
+    it('lets a member choose an available team and clears readiness', async () => {
+      const lobby = partnershipLobby();
+      mockRedis.get!.mockResolvedValue(JSON.stringify(lobby));
+
+      const result = await service.setTeam('123456', 'user1', 0);
+
+      expect(result.players.find((player) => player.id === 'user1')).toMatchObject({
+        team: 0,
+        isReady: false,
+      });
+      expect(mockRedis.set).toHaveBeenCalled();
+    });
+
+    it('rejects full, forged, and non-partnership team changes', async () => {
+      const full = partnershipLobby();
+      full.players[0].team = 0;
+      mockRedis.get!.mockResolvedValueOnce(JSON.stringify(full));
+      await expect(service.setTeam('123456', 'user3', 0)).rejects.toThrow('That team is full');
+
+      mockRedis.get!.mockResolvedValueOnce(JSON.stringify(partnershipLobby()));
+      await expect(service.setTeam('123456', 'user1', 2 as never)).rejects.toThrow('Invalid team');
+
+      const individual = { ...partnershipLobby(), gameKey: 'hearts' as const };
+      mockRedis.get!.mockResolvedValueOnce(JSON.stringify(individual));
+      await expect(service.setTeam('123456', 'user1', 0)).rejects.toThrow('Teams are not enabled');
+    });
+
+    it('requires a balanced two-versus-two split before start', () => {
+      const lobby = partnershipLobby();
+      expect(service.canStartGame(lobby, 'user1')).toEqual({
+        ok: false,
+        reason: 'Choose two players for each team',
+      });
+
+      lobby.players[0].team = 0;
+      expect(service.canStartGame(lobby, 'user1')).toEqual({ ok: true });
+    });
+
+    it('alternates chosen teams into opposite engine seats', () => {
+      const lobby = partnershipLobby();
+      lobby.players[0].team = 0;
+
+      expect(service.orderPlayersForGame(lobby).map((player) => player.id)).toEqual([
+        'user1',
+        'user3',
+        'user2',
+        'user4',
+      ]);
     });
   });
 

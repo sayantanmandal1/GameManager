@@ -2,7 +2,7 @@ import { Injectable, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
-import * as crypto from 'crypto';
+import * as crypto from 'node:crypto';
 import { CACHE_CLIENT, CacheClient } from '../cache/cache.module';
 import { LobbyEntity } from './lobby.entity';
 import { UserService } from '../user/user.service';
@@ -18,7 +18,11 @@ import {
   UNO_MODES,
   UNO_CONSTANTS,
   TicTacToeMode,
+  DistinctGameKey,
+  LobbyTeam,
+  isPartnershipGameKey,
 } from '../shared';
+import { GameRegistry } from '../game/game-registry';
 
 @Injectable()
 export class LobbyService {
@@ -30,6 +34,7 @@ export class LobbyService {
     @Inject(CACHE_CLIENT) private readonly redis: CacheClient,
     private readonly userService: UserService,
     private readonly config: ConfigService,
+    private readonly gameRegistry: GameRegistry = new GameRegistry(),
   ) {
     this.lobbyTtl = this.config.get<number>(
       'LOBBY_TTL_SECONDS',
@@ -44,15 +49,29 @@ export class LobbyService {
     timeControl?: TimeControl | null,
     unoRules?: UnoRules | null,
     tictactoeMode?: TicTacToeMode | null,
+    gameKey?: DistinctGameKey | null,
   ): Promise<Lobby> {
     const host = await this.userService.findById(hostId);
     if (!host) throw new Error('User not found');
+
+    if (!Object.values(GameType).includes(gameType)) {
+      throw new Error('invalid_game_type');
+    }
+    const distinctAdapter =
+      gameType === GameType.DISTINCT
+        ? this.gameRegistry.getDistinctGame(gameKey ?? '')
+        : null;
+    if (gameType !== GameType.DISTINCT && gameKey != null) {
+      throw new Error('mismatched_game_key');
+    }
 
     const code = this.generateCode();
     // Chess and Photobooth are strictly 2-player; UNO is 2–4; ignore bogus
     // client overrides in every case.
     let requestedMax: number;
-    if (
+    if (distinctAdapter) {
+      requestedMax = distinctAdapter.maxPlayers;
+    } else if (
       gameType === GameType.CHESS ||
       gameType === GameType.PHOTOBOOTH ||
       gameType === GameType.TICTACTOE ||
@@ -96,6 +115,7 @@ export class LobbyService {
       avatar: host.avatar,
       isReady: false,
       isHost: true,
+      team: null,
       joinedAt: new Date(),
     };
 
@@ -111,6 +131,7 @@ export class LobbyService {
       timeControl: tc,
       unoRules: uno,
       tictactoeMode: tttMode,
+      gameKey: distinctAdapter?.key ?? null,
     };
 
     // Persist to DB
@@ -124,6 +145,7 @@ export class LobbyService {
       maxPlayers: lobby.maxPlayers,
       timeControl: tc,
       tictactoeMode: tttMode,
+      gameKey: distinctAdapter?.key ?? null,
     });
     await this.lobbyRepo.save(entity);
 
@@ -140,7 +162,7 @@ export class LobbyService {
   static validateTimeControl(raw: TimeControl | null | undefined): TimeControl | null {
     if (raw === null || raw === undefined) return null;
     if (typeof raw !== 'object') {
-      throw new Error('invalid_time_control');
+      throw new TypeError('invalid_time_control');
     }
     const { baseMs, incrementMs } = raw as TimeControl;
     if (
@@ -221,6 +243,7 @@ export class LobbyService {
       avatar: user.avatar,
       isReady: false,
       isHost: false,
+      team: null,
       joinedAt: new Date(),
     };
 
@@ -282,11 +305,44 @@ export class LobbyService {
     return lobby;
   }
 
+  async setTeam(code: string, userId: string, team: LobbyTeam): Promise<Lobby> {
+    const lobby = await this.getLobby(code);
+    if (!lobby) throw new Error('Lobby not found');
+    if (!this.isPartnershipLobby(lobby)) throw new Error('Teams are not enabled for this game');
+    if (lobby.status !== LobbyStatus.WAITING) throw new Error('Game already in progress');
+    if (team !== 0 && team !== 1) throw new Error('Invalid team');
+
+    const player = lobby.players.find((candidate) => candidate.id === userId);
+    if (!player) throw new Error('Not in lobby');
+    if (player.team === team) return lobby;
+
+    const teamSize = lobby.players.filter((candidate) => candidate.team === team).length;
+    if (teamSize >= 2) throw new Error('That team is full');
+
+    player.team = team;
+    player.isReady = false;
+    await this.saveLobby(lobby);
+    return lobby;
+  }
+
   canStartGame(lobby: Lobby, userId: string): { ok: boolean; reason?: string } {
     if (lobby.hostId !== userId)
       return { ok: false, reason: 'Only the host can start the game' };
-    if (lobby.players.length < GAME_CONSTANTS.MIN_PLAYERS)
-      return { ok: false, reason: `Need at least ${GAME_CONSTANTS.MIN_PLAYERS} players` };
+    const minimumPlayers =
+      lobby.gameType === GameType.DISTINCT && lobby.gameKey
+        ? this.gameRegistry.getDistinctGame(lobby.gameKey).minPlayers
+        : GAME_CONSTANTS.MIN_PLAYERS;
+    if (lobby.players.length < minimumPlayers)
+      return { ok: false, reason: `Need at least ${minimumPlayers} players` };
+
+    if (this.isPartnershipLobby(lobby)) {
+      const teamSizes = [0, 1].map(
+        (team) => lobby.players.filter((player) => player.team === team).length,
+      );
+      if (lobby.players.length !== 4 || teamSizes[0] !== 2 || teamSizes[1] !== 2) {
+        return { ok: false, reason: 'Choose two players for each team' };
+      }
+    }
 
     const allReady = lobby.players
       .filter((p) => !p.isHost)
@@ -295,6 +351,16 @@ export class LobbyService {
       return { ok: false, reason: 'Not all players are ready' };
 
     return { ok: true };
+  }
+
+  orderPlayersForGame(lobby: Lobby): LobbyPlayer[] {
+    if (!this.isPartnershipLobby(lobby)) return [...lobby.players];
+    const team0 = lobby.players.filter((player) => player.team === 0);
+    const team1 = lobby.players.filter((player) => player.team === 1);
+    if (team0.length !== 2 || team1.length !== 2) {
+      throw new Error('invalid_team_selection');
+    }
+    return [team0[0], team1[0], team0[1], team1[1]];
   }
 
   async setStatus(code: string, status: LobbyStatus): Promise<void> {
@@ -325,6 +391,11 @@ export class LobbyService {
       'EX',
       this.lobbyTtl,
     );
+  }
+
+  private isPartnershipLobby(lobby: Lobby): boolean {
+    return lobby.gameType === GameType.DISTINCT
+      && isPartnershipGameKey(lobby.gameKey);
   }
 
   private generateCode(): string {

@@ -2,6 +2,7 @@ export type { User, GuestUser } from './types/user';
 export type {
   Lobby,
   LobbyPlayer,
+  LobbyTeam,
   CreateLobbyPayload,
   JoinLobbyPayload,
 } from './types/lobby';
@@ -142,6 +143,8 @@ export {
   CONNECT_FOUR_ROWS,
   CONNECT_FOUR_COLUMNS,
 } from './types/connectfour';
+export * from './types/distinct-game';
+export type { GameCatalogEntry, GameCatalogMode } from './types/catalog';
 export {
   LOBBY_EVENTS,
   GAME_EVENTS,
@@ -152,6 +155,7 @@ export {
   UNO_EVENTS,
   TICTACTOE_EVENTS,
   CONNECTFOUR_EVENTS,
+  DISTINCT_GAME_EVENTS,
   VOICE_EVENTS,
   AUTH_EVENTS,
 } from './events';

@@ -13,7 +13,10 @@ export enum GameType {
   TICTACTOE = 'tictactoe',
   CONNECTFOUR = 'connectfour',
   SUDOKU = 'sudoku',
+  DISTINCT = 'distinct',
 }
+
+export type LobbyTeam = 0 | 1;
 
 export interface LobbyPlayer {
   id: string;
@@ -21,6 +24,7 @@ export interface LobbyPlayer {
   avatar: string;
   isReady: boolean;
   isHost: boolean;
+  team?: LobbyTeam | null;
   joinedAt: Date;
 }
 
@@ -39,6 +43,8 @@ export interface Lobby {
   unoRules?: import('./uno').UnoRules | null;
   /** Only populated for Tic Tac Toe lobbies. */
   tictactoeMode?: import('./tictactoe').TicTacToeMode | null;
+  /** Registry-owned key for GameType.DISTINCT lobbies. */
+  gameKey?: import('./distinct-game').DistinctGameKey | null;
 }
 
 export interface CreateLobbyPayload {
@@ -50,6 +56,8 @@ export interface CreateLobbyPayload {
   unoRules?: import('./uno').UnoRules | null;
   /** Only honored when gameType === 'tictactoe'. */
   tictactoeMode?: import('./tictactoe').TicTacToeMode | null;
+  /** Required and allow-listed when gameType === 'distinct'. */
+  gameKey?: import('./distinct-game').DistinctGameKey | null;
 }
 
 export interface JoinLobbyPayload {

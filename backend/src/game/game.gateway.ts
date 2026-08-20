@@ -26,6 +26,7 @@ import {
   UNO_EVENTS,
   TICTACTOE_EVENTS,
   CONNECTFOUR_EVENTS,
+  DISTINCT_GAME_EVENTS,
   GameType,
   LudoMoveAction,
   CHESS_MOVE_RATE_CAPACITY,
@@ -56,6 +57,7 @@ import {
 } from './dto/uno.dto';
 import { TicTacToeMoveDto } from './dto/tictactoe.dto';
 import { ConnectFourDropDto } from './dto/connectfour.dto';
+import { DistinctGameActionDto } from './dto/distinct-game.dto';
 
 /**
  * Token-bucket rate limiter state held per socket.
@@ -255,6 +257,18 @@ export class GameGateway
         result,
       });
     };
+    this.gameService.onDistinctGameStateChanged = (gameId, lobbyCode) => {
+      this.broadcastDistinctPlayerViews(gameId, lobbyCode);
+    };
+    this.gameService.onDistinctGameFinished = (gameId, lobbyCode, gameKey, result) => {
+      this.broadcastDistinctPlayerViews(gameId, lobbyCode);
+      this.server.to(`game:${lobbyCode}`).emit(DISTINCT_GAME_EVENTS.RESULT, {
+        gameId,
+        lobbyCode,
+        gameKey,
+        result,
+      });
+    };
     // Clock-tick loop (server-authoritative, ≤1Hz broadcast per game).
     this.chessTickTimer = setInterval(() => {
       this.gameService.chessTick().catch((err) => {
@@ -332,6 +346,8 @@ export class GameGateway
       // can replay state through GAME_EVENTS.REQUEST_STATE on reconnect.
     } else if (tracked.gameType === GameType.CONNECTFOUR) {
       // Preserve the seat and board for reconnect; resignation is explicit.
+    } else if (tracked.gameType === GameType.DISTINCT) {
+      // Preserve the authoritative session for reconnect; surrender is explicit.
     }
   }
 
@@ -407,6 +423,17 @@ export class GameGateway
         client.emit(CONNECTFOUR_EVENTS.STATE, {
           gameId,
           lobbyCode: data.lobbyCode,
+          view,
+        });
+      }
+    } else if (gameType === GameType.DISTINCT) {
+      const view = this.gameService.getDistinctPlayerView(gameId, user.sub);
+      const gameKey = this.gameService.getDistinctGameKey(gameId);
+      if (view && gameKey) {
+        client.emit(DISTINCT_GAME_EVENTS.STATE, {
+          gameId,
+          lobbyCode: data.lobbyCode,
+          gameKey,
           view,
         });
       }
@@ -610,6 +637,25 @@ export class GameGateway
     }
   }
 
+  @SubscribeMessage(DISTINCT_GAME_EVENTS.ACTION)
+  @UsePipes(WS_VALIDATION)
+  async handleDistinctGameAction(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: DistinctGameActionDto,
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const result = await this.gameService.distinctGameAction(
+      data.gameId,
+      user.sub,
+      data.action,
+      data.lobbyCode,
+    );
+    if (!result.ok) {
+      client.emit(DISTINCT_GAME_EVENTS.ERROR, { message: result.error });
+    }
+  }
+
   // ─── Generic Surrender Handler (works for all game types) ───
 
   @SubscribeMessage(GAME_EVENTS.SURRENDER)
@@ -639,12 +685,23 @@ export class GameGateway
         user.sub,
         data.lobbyCode,
       );
+    } else if (gameType === GameType.DISTINCT) {
+      result = await this.gameService.distinctGameSurrender(
+        data.gameId,
+        user.sub,
+        data.lobbyCode,
+      );
     } else {
       result = { ok: false, error: 'Unknown game type' };
     }
 
     if (!result.ok) {
-      client.emit(GAME_EVENTS.ERROR, { message: result.error });
+      client.emit(
+        gameType === GameType.DISTINCT
+          ? DISTINCT_GAME_EVENTS.ERROR
+          : GAME_EVENTS.ERROR,
+        { message: result.error },
+      );
     }
 
     // Clean up socket tracking after surrender
@@ -692,6 +749,28 @@ export class GameGateway
       if (!user) continue;
       const view = this.gameService.getConnectFourPlayerView(gameId, user.sub);
       if (view) socket.emit(CONNECTFOUR_EVENTS.STATE, { gameId, lobbyCode, view });
+    }
+  }
+
+  private async broadcastDistinctPlayerViews(
+    gameId: string,
+    lobbyCode: string,
+  ): Promise<void> {
+    const sockets = await this.server.in(`game:${lobbyCode}`).fetchSockets();
+    const gameKey = this.gameService.getDistinctGameKey(gameId);
+    if (!gameKey) return;
+    for (const socket of sockets) {
+      const user = socket.data?.user;
+      if (!user) continue;
+      const view = this.gameService.getDistinctPlayerView(gameId, user.sub);
+      if (view) {
+        socket.emit(DISTINCT_GAME_EVENTS.STATE, {
+          gameId,
+          lobbyCode,
+          gameKey,
+          view,
+        });
+      }
     }
   }
 

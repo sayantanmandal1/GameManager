@@ -6,7 +6,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { LobbyStatus } from '../shared';
-import type { TicTacToeMode, TimeControl } from '../shared';
+import type { DistinctGameKey, TicTacToeMode, TimeControl } from '../shared';
 
 @Entity('lobbies')
 export class LobbyEntity {
@@ -21,6 +21,9 @@ export class LobbyEntity {
 
   @Column({ length: 32 })
   gameType: string;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  gameKey: DistinctGameKey | null;
 
   @Column('jsonb', { default: [] })
   playerIds: string[];

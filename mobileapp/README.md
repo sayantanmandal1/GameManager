@@ -3,7 +3,7 @@
 Expo SDK 57 Android/iOS shell for the GameVerse platform. The app provides:
 
 - native guest authentication stored with `expo-secure-store`;
-- a native, touch-focused eight-game library and global six-digit room join flow;
+- a native, touch-focused 33-game library loaded from the shared REST catalog, plus global six-digit room joining;
 - full crossplay by opening the production GameVerse routes in a restricted same-origin WebView;
 - synchronized guest-session renewal between the WebView and `expo-secure-store`;
 - microphone and camera support for voice chat and Photobooth;
