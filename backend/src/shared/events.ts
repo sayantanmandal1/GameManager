@@ -6,6 +6,8 @@ export const LOBBY_EVENTS = {
   LEFT: 'lobby:left',
   PLAYER_READY: 'lobby:player_ready',
   TEAM_SELECT: 'lobby:team_select',
+  REMOVE_PLAYER: 'lobby:remove_player',
+  REMOVED: 'lobby:removed',
   STATE: 'lobby:state',
   ERROR: 'lobby:error',
   PLAYER_JOINED: 'lobby:player_joined',

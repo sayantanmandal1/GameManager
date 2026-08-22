@@ -289,6 +289,31 @@ export class LobbyService {
     return lobby;
   }
 
+  async removePlayer(
+    code: string,
+    hostId: string,
+    targetUserId: string,
+  ): Promise<Lobby> {
+    const lobby = await this.getLobby(code);
+    if (!lobby) throw new Error('Lobby not found');
+    if (lobby.hostId !== hostId) throw new Error('Only the host can remove players');
+    if (lobby.status !== LobbyStatus.WAITING) {
+      throw new Error('Players cannot be removed after the game starts');
+    }
+    if (targetUserId === hostId) throw new Error('The host cannot remove themselves');
+    if (!lobby.players.some((player) => player.id === targetUserId)) {
+      throw new Error('Player not found');
+    }
+
+    lobby.players = lobby.players.filter((player) => player.id !== targetUserId);
+    await this.saveLobby(lobby);
+    await this.lobbyRepo.update(
+      { code },
+      { playerIds: lobby.players.map((player) => player.id) },
+    );
+    return lobby;
+  }
+
   async setReady(
     code: string,
     userId: string,

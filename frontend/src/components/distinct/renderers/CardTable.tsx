@@ -16,6 +16,13 @@ interface Props {
   readonly center: ReactNode;
   readonly hand: ReactNode;
   readonly revealedHands?: Readonly<Record<string, StandardCard[]>>;
+  readonly revealedHandAction?: Readonly<{
+    playerId: string;
+    legalCardIds: string[];
+    active: boolean;
+    disabled?: boolean;
+    onPlay: (cardId: string) => void;
+  }>;
   readonly topRail?: ReactNode;
   readonly bottomRail?: ReactNode;
 }
@@ -27,6 +34,7 @@ export function CardTable({
   center,
   hand,
   revealedHands = {},
+  revealedHandAction,
   topRail,
   bottomRail,
 }: Props) {
@@ -52,6 +60,7 @@ export function CardTable({
           position="top"
           active={top.id === currentTurnId}
           revealedCards={revealedHands[top.id]}
+          revealedAction={revealedHandAction?.playerId === top.id ? revealedHandAction : undefined}
         />
       )}
       {left && (
@@ -60,6 +69,7 @@ export function CardTable({
           position="left"
           active={left.id === currentTurnId}
           revealedCards={revealedHands[left.id]}
+          revealedAction={revealedHandAction?.playerId === left.id ? revealedHandAction : undefined}
         />
       )}
       {right && (
@@ -68,10 +78,11 @@ export function CardTable({
           position="right"
           active={right.id === currentTurnId}
           revealedCards={revealedHands[right.id]}
+          revealedAction={revealedHandAction?.playerId === right.id ? revealedHandAction : undefined}
         />
       )}
 
-      <div className="absolute inset-x-[5.25rem] bottom-[12.5rem] top-[9rem] z-10 flex items-center justify-center max-sm:inset-x-[4.4rem] max-sm:bottom-[12rem] max-sm:top-[8.5rem]">
+      <div className="absolute inset-x-[5.25rem] bottom-[12.5rem] top-[9rem] z-10 flex items-center justify-center max-sm:inset-x-[7.15rem] max-sm:bottom-[12rem] max-sm:top-[8.5rem]">
         {center}
       </div>
 
@@ -84,11 +95,12 @@ export function CardTable({
   );
 }
 
-function TableSeat({ player, position, active, revealedCards }: Readonly<{
+function TableSeat({ player, position, active, revealedCards, revealedAction }: Readonly<{
   player: CardTablePlayer;
   position: 'top' | 'left' | 'right';
   active: boolean;
   revealedCards?: StandardCard[];
+  revealedAction?: Props['revealedHandAction'];
 }>) {
   const positionClass = {
     top: 'left-1/2 top-12 -translate-x-1/2',
@@ -99,7 +111,9 @@ function TableSeat({ player, position, active, revealedCards }: Readonly<{
     <div className={`absolute z-20 flex w-[7.2rem] flex-col items-center ${positionClass}`}>
       <SeatIdentity player={player} active={active} />
       {player.detail && <p className="mt-1 max-w-28 truncate text-[9px] font-semibold uppercase text-white/45">{player.detail}</p>}
-      {revealedCards ? <MiniFaceFan cards={revealedCards} /> : <CardBackFan count={player.handCount} />}
+      {revealedCards
+        ? <RevealedHand cards={revealedCards} action={revealedAction} />
+        : <CardBackFan count={player.handCount} />}
     </div>
   );
 }
@@ -135,20 +149,40 @@ export function CardBackFan({ count }: Readonly<{ count: number }>) {
   );
 }
 
-function MiniFaceFan({ cards }: Readonly<{ cards: StandardCard[] }>) {
-  const shown = cards.slice(0, 7);
+function RevealedHand({ cards, action }: Readonly<{
+  cards: StandardCard[];
+  action?: Props['revealedHandAction'];
+}>) {
+  const suits: StandardCard['suit'][] = ['spades', 'hearts', 'clubs', 'diamonds'];
+  const ranks: StandardCard['rank'][] = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
+  const legal = new Set(action?.legalCardIds ?? []);
   return (
-    <div className="relative mt-2 h-20 w-28" aria-label={`${cards.length} revealed cards`}>
-      {shown.map((card, index) => (
-        <span
-          key={card.id}
-          className="absolute left-1/2 top-0"
-          style={{ transform: `translateX(-50%) translateX(${(index - (shown.length - 1) / 2) * 11}px) rotate(${(index - (shown.length - 1) / 2) * 5}deg)`, transformOrigin: 'bottom center' }}
-        >
-          <CardFace card={card} size="mini" />
-        </span>
-      ))}
-      {cards.length > shown.length && <span className="absolute -bottom-1 right-0 rounded-full bg-black/75 px-1.5 text-[10px] font-bold">+{cards.length - shown.length}</span>}
+    <div className="mt-1 flex h-[7.4rem] w-28 flex-col" aria-label={`${cards.length} revealed cards`}>
+      {suits.map((suit) => {
+        const suited = cards
+          .filter((card) => card.suit === suit)
+          .sort((left, right) => ranks.indexOf(left.rank) - ranks.indexOf(right.rank));
+        if (suited.length === 0) return null;
+        return (
+          <div key={suit} className="relative h-[1.45rem] last:h-12">
+            <div className="absolute left-1/2 top-0 flex -translate-x-1/2">
+              {suited.map((card, index) => {
+                const playable = !!action?.active && legal.has(card.id);
+                return (
+                  <span key={card.id} className={index === 0 ? '' : '-ml-5'}>
+                    <CardFace
+                      card={card}
+                      size="micro"
+                      disabled={!!action?.disabled || !playable}
+                      onClick={action?.active ? () => action.onPlay(card.id) : undefined}
+                    />
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -186,7 +220,7 @@ export function PlayingCardHand({
         return (
           <span
             key={card.id}
-            className={index === 0 ? '' : '-ml-8 max-sm:-ml-6'}
+            className={index === 0 ? '' : '-ml-8 max-sm:-ml-12'}
             style={{ transform: `rotate(${(index - (sorted.length - 1) / 2) * 1.1}deg)`, transformOrigin: 'bottom center' }}
           >
             <CardFace
@@ -203,7 +237,7 @@ export function PlayingCardHand({
 }
 
 function compareCards(left: StandardCard, right: StandardCard): number {
-  const suits: StandardCard['suit'][] = ['spades', 'hearts', 'diamonds', 'clubs'];
+  const suits: StandardCard['suit'][] = ['spades', 'hearts', 'clubs', 'diamonds'];
   const ranks: StandardCard['rank'][] = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
   return suits.indexOf(left.suit) - suits.indexOf(right.suit)
     || ranks.indexOf(left.rank) - ranks.indexOf(right.rank);

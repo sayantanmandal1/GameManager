@@ -8,6 +8,7 @@ import { VoiceChat } from '@/components/voice/VoiceChat';
 import { RematchButton } from '@/components/lobby/RematchButton';
 import { useAuthStore } from '@/stores/authStore';
 import { useDistinctGameStore } from '@/stores/distinctGameStore';
+import { useLobbyStore } from '@/stores/lobbyStore';
 import { useSocket } from '@/hooks/useSocket';
 import { getSocket } from '@/lib/socket';
 import { DISTINCT_GAME_UI } from '@/lib/distinctGames';
@@ -48,12 +49,6 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
   }, [code, gameKey, hasHydrated, initListeners, isAuthenticated, isConnected, router, setSession]);
   useEffect(() => () => reset(), [reset]);
 
-  const backToLobby = () => {
-    getSocket()?.emit(LOBBY_EVENTS.BACK_TO_LOBBY);
-    reset();
-    router.push(`/lobby/${code}`);
-  };
-
   if (!view) {
     return <main className="flex min-h-screen items-center justify-center"><p className="text-game-muted">{isConnected ? 'Restoring match...' : 'Reconnecting...'}</p></main>;
   }
@@ -77,14 +72,28 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
     statusClass = 'text-lg font-bold';
   }
 
+  const leaveTable = () => {
+    const socket = getSocket();
+    useLobbyStore.getState().reset();
+    if (finished) {
+      socket?.emit(LOBBY_EVENTS.BACK_TO_LOBBY);
+      reset();
+      router.push(`/lobby/${code}`);
+      return;
+    }
+    socket?.emit(LOBBY_EVENTS.LEAVE);
+    reset();
+    router.push(`/games/${gameKey}`);
+  };
+
   return (
     <main className="min-h-screen px-4 py-4 text-white sm:px-6" style={{ backgroundColor: ui.surface }}>
       <div className={`mx-auto grid max-w-7xl gap-5 ${isBridge ? '' : 'lg:grid-cols-[minmax(0,1fr)_20rem]'}`}>
         <section className="flex min-w-0 flex-col items-center">
           <div className="mb-4 flex w-full max-w-[52rem] items-center justify-between gap-3 border-b border-white/10 pb-4">
-            <button type="button" onClick={backToLobby} className="text-sm font-semibold text-game-muted hover:text-white">Lobby</button>
+            <button type="button" onClick={leaveTable} className="text-sm font-semibold text-game-muted hover:text-white">{finished ? 'Lobby' : 'Exit table'}</button>
             <div className="text-center"><p className="text-xs font-bold" style={{ color: ui.accent }}>{ui.name.toUpperCase()}</p><p className="text-sm text-game-muted">Room {code}</p></div>
-            <Button variant="ghost" size="sm" onClick={() => setConfirmSurrender(true)}>Resign</Button>
+            {!isBridge && <Button variant="ghost" size="sm" onClick={() => setConfirmSurrender(true)}>Resign</Button>}
           </div>
 
           {!hasIntegratedCardTable && <div className="mb-4 grid w-full max-w-[52rem] grid-cols-2 gap-3">
@@ -106,7 +115,7 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
         {!isBridge && <aside className="space-y-4"><VoiceChat roomId={code} /><GameChat lobbyCode={code} /></aside>}
       </div>
 
-      {confirmSurrender && (
+      {confirmSurrender && !isBridge && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
           <div className="w-full max-w-sm rounded-lg border border-white/12 bg-[#1c1f1b] p-6 text-center">
             <h2 className="text-xl font-bold">Resign this match?</h2>

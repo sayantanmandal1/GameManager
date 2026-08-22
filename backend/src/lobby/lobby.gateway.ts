@@ -28,6 +28,7 @@ import {
   LobbyStatus,
   CreateLobbyPayload,
   JoinLobbyPayload,
+  RemoveLobbyPlayerPayload,
   LobbyTeam,
   getCorsOrigins,
 } from '../shared';
@@ -163,11 +164,15 @@ export class LobbyGateway
       this.socketLobbyMap.set(client.id, lobby.code);
       this.server.to(`lobby:${lobby.code}`).emit(LOBBY_EVENTS.STATE, { lobby });
 
+      if (lobby.status === LobbyStatus.IN_PROGRESS) {
+        client.emit(LOBBY_EVENTS.GAME_STARTING, { lobbyCode: lobby.code });
+        return;
+      }
+
       // Chess auto-start: exactly 2 players in a chess lobby triggers game creation.
       if (
         lobby.gameType === GameType.CHESS &&
-        lobby.players.length === 2 &&
-        lobby.status !== 'in_progress'
+        lobby.players.length === 2
       ) {
         await this.autoStartChess(lobby.code);
       }
@@ -186,6 +191,20 @@ export class LobbyGateway
     if (!code) return;
 
     try {
+      const currentLobby = await this.lobbyService.getLobby(code);
+      if (currentLobby?.status === LobbyStatus.IN_PROGRESS) {
+        if (this.socketLobbyMap.get(client.id) === code) {
+          this.socketLobbyMap.delete(client.id);
+        }
+        client.leave(`lobby:${code}`);
+        client.leave(`game:${code}`);
+        client.emit(LOBBY_EVENTS.LEFT, {
+          lobbyCode: code,
+          seatPreserved: true,
+        });
+        return;
+      }
+
       const lobby = await this.lobbyService.leaveLobby(code, user.sub);
       this.rematchVotes.get(code)?.delete(user.sub);
       if (this.socketLobbyMap.get(client.id) === code) {
@@ -199,6 +218,44 @@ export class LobbyGateway
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to leave lobby';
       client.emit(LOBBY_EVENTS.ERROR, { message, code: 'LEAVE_FAILED' });
+    }
+  }
+
+  @SubscribeMessage(LOBBY_EVENTS.REMOVE_PLAYER)
+  async handleRemovePlayer(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: RemoveLobbyPlayerPayload,
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const code = this.socketLobbyMap.get(client.id);
+    if (!code) return;
+    const targetUserId = data?.targetUserId;
+    if (typeof targetUserId !== 'string'
+      || !/^[A-Za-z0-9_-]{1,64}$/.test(targetUserId)) {
+      client.emit(LOBBY_EVENTS.ERROR, {
+        message: 'Invalid player selection',
+        code: 'REMOVE_FAILED',
+      });
+      return;
+    }
+
+    try {
+      const lobby = await this.lobbyService.removePlayer(code, user.sub, targetUserId);
+      this.rematchVotes.get(code)?.delete(targetUserId);
+      const sockets = await this.server.in(`lobby:${code}`).fetchSockets();
+      for (const socket of sockets) {
+        if (socket.data?.user?.sub !== targetUserId) continue;
+        if (this.socketLobbyMap.get(socket.id) === code) {
+          this.socketLobbyMap.delete(socket.id);
+        }
+        socket.leave(`lobby:${code}`);
+        socket.emit(LOBBY_EVENTS.REMOVED, { lobbyCode: code });
+      }
+      this.server.to(`lobby:${code}`).emit(LOBBY_EVENTS.STATE, { lobby });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to remove player';
+      client.emit(LOBBY_EVENTS.ERROR, { message, code: 'REMOVE_FAILED' });
     }
   }
 
@@ -381,6 +438,15 @@ export class LobbyGateway
     if (!code) return;
 
     try {
+      const currentLobby = await this.lobbyService.getLobby(code);
+      if (!currentLobby) return;
+      client.join(`lobby:${code}`);
+      this.socketLobbyMap.set(client.id, code);
+      if (currentLobby.status === LobbyStatus.IN_PROGRESS) {
+        client.emit(LOBBY_EVENTS.STATE, { lobby: currentLobby });
+        return;
+      }
+
       const lobby = await this.lobbyService.resetForNewGame(code);
       if (!lobby) return;
 

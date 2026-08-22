@@ -11,6 +11,9 @@ const players: BridgePlayerView['players'] = [
 
 const aceHearts: StandardCard = { id: 'c-hearts-A', suit: 'hearts', rank: 'A' };
 const twoClubs: StandardCard = { id: 'c-clubs-2', suit: 'clubs', rank: '2' };
+const aceSpades: StandardCard = { id: 'c-spades-A', suit: 'spades', rank: 'A' };
+const aceClubs: StandardCard = { id: 'c-clubs-A', suit: 'clubs', rank: 'A' };
+const aceDiamonds: StandardCard = { id: 'c-diamonds-A', suit: 'diamonds', rank: 'A' };
 
 function view(overrides: Partial<BridgePlayerView> = {}): BridgePlayerView {
   return {
@@ -26,6 +29,8 @@ function view(overrides: Partial<BridgePlayerView> = {}): BridgePlayerView {
     auction: [],
     contract: null,
     trick: [],
+    lastTrick: null,
+    trickDisplayUntil: null,
     tricksWon: [0, 0],
     currentTurnId: 'a',
     currentActorId: 'a',
@@ -44,6 +49,8 @@ function view(overrides: Partial<BridgePlayerView> = {}): BridgePlayerView {
     canRedouble: false,
     legalCardIds: [],
     actingHand: null,
+    surrenderVotes: [[], []],
+    canVoteSurrender: false,
     winnerId: null,
     winnerTeam: null,
     isDraw: false,
@@ -75,10 +82,13 @@ describe('BridgeRenderer', () => {
       yourHand: [aceHearts],
     })} disabled={false} onAction={onAction} />);
 
-    expect(screen.getByRole('button', { name: '1♣' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: '1♦' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Choose Clubs' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Choose Diamonds' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Double' })).toBeDisabled();
     expect(screen.getByLabelText('A of hearts')).not.toBeInstanceOf(HTMLButtonElement);
+    fireEvent.click(screen.getByRole('button', { name: 'Choose Clubs' }));
+    expect(screen.getByRole('button', { name: '1♣' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Back' })).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: '1♣' }));
     fireEvent.click(screen.getByRole('button', { name: 'Pass' }));
     expect(onAction).toHaveBeenNthCalledWith(1, {
@@ -86,6 +96,22 @@ describe('BridgeRenderer', () => {
       call: { type: 'bid', level: 1, strain: 'clubs' },
     });
     expect(onAction).toHaveBeenNthCalledWith(2, { type: 'bridge_call', call: { type: 'pass' } });
+  });
+
+  it('arranges the private hand black, red, black, red by suit', () => {
+    render(<BridgeRenderer view={view({
+      mode: 'duplicate',
+      phase: 'auction',
+      dealNumber: 1,
+      legalModes: [],
+      canAct: false,
+      currentActorId: 'b',
+      currentTurnId: 'b',
+      yourHand: [aceDiamonds, aceClubs, aceHearts, aceSpades],
+    })} disabled={false} onAction={jest.fn()} />);
+
+    expect(screen.getAllByLabelText(/^A of /).map((card) => card.getAttribute('aria-label')))
+      .toEqual(['A of spades', 'A of hearts', 'A of clubs', 'A of diamonds']);
   });
 
   it('keeps dummy hidden before the lead and lets declarer play only legal dummy cards', () => {
@@ -146,11 +172,147 @@ describe('BridgeRenderer', () => {
         tricksWon: [0, 0],
         score: [0, 0],
         passedOut: true,
+        concededByTeam: null,
       }],
     })} disabled={false} onAction={onAction} />);
 
     expect(screen.getAllByText('Passed out')).toHaveLength(2);
     fireEvent.click(screen.getByRole('button', { name: 'Next deal' }));
     expect(onAction).toHaveBeenCalledWith({ type: 'next_bridge_deal' });
+  });
+
+  it('keeps all four completed cards visible, then exposes them through Last trick', () => {
+    const completed = {
+      cards: [
+        { playerId: 'a', card: aceSpades },
+        { playerId: 'b', card: aceHearts },
+        { playerId: 'c', card: aceClubs },
+        { playerId: 'd', card: aceDiamonds },
+      ],
+      winnerId: 'a',
+      completedAt: Date.now(),
+    };
+    const bridgeContract = {
+      level: 1,
+      strain: 'notrump' as const,
+      doubling: 'undoubled' as const,
+      declarerId: 'a',
+      dummyId: 'c',
+      openingLeaderId: 'b',
+      declaringTeam: 0 as const,
+    };
+    const { rerender } = render(<BridgeRenderer view={view({
+      mode: 'duplicate',
+      phase: 'playing',
+      dealNumber: 1,
+      legalModes: [],
+      contract: bridgeContract,
+      lastTrick: completed,
+      trickDisplayUntil: Date.now() + 3_500,
+      canAct: true,
+      actingHand: 'own',
+    })} disabled={false} onAction={jest.fn()} />);
+
+    expect(screen.getByText(/Completed trick/)).toHaveTextContent('North won');
+    expect(screen.getAllByLabelText(/^A of /)).toHaveLength(4);
+
+    rerender(<BridgeRenderer view={view({
+      mode: 'duplicate',
+      phase: 'playing',
+      dealNumber: 1,
+      legalModes: [],
+      contract: bridgeContract,
+      lastTrick: completed,
+      trickDisplayUntil: Date.now() - 1,
+      canAct: true,
+      actingHand: 'own',
+    })} disabled={false} onAction={jest.fn()} />);
+    expect(screen.queryAllByLabelText(/^A of /)).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Last trick' }));
+    expect(screen.getByText(/Previous trick/)).toHaveTextContent('North won');
+    expect(screen.getAllByLabelText(/^A of /)).toHaveLength(4);
+  });
+
+  it('shows the final completed trick before replacing it with the deal summary', () => {
+    const completedAt = Date.now();
+    const bridgeContract = {
+      level: 1,
+      strain: 'notrump' as const,
+      doubling: 'undoubled' as const,
+      declarerId: 'a',
+      dummyId: 'c',
+      openingLeaderId: 'b',
+      declaringTeam: 0 as const,
+    };
+    render(<BridgeRenderer view={view({
+      mode: 'duplicate',
+      phase: 'deal_complete',
+      dealNumber: 1,
+      legalModes: [],
+      contract: bridgeContract,
+      lastTrick: {
+        cards: [
+          { playerId: 'a', card: aceSpades },
+          { playerId: 'b', card: aceHearts },
+          { playerId: 'c', card: aceClubs },
+          { playerId: 'd', card: aceDiamonds },
+        ],
+        winnerId: 'a',
+        completedAt,
+      },
+      trickDisplayUntil: completedAt + 3_500,
+      dealHistory: [{
+        dealNumber: 1,
+        dealerId: 'a',
+        vulnerability: [false, false],
+        contract: bridgeContract,
+        tricksWon: [7, 6],
+        score: [90, 0],
+        passedOut: false,
+        concededByTeam: null,
+      }],
+    })} disabled={false} onAction={jest.fn()} />);
+
+    expect(screen.getByText(/Completed trick/)).toBeInTheDocument();
+    expect(screen.getAllByLabelText(/^A of /)).toHaveLength(4);
+    expect(screen.queryByText('Deal complete')).not.toBeInTheDocument();
+  });
+
+  it('requires explicit confirmation and supports withdrawing a team surrender vote', () => {
+    const onAction = jest.fn();
+    const bridgeContract = {
+      level: 2,
+      strain: 'hearts' as const,
+      doubling: 'undoubled' as const,
+      declarerId: 'a',
+      dummyId: 'c',
+      openingLeaderId: 'b',
+      declaringTeam: 0 as const,
+    };
+    const { rerender } = render(<BridgeRenderer view={view({
+      mode: 'home',
+      phase: 'playing',
+      dealNumber: 1,
+      legalModes: [],
+      contract: bridgeContract,
+      canVoteSurrender: true,
+    })} disabled={false} onAction={onAction} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Surrender deal' }));
+    expect(onAction).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm surrender' }));
+    expect(onAction).toHaveBeenCalledWith({ type: 'bridge_surrender_vote', confirmed: true });
+
+    rerender(<BridgeRenderer view={view({
+      mode: 'home',
+      phase: 'playing',
+      dealNumber: 1,
+      legalModes: [],
+      contract: bridgeContract,
+      canVoteSurrender: true,
+      surrenderVotes: [['a'], []],
+    })} disabled={false} onAction={onAction} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Withdraw surrender' }));
+    expect(onAction).toHaveBeenLastCalledWith({ type: 'bridge_surrender_vote', confirmed: false });
   });
 });

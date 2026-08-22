@@ -520,6 +520,7 @@ export type BridgeAction =
   | { type: 'select_bridge_mode'; mode: BridgeMode }
   | { type: 'bridge_call'; call: BridgeCall }
   | { type: 'play_bridge_card'; cardId: string }
+  | { type: 'bridge_surrender_vote'; confirmed: boolean }
   | { type: 'next_bridge_deal' };
 export interface BridgeAuctionEntry { playerId: string; call: BridgeCall }
 export interface BridgeContract extends BridgeBid {
@@ -527,12 +528,18 @@ export interface BridgeContract extends BridgeBid {
   openingLeaderId: string; declaringTeam: BridgeTeam;
 }
 export interface BridgeTrickCard { playerId: string; card: StandardCard }
+export interface BridgeCompletedTrick {
+  cards: BridgeTrickCard[];
+  winnerId: string;
+  completedAt: number;
+}
 export interface BridgeRubberState {
   belowLine: [number, number]; gamesWon: [number, number]; vulnerable: [boolean, boolean];
 }
 export interface BridgeDealSummary {
   dealNumber: number; dealerId: string; vulnerability: [boolean, boolean];
   contract: BridgeContract | null; tricksWon: [number, number]; score: [number, number]; passedOut: boolean;
+  concededByTeam: BridgeTeam | null;
 }
 export interface BridgeResult {
   gameKey: 'contract-bridge'; winnerId: string | null; winnerTeam: BridgeTeam | null;
@@ -546,12 +553,14 @@ export interface BridgePlayerView {
   phase: 'setup' | 'auction' | 'opening_lead' | 'playing' | 'deal_complete' | 'finished';
   dealerId: string; dealNumber: number; vulnerability: [boolean, boolean];
   auction: BridgeAuctionEntry[]; contract: BridgeContract | null; trick: BridgeTrickCard[];
+  lastTrick: BridgeCompletedTrick | null; trickDisplayUntil: number | null;
   tricksWon: [number, number]; currentTurnId: string | null; currentActorId: string | null;
   leaderId: string | null; dummyRevealed: boolean; yourHand: StandardCard[]; dummyHand: StandardCard[];
   sessionScores: [number, number]; rubber: BridgeRubberState; dealHistory: BridgeDealSummary[];
   canAct: boolean; legalModes: BridgeMode[]; legalBids: BridgeBid[]; canPass: boolean;
   canDouble: boolean; canRedouble: boolean; legalCardIds: string[];
-  actingHand: 'own' | 'dummy' | null; winnerId: string | null; winnerTeam: BridgeTeam | null; isDraw: boolean;
+  actingHand: 'own' | 'dummy' | null; surrenderVotes: [string[], string[]];
+  canVoteSurrender: boolean; winnerId: string | null; winnerTeam: BridgeTeam | null; isDraw: boolean;
 }
 
 export type BourreAction =

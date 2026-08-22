@@ -1160,6 +1160,7 @@ export type BridgeAction =
   | { type: 'select_bridge_mode'; mode: BridgeMode }
   | { type: 'bridge_call'; call: BridgeCall }
   | { type: 'play_bridge_card'; cardId: string }
+  | { type: 'bridge_surrender_vote'; confirmed: boolean }
   | { type: 'next_bridge_deal' };
 export interface BridgeAuctionEntry {
   playerId: string;
@@ -1176,6 +1177,11 @@ export interface BridgeTrickCard {
   playerId: string;
   card: StandardCard;
 }
+export interface BridgeCompletedTrick {
+  cards: BridgeTrickCard[];
+  winnerId: string;
+  completedAt: number;
+}
 export interface BridgeRubberState {
   belowLine: [number, number];
   gamesWon: [number, number];
@@ -1189,6 +1195,7 @@ export interface BridgeDealSummary {
   tricksWon: [number, number];
   score: [number, number];
   passedOut: boolean;
+  concededByTeam: BridgeTeam | null;
 }
 export interface BridgeGameState {
   players: [BridgePlayer, BridgePlayer, BridgePlayer, BridgePlayer];
@@ -1204,6 +1211,8 @@ export interface BridgeGameState {
   consecutivePasses: number;
   contract: BridgeContract | null;
   trick: BridgeTrickCard[];
+  lastTrick: BridgeCompletedTrick | null;
+  trickDisplayUntil: number | null;
   tricksWon: [number, number];
   currentTurnId: string | null;
   leaderId: string | null;
@@ -1212,6 +1221,7 @@ export interface BridgeGameState {
   rubber: BridgeRubberState;
   dealHistory: BridgeDealSummary[];
   pendingHonorBonus: { team: BridgeTeam; points: number } | null;
+  surrenderVotes: [string[], string[]];
   phase: 'setup' | 'auction' | 'opening_lead' | 'playing' | 'deal_complete' | 'finished';
   winnerId: string | null;
   winnerTeam: BridgeTeam | null;
@@ -1240,6 +1250,8 @@ export interface BridgePlayerView {
   auction: BridgeAuctionEntry[];
   contract: BridgeContract | null;
   trick: BridgeTrickCard[];
+  lastTrick: BridgeCompletedTrick | null;
+  trickDisplayUntil: number | null;
   tricksWon: [number, number];
   currentTurnId: string | null;
   currentActorId: string | null;
@@ -1258,6 +1270,8 @@ export interface BridgePlayerView {
   canRedouble: boolean;
   legalCardIds: string[];
   actingHand: 'own' | 'dummy' | null;
+  surrenderVotes: [string[], string[]];
+  canVoteSurrender: boolean;
   winnerId: string | null;
   winnerTeam: BridgeTeam | null;
   isDraw: boolean;

@@ -21,6 +21,7 @@ async function main() {
 
   try {
     await verifyCatalog();
+    await verifyHostRemoval(alpha, beta, alphaSocket, betaSocket);
     const ttt = await verifyTicTacToeAndHostTransfer(
       alpha,
       beta,
@@ -64,6 +65,42 @@ async function main() {
     gammaSocket.disconnect();
     deltaSocket.disconnect();
   }
+}
+
+async function verifyHostRemoval(alpha, beta, alphaSocket, betaSocket) {
+  console.log('Runtime E2E lobby: host removal');
+  const lobby = (await emitAndWait(
+    alphaSocket,
+    'lobby:create',
+    { gameType: 'bingo', maxPlayers: 2 },
+    'lobby:state',
+    (payload) => payload.lobby?.gameType === 'bingo',
+    'host-removal: create lobby',
+  )).lobby;
+  const joined = waitForEvent(
+    alphaSocket,
+    'lobby:state',
+    (payload) => payload.lobby?.players?.some((player) => player.id === beta.user.id),
+    'host-removal: guest joins',
+  );
+  betaSocket.emit('lobby:join', { code: lobby.code });
+  await joined;
+
+  const removed = waitForEvent(
+    betaSocket,
+    'lobby:removed',
+    (payload) => payload.lobbyCode === lobby.code,
+    'host-removal: guest ejected',
+  );
+  const updated = waitForEvent(
+    alphaSocket,
+    'lobby:state',
+    (payload) => payload.lobby?.code === lobby.code && payload.lobby.players.length === 1,
+    'host-removal: host receives state',
+  );
+  alphaSocket.emit('lobby:remove_player', { targetUserId: beta.user.id });
+  await Promise.all([removed, updated]);
+  await leaveLobbyAndWait(alphaSocket, lobby.code);
 }
 
 async function verifyCatalog() {
@@ -1484,6 +1521,38 @@ async function verifyContractBridge(clients) {
     }
   }
 
+  const returning = clients[3];
+  const returningBefore = privateStates[3].view;
+  const detached = await emitAndWait(
+    returning.socket,
+    'lobby:leave',
+    undefined,
+    'lobby:left',
+    (payload) => payload.lobbyCode === lobby.code && payload.seatPreserved === true,
+    `${lobby.code}: detach active Bridge seat`,
+  );
+  assert.equal(detached.seatPreserved, true);
+  await emitAndWait(
+    returning.socket,
+    'lobby:join',
+    { code: lobby.code },
+    'lobby:game_starting',
+    (payload) => payload.lobbyCode === lobby.code,
+    `${lobby.code}: rejoin active Bridge seat`,
+  );
+  const returningAfter = await requestGameState(
+    returning.socket,
+    lobby.code,
+    'distinct:state',
+  );
+  assert.deepEqual(
+    returningAfter.view.yourHand.map((card) => card.id),
+    returningBefore.yourHand.map((card) => card.id),
+  );
+  assert.equal(returningAfter.view.dealNumber, returningBefore.dealNumber);
+  assert.deepEqual(returningAfter.view.sessionScores, returningBefore.sessionScores);
+  assert.deepEqual(returningAfter.view.auction, returningBefore.auction);
+
   await emitDistinctActionExpectError(
     host.socket,
     {
@@ -1592,6 +1661,9 @@ async function verifyContractBridge(clients) {
   while (latest.view.phase === 'playing' || latest.view.phase === 'opening_lead') {
     safety += 1;
     assert(safety <= 52, 'Bridge deal should complete within 52 card plays');
+    if (latest.view.trickDisplayUntil > Date.now()) {
+      await delay(latest.view.trickDisplayUntil - Date.now() + 50);
+    }
     const actor = clients.find((client) => client.user.id === latest.view.currentActorId);
     assert(actor, 'Bridge current actor should be connected');
     actorState = await requestGameState(actor.socket, lobby.code, 'distinct:state');
@@ -1629,15 +1701,53 @@ async function verifyContractBridge(clients) {
   assert.equal(nextDeal.view.dealerId, clients[1].user.id);
   assert.deepEqual(nextDeal.view.vulnerability, [true, false]);
 
-  const resultPromise = waitForEvent(
+  const concessionAuction = [
+    { client: clients[1], call: { type: 'bid', level: 1, strain: 'clubs' } },
+    { client: clients[2], call: { type: 'pass' } },
+    { client: clients[3], call: { type: 'pass' } },
+    { client: clients[0], call: { type: 'pass' } },
+  ];
+  for (const [index, step] of concessionAuction.entries()) {
+    await emitDistinctActionAndWait(
+      step.client.socket,
+      clients.find((client) => client !== step.client).socket,
+      {
+        gameId,
+        lobbyCode: lobby.code,
+        action: { type: 'bridge_call', call: step.call },
+      },
+      (payload) => payload.gameId === gameId
+        && payload.view?.auction?.length === index + 1
+        && (index < concessionAuction.length - 1 || payload.view?.phase === 'opening_lead'),
+    );
+  }
+  const firstVote = await emitDistinctActionAndWait(
+    clients[0].socket,
     clients[1].socket,
-    'distinct:result',
-    (payload) => payload.gameId === gameId,
+    {
+      gameId,
+      lobbyCode: lobby.code,
+      action: { type: 'bridge_surrender_vote', confirmed: true },
+    },
+    (payload) => payload.gameId === gameId
+      && payload.view?.surrenderVotes?.[0]?.includes(clients[0].user.id),
   );
-  host.socket.emit('game:surrender', { gameId, lobbyCode: lobby.code });
-  const result = await resultPromise;
-  assert.equal(result.result.reason, 'surrender');
-  assert.equal(result.result.mode, 'duplicate');
+  assert.equal(firstVote.view.phase, 'opening_lead');
+  const conceded = await emitDistinctActionAndWait(
+    clients[2].socket,
+    clients[1].socket,
+    {
+      gameId,
+      lobbyCode: lobby.code,
+      action: { type: 'bridge_surrender_vote', confirmed: true },
+    },
+    (payload) => payload.gameId === gameId
+      && payload.view?.phase === 'deal_complete'
+      && payload.view?.dealHistory?.length === 2,
+  );
+  assert.deepEqual(conceded.view.tricksWon, [0, 13]);
+  assert.equal(conceded.view.dealHistory.at(-1).concededByTeam, 0);
+  assert.notDeepEqual(conceded.view.sessionScores, sessionScores);
 }
 
 async function verifyDistinctRematch(code, previousGameId, alpha, beta, alphaSocket, betaSocket) {

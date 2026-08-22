@@ -3,13 +3,16 @@ import { LobbyService } from './lobby.service';
 import { GameService } from '../game/game.service';
 import { UserService } from '../user/user.service';
 import { JwtService } from '@nestjs/jwt';
-import { AUTH_EVENTS, LOBBY_EVENTS, LobbyStatus } from '../shared';
+import { AUTH_EVENTS, GameType, LOBBY_EVENTS, LobbyStatus } from '../shared';
 
 describe('LobbyGateway connection handling', () => {
   let gateway: LobbyGateway;
   let lobbyService: {
     getLobby: jest.Mock;
+    joinLobby: jest.Mock;
     leaveLobby: jest.Mock;
+    removePlayer: jest.Mock;
+    resetForNewGame: jest.Mock;
     setReady: jest.Mock;
     setTeam: jest.Mock;
   };
@@ -33,7 +36,10 @@ describe('LobbyGateway connection handling', () => {
   beforeEach(() => {
     lobbyService = {
       getLobby: jest.fn(),
+      joinLobby: jest.fn(),
       leaveLobby: jest.fn(),
+      removePlayer: jest.fn(),
+      resetForNewGame: jest.fn(),
       setReady: jest.fn().mockResolvedValue(undefined),
       setTeam: jest.fn(),
     };
@@ -245,6 +251,102 @@ describe('LobbyGateway connection handling', () => {
     expect(lobbyService.leaveLobby).not.toHaveBeenCalled();
     expect(socket.leave).toHaveBeenCalledWith('lobby:123456');
     expect(gateway.getSocketLobbyMap().has(socket.id)).toBe(false);
+  });
+
+  it('preserves the active seat on explicit leave and acknowledges detach', async () => {
+    const socket = makeSocket();
+    gateway.getSocketLobbyMap().set(socket.id, '123456');
+    lobbyService.getLobby.mockResolvedValue({
+      code: '123456',
+      status: LobbyStatus.IN_PROGRESS,
+    });
+
+    await gateway.handleLeave(socket as never);
+
+    expect(lobbyService.leaveLobby).not.toHaveBeenCalled();
+    expect(gateway.getSocketLobbyMap().has(socket.id)).toBe(false);
+    expect(socket.leave).toHaveBeenCalledWith('lobby:123456');
+    expect(socket.leave).toHaveBeenCalledWith('game:123456');
+    expect(socket.emit).toHaveBeenCalledWith(LOBBY_EVENTS.LEFT, {
+      lobbyCode: '123456',
+      seatPreserved: true,
+    });
+  });
+
+  it('routes an existing member back to an in-progress game', async () => {
+    const socket = makeSocket();
+    const lobby = {
+      code: '123456',
+      status: LobbyStatus.IN_PROGRESS,
+      gameType: GameType.DISTINCT,
+      gameKey: 'contract-bridge',
+      players: [{ id: 'user-1' }, { id: 'user-2' }],
+    };
+    lobbyService.joinLobby.mockResolvedValue(lobby);
+
+    await gateway.handleJoin(socket as never, { code: '123456' });
+
+    expect(socket.join).toHaveBeenCalledWith('lobby:123456');
+    expect(gateway.getSocketLobbyMap().get(socket.id)).toBe('123456');
+    expect(roomEmit).toHaveBeenCalledWith(LOBBY_EVENTS.STATE, { lobby });
+    expect(socket.emit).toHaveBeenCalledWith(LOBBY_EVENTS.GAME_STARTING, {
+      lobbyCode: '123456',
+    });
+  });
+
+  it('does not reset an in-progress lobby when a client requests back-to-lobby', async () => {
+    const socket = makeSocket();
+    const lobby = {
+      code: '123456',
+      status: LobbyStatus.IN_PROGRESS,
+      players: [{ id: 'user-1' }],
+    };
+    gateway.getSocketLobbyMap().set(socket.id, '123456');
+    lobbyService.getLobby.mockResolvedValue(lobby);
+
+    await gateway.handleBackToLobby(socket as never);
+
+    expect(lobbyService.resetForNewGame).not.toHaveBeenCalled();
+    expect(socket.emit).toHaveBeenCalledWith(LOBBY_EVENTS.STATE, { lobby });
+    expect(socket.join).toHaveBeenCalledWith('lobby:123456');
+  });
+
+  it('removes a waiting-room member on host request and ejects every target socket', async () => {
+    const hostSocket = makeSocket();
+    const targetSocket = {
+      ...makeSocket(),
+      id: 'socket-2',
+      data: { user: { sub: 'user-2', username: 'Bob' } },
+    };
+    const lobby = { code: '123456', status: LobbyStatus.WAITING, players: [{ id: 'user-1' }] };
+    gateway.getSocketLobbyMap().set(hostSocket.id, '123456');
+    gateway.getSocketLobbyMap().set(targetSocket.id, '123456');
+    roomSockets = [hostSocket, targetSocket];
+    lobbyService.removePlayer.mockResolvedValue(lobby);
+
+    await gateway.handleRemovePlayer(hostSocket as never, { targetUserId: 'user-2' });
+
+    expect(lobbyService.removePlayer).toHaveBeenCalledWith('123456', 'user-1', 'user-2');
+    expect(targetSocket.leave).toHaveBeenCalledWith('lobby:123456');
+    expect(targetSocket.emit).toHaveBeenCalledWith(LOBBY_EVENTS.REMOVED, {
+      lobbyCode: '123456',
+    });
+    expect(gateway.getSocketLobbyMap().has(targetSocket.id)).toBe(false);
+    expect(roomEmit).toHaveBeenCalledWith(LOBBY_EVENTS.STATE, { lobby });
+  });
+
+  it('reports a rejected removal without changing room membership', async () => {
+    const socket = makeSocket();
+    gateway.getSocketLobbyMap().set(socket.id, '123456');
+    lobbyService.removePlayer.mockRejectedValue(new Error('Only the host can remove players'));
+
+    await gateway.handleRemovePlayer(socket as never, { targetUserId: 'user-2' });
+
+    expect(socket.emit).toHaveBeenCalledWith(LOBBY_EVENTS.ERROR, {
+      message: 'Only the host can remove players',
+      code: 'REMOVE_FAILED',
+    });
+    expect(roomEmit).not.toHaveBeenCalledWith(LOBBY_EVENTS.STATE, expect.anything());
   });
 
   it('removes a disconnected player from a waiting lobby and broadcasts state', async () => {

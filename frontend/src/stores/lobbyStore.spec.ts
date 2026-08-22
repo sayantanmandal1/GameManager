@@ -95,6 +95,15 @@ describe('LobbyStore', () => {
     });
   });
 
+  describe('removePlayer', () => {
+    it('emits the selected member ID for server-side host validation', () => {
+      useLobbyStore.getState().removePlayer('user-2');
+      expect(mockSocket.emit).toHaveBeenCalledWith('lobby:remove_player', {
+        targetUserId: 'user-2',
+      });
+    });
+  });
+
   describe('startGame', () => {
     it('should emit lobby:start_game', () => {
       useLobbyStore.getState().startGame();
@@ -103,15 +112,17 @@ describe('LobbyStore', () => {
   });
 
   describe('initListeners', () => {
-    it('should register lobby:state and lobby:error listeners', () => {
+    it('should register state, error, and removal listeners', () => {
       const cleanup = useLobbyStore.getState().initListeners();
 
       expect(mockSocket.on).toHaveBeenCalledWith('lobby:state', expect.any(Function));
       expect(mockSocket.on).toHaveBeenCalledWith('lobby:error', expect.any(Function));
+      expect(mockSocket.on).toHaveBeenCalledWith('lobby:removed', expect.any(Function));
 
       cleanup();
       expect(mockSocket.off).toHaveBeenCalledWith('lobby:state', expect.any(Function));
       expect(mockSocket.off).toHaveBeenCalledWith('lobby:error', expect.any(Function));
+      expect(mockSocket.off).toHaveBeenCalledWith('lobby:removed', expect.any(Function));
     });
 
     it('should update lobby state when lobby:state is received', () => {
@@ -133,6 +144,19 @@ describe('LobbyStore', () => {
 
       expect(useLobbyStore.getState().error).toBe('Lobby is full');
       expect(useLobbyStore.getState().isLoading).toBe(false);
+    });
+
+    it('clears lobby state and records the code when the host removes this player', () => {
+      useLobbyStore.setState({ lobby: { code: '123456' } as any });
+      useLobbyStore.getState().initListeners();
+      const onRemoved = mockSocket.on.mock.calls.find(
+        (call: any[]) => call[0] === 'lobby:removed',
+      )[1];
+
+      onRemoved({ lobbyCode: '123456' });
+
+      expect(useLobbyStore.getState().lobby).toBeNull();
+      expect(useLobbyStore.getState().removedFromLobby).toBe('123456');
     });
   });
 

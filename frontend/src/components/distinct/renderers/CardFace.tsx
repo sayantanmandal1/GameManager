@@ -6,7 +6,7 @@ interface Props {
   readonly disabled?: boolean;
   readonly onClick?: () => void;
   readonly label?: string;
-  readonly size?: 'mini' | 'regular';
+  readonly size?: 'micro' | 'mini' | 'regular';
   readonly className?: string;
 }
 
@@ -27,11 +27,20 @@ export function CardFace({
   className = '',
 }: Props) {
   const red = card.suit === 'hearts' || card.suit === 'diamonds';
-  const dimensions = size === 'mini' ? 'h-[4.5rem] w-12' : 'h-24 w-16';
+  let dimensions = 'h-24 w-16';
+  if (size === 'mini') dimensions = 'h-[4.5rem] w-12';
+  else if (size === 'micro') dimensions = 'h-12 w-8';
   const classes = `group relative flex ${dimensions} shrink-0 overflow-hidden rounded-lg border border-black/15 bg-[#fffdf7] text-left font-black shadow-[0_8px_18px_rgba(0,0,0,0.28)] transition ${red ? 'text-[#c52f3d]' : 'text-[#17231f]'} ${selected ? 'outline outline-4 outline-[#f3cf64]' : ''} disabled:cursor-not-allowed disabled:opacity-45 ${className}`;
   const glyph = SUIT_GLYPHS[card.suit];
-  const cornerSize = size === 'mini' ? 'text-xs' : 'text-sm';
-  const centerSize = size === 'mini' ? 'text-2xl' : 'text-4xl';
+  let cornerSize = 'text-sm';
+  let centerSize = 'text-4xl';
+  if (size === 'mini') {
+    cornerSize = 'text-xs';
+    centerSize = 'text-2xl';
+  } else if (size === 'micro') {
+    cornerSize = 'text-[8px]';
+    centerSize = 'text-base';
+  }
   const content = (
     <>
       <span className={`absolute left-1.5 top-1 flex flex-col items-center leading-none ${cornerSize}`}>

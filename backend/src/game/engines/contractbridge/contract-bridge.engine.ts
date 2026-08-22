@@ -20,6 +20,7 @@ import { scoreDuplicateDeal, scoreHomeDeal, scoreRubberDeal } from './bridge-sco
 type CardShuffler = (cards: StandardCard[]) => StandardCard[];
 const SEATS = ['north', 'east', 'south', 'west'] as const;
 const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'] as const;
+const TRICK_REVEAL_MS = 3_500;
 const DUPLICATE_VULNERABILITY: Array<[boolean, boolean]> = [
   [false, false], [true, false], [false, true], [true, true],
   [true, false], [false, true], [true, true], [false, false],
@@ -33,7 +34,10 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
   readonly minPlayers = 4;
   readonly maxPlayers = 4;
 
-  constructor(private readonly shuffleCards: CardShuffler = secureShuffle) {}
+  constructor(
+    private readonly shuffleCards: CardShuffler = secureShuffle,
+    private readonly now: () => number = Date.now,
+  ) {}
 
   initGame(playerIds: string[], playerNames: Record<string, string>): BridgeGameState {
     this.requirePlayers(playerIds);
@@ -57,6 +61,8 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
       consecutivePasses: 0,
       contract: null,
       trick: [],
+      lastTrick: null,
+      trickDisplayUntil: null,
       tricksWon: [0, 0],
       currentTurnId: playerIds[0],
       leaderId: null,
@@ -65,6 +71,7 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
       rubber: { belowLine: [0, 0], gamesWon: [0, 0], vulnerable: [false, false] },
       dealHistory: [],
       pendingHonorBonus: null,
+      surrenderVotes: [[], []],
       phase: 'setup',
       winnerId: null,
       winnerTeam: null,
@@ -82,6 +89,9 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
     if (state.phase === 'setup') return this.selectMode(state, playerId, action);
     if (state.phase === 'auction') return this.makeCall(state, playerId, action);
     if (state.phase === 'opening_lead' || state.phase === 'playing') {
+      if (action.type === 'bridge_surrender_vote') {
+        return this.setSurrenderVote(state, playerId, action);
+      }
       return this.playCard(state, playerId, action);
     }
     if (state.phase === 'deal_complete') return this.nextDeal(state, playerId, action);
@@ -113,6 +123,15 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
       auction: state.auction.map((entry) => ({ playerId: entry.playerId, call: { ...entry.call } })),
       contract: contract ? { ...contract } : null,
       trick: state.trick.map((entry) => ({ playerId: entry.playerId, card: { ...entry.card } })),
+      lastTrick: state.lastTrick ? {
+        cards: state.lastTrick.cards.map((entry) => ({
+          playerId: entry.playerId,
+          card: { ...entry.card },
+        })),
+        winnerId: state.lastTrick.winnerId,
+        completedAt: state.lastTrick.completedAt,
+      } : null,
+      trickDisplayUntil: state.trickDisplayUntil,
       tricksWon: [...state.tricksWon],
       currentTurnId: state.currentTurnId,
       currentActorId,
@@ -139,6 +158,12 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
       actingHand: canAct && (state.phase === 'opening_lead' || state.phase === 'playing')
         ? (actingAsDummy ? 'dummy' : 'own')
         : null,
+      surrenderVotes: [
+        [...state.surrenderVotes[0]],
+        [...state.surrenderVotes[1]],
+      ],
+      canVoteSurrender: !!contract
+        && (state.phase === 'opening_lead' || state.phase === 'playing'),
       winnerId: state.winnerId,
       winnerTeam: state.winnerTeam,
       isDraw: state.isDraw,
@@ -146,15 +171,13 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
   }
 
   surrender(state: BridgeGameState, playerId: string): DistinctActionResult<BridgeResult> {
-    if (state.phase === 'finished') return { valid: false, reason: 'Game already finished' };
-    const player = state.players.find((entry) => entry.id === playerId);
-    if (!player) return { valid: false, reason: 'Player not found' };
-    state.winnerTeam = (1 - player.team) as BridgeTeam;
-    state.winnerId = state.players.find((entry) => entry.team === state.winnerTeam)!.id;
-    state.phase = 'finished';
-    state.finishReason = 'surrender';
-    state.isDraw = false;
-    return { valid: true, result: this.getResult(state) };
+    if (!state.players.some((entry) => entry.id === playerId)) {
+      return { valid: false, reason: 'Player not found' };
+    }
+    return {
+      valid: false,
+      reason: 'Both partners must confirm surrender at the Bridge table',
+    };
   }
 
   getResult(state: BridgeGameState): BridgeResult {
@@ -240,6 +263,10 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
     playerId: string,
     action: BridgeAction,
   ): DistinctActionResult<BridgeResult> {
+    if (state.trickDisplayUntil && this.now() < state.trickDisplayUntil) {
+      return { valid: false, reason: 'Wait for the completed trick to clear' };
+    }
+    state.trickDisplayUntil = null;
     const actorId = this.currentActorId(state);
     if (actorId !== playerId) return { valid: false, reason: 'Not your turn' };
     if (!hasExactActionShape(action, 'play_bridge_card', ['cardId']) || typeof action.cardId !== 'string') {
@@ -265,11 +292,52 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
 
     const winnerId = this.trickWinner(state);
     state.tricksWon[this.playerTeam(state, winnerId)] += 1;
+    const completedAt = this.now();
+    state.lastTrick = {
+      cards: state.trick.map((entry) => ({
+        playerId: entry.playerId,
+        card: { ...entry.card },
+      })),
+      winnerId,
+      completedAt,
+    };
+    state.trickDisplayUntil = completedAt + TRICK_REVEAL_MS;
     state.trick = [];
     state.leaderId = winnerId;
     state.currentTurnId = winnerId;
     if (state.players.some((player) => state.hands[player.id].length > 0)) return { valid: true };
-    const result = this.scoreCompletedDeal(state);
+    const result = this.scoreCompletedDeal(state, null);
+    return result ? { valid: true, result } : { valid: true };
+  }
+
+  private setSurrenderVote(
+    state: BridgeGameState,
+    playerId: string,
+    action: Extract<BridgeAction, { type: 'bridge_surrender_vote' }>,
+  ): DistinctActionResult<BridgeResult> {
+    if (!state.contract) return { valid: false, reason: 'A contract is required before surrender' };
+    if (!hasExactActionShape(action, 'bridge_surrender_vote', ['confirmed'])
+      || typeof action.confirmed !== 'boolean') {
+      return { valid: false, reason: 'Invalid surrender vote' };
+    }
+    const team = this.playerTeam(state, playerId);
+    const votes = new Set(state.surrenderVotes[team]);
+    if (action.confirmed) votes.add(playerId);
+    else votes.delete(playerId);
+    state.surrenderVotes[team] = [...votes];
+
+    const teamPlayerIds = state.players
+      .filter((player) => player.team === team)
+      .map((player) => player.id);
+    if (!teamPlayerIds.every((id) => votes.has(id))) return { valid: true };
+
+    const winningTeam = (1 - team) as BridgeTeam;
+    const unawardedTricks = 13 - state.tricksWon[0] - state.tricksWon[1];
+    state.tricksWon[winningTeam] += unawardedTricks;
+    state.hands = Object.fromEntries(state.players.map((player) => [player.id, []]));
+    state.trick = [];
+    state.trickDisplayUntil = null;
+    const result = this.scoreCompletedDeal(state, team);
     return result ? { valid: true, result } : { valid: true };
   }
 
@@ -302,11 +370,14 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
     state.consecutivePasses = 0;
     state.contract = null;
     state.trick = [];
+    state.lastTrick = null;
+    state.trickDisplayUntil = null;
     state.tricksWon = [0, 0];
     state.currentTurnId = state.players[state.dealerIndex].id;
     state.leaderId = null;
     state.dummyRevealed = false;
     state.pendingHonorBonus = null;
+    state.surrenderVotes = [[], []];
     state.phase = 'auction';
   }
 
@@ -337,7 +408,10 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
     state.leaderId = openingLeaderId;
   }
 
-  private scoreCompletedDeal(state: BridgeGameState): BridgeResult | null {
+  private scoreCompletedDeal(
+    state: BridgeGameState,
+    concededByTeam: BridgeTeam | null,
+  ): BridgeResult | null {
     const contract = state.contract!;
     const declarerTeam = contract.declaringTeam;
     const defenderTeam = (1 - declarerTeam) as BridgeTeam;
@@ -376,7 +450,7 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
 
     state.sessionScores[0] += score[0];
     state.sessionScores[1] += score[1];
-    state.dealHistory.push(this.createDealSummary(state, score, false));
+    state.dealHistory.push(this.createDealSummary(state, score, false, concededByTeam));
     state.currentTurnId = null;
     state.leaderId = null;
     state.pendingHonorBonus = null;
@@ -400,7 +474,7 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
   }
 
   private completePassedOutDeal(state: BridgeGameState): void {
-    state.dealHistory.push(this.createDealSummary(state, [0, 0], true));
+    state.dealHistory.push(this.createDealSummary(state, [0, 0], true, null));
     state.currentTurnId = null;
     state.leaderId = null;
     state.phase = 'deal_complete';
@@ -410,6 +484,7 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
     state: BridgeGameState,
     score: [number, number],
     passedOut: boolean,
+    concededByTeam: BridgeTeam | null,
   ): BridgeDealSummary {
     return {
       dealNumber: state.dealNumber,
@@ -419,6 +494,7 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
       tricksWon: [...state.tricksWon],
       score: [...score],
       passedOut,
+      concededByTeam,
     };
   }
 
@@ -429,6 +505,7 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
       contract: summary.contract ? { ...summary.contract } : null,
       tricksWon: [...summary.tricksWon],
       score: [...summary.score],
+      concededByTeam: summary.concededByTeam,
     };
   }
 

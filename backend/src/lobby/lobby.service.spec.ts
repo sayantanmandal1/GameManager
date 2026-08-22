@@ -345,6 +345,55 @@ describe('LobbyService', () => {
     });
   });
 
+  describe('removePlayer', () => {
+    const waitingLobby = (): Lobby => ({
+      id: 'lobby1',
+      code: '123456',
+      hostId: 'user1',
+      gameType: GameType.BINGO,
+      players: [
+        { id: 'user1', username: 'Alice', avatar: 'A', isReady: false, isHost: true, joinedAt: new Date() },
+        { id: 'user2', username: 'Bob', avatar: 'B', isReady: true, isHost: false, joinedAt: new Date() },
+      ],
+      status: LobbyStatus.WAITING,
+      maxPlayers: 8,
+      createdAt: new Date(),
+    });
+
+    it('lets the host remove another waiting-room member and persists membership', async () => {
+      mockRedis.get!.mockResolvedValue(JSON.stringify(waitingLobby()));
+
+      const result = await service.removePlayer('123456', 'user1', 'user2');
+
+      expect(result.players.map((player) => player.id)).toEqual(['user1']);
+      expect(mockLobbyRepo.update).toHaveBeenCalledWith(
+        { code: '123456' },
+        { playerIds: ['user1'] },
+      );
+      expect(mockRedis.set).toHaveBeenCalled();
+    });
+
+    it('rejects non-host, self, unknown, and in-progress removals', async () => {
+      mockRedis.get!.mockResolvedValue(JSON.stringify(waitingLobby()));
+      await expect(service.removePlayer('123456', 'user2', 'user1'))
+        .rejects.toThrow('Only the host can remove players');
+
+      mockRedis.get!.mockResolvedValue(JSON.stringify(waitingLobby()));
+      await expect(service.removePlayer('123456', 'user1', 'user1'))
+        .rejects.toThrow('The host cannot remove themselves');
+
+      mockRedis.get!.mockResolvedValue(JSON.stringify(waitingLobby()));
+      await expect(service.removePlayer('123456', 'user1', 'missing'))
+        .rejects.toThrow('Player not found');
+
+      const activeLobby = waitingLobby();
+      activeLobby.status = LobbyStatus.IN_PROGRESS;
+      mockRedis.get!.mockResolvedValue(JSON.stringify(activeLobby));
+      await expect(service.removePlayer('123456', 'user1', 'user2'))
+        .rejects.toThrow('Players cannot be removed after the game starts');
+    });
+  });
+
   describe('setReady', () => {
     it('should toggle a player ready status', async () => {
       const fakeLobby: Lobby = {

@@ -5,6 +5,7 @@ export type {
   LobbyTeam,
   CreateLobbyPayload,
   JoinLobbyPayload,
+  RemoveLobbyPlayerPayload,
 } from './types/lobby';
 export { LobbyStatus, GameType } from './types/lobby';
 export type { GameRecord } from './types/game';

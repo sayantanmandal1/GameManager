@@ -14,7 +14,14 @@ import { useLobbyStore } from '@/stores/lobbyStore';
 import { useGameStore } from '@/stores/gameStore';
 import { useLudoStore } from '@/stores/ludoStore';
 import { useSocket } from '@/hooks/useSocket';
-import { LOBBY_EVENTS, GameType, isPartnershipGameKey, type Lobby } from '@/shared';
+import {
+  LOBBY_EVENTS,
+  GameType,
+  LobbyStatus,
+  isPartnershipGameKey,
+  type Lobby,
+  type LobbyPlayer,
+} from '@/shared';
 import { getSocket } from '@/lib/socket';
 import { DISTINCT_GAME_UI } from '@/lib/distinctGames';
 
@@ -43,11 +50,23 @@ export default function LobbyPage() {
   const code = params.code as string;
 
   const { isAuthenticated, hasHydrated, user } = useAuthStore();
-  const { lobby, error, joinLobby, leaveLobby, setReady, selectTeam, startGame, initListeners } =
+  const {
+    lobby,
+    error,
+    removedFromLobby,
+    joinLobby,
+    leaveLobby,
+    setReady,
+    selectTeam,
+    removePlayer,
+    startGame,
+    initListeners,
+  } =
     useLobbyStore();
   const { initListeners: initGameListeners, reset: resetGame } = useGameStore();
   const { initListeners: initLudoListeners, reset: resetLudo } = useLudoStore();
   const [copied, setCopied] = useState(false);
+  const [pendingRemoval, setPendingRemoval] = useState<LobbyPlayer | null>(null);
   const isLeavingRef = useRef(false);
   const { isConnected } = useSocket();
 
@@ -59,6 +78,11 @@ export default function LobbyPage() {
       return;
     }
     if (!isConnected) return;
+    if (removedFromLobby === code) {
+      isLeavingRef.current = true;
+      router.replace('/games');
+      return;
+    }
 
     resetGame();
     resetLudo();
@@ -104,7 +128,7 @@ export default function LobbyPage() {
       cleanupLudo();
       socket?.off(LOBBY_EVENTS.GAME_STARTING, onGameStarting);
     };
-  }, [hasHydrated, isAuthenticated, isConnected, router, code, initListeners, initGameListeners, initLudoListeners, resetGame, resetLudo, joinLobby]);
+  }, [hasHydrated, isAuthenticated, isConnected, removedFromLobby, router, code, initListeners, initGameListeners, initLudoListeners, resetGame, resetLudo, joinLobby]);
 
   const isHost = lobby?.hostId === user?.id;
   const currentPlayer = lobby?.players.find((p) => p.id === user?.id);
@@ -219,6 +243,8 @@ export default function LobbyPage() {
                     key={player.id}
                     player={player}
                     isCurrentUser={player.id === user?.id}
+                    canRemove={isHost && !player.isHost && lobby.status === LobbyStatus.WAITING}
+                    onRemove={() => setPendingRemoval(player)}
                   />
                 ))}
               </AnimatePresence>
@@ -263,6 +289,29 @@ export default function LobbyPage() {
           </div>
         </div>
       </div>
+
+      {pendingRemoval && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+          <div className="w-full max-w-sm rounded-lg border border-white/12 bg-[#1c1f1b] p-6 text-center shadow-2xl">
+            <h2 className="text-xl font-bold text-white">Remove {pendingRemoval.username}?</h2>
+            <p className="mt-2 text-sm text-game-muted">
+              They will be removed from this waiting room and must be invited again to return.
+            </p>
+            <div className="mt-5 flex justify-center gap-3">
+              <Button variant="secondary" onClick={() => setPendingRemoval(null)}>Cancel</Button>
+              <Button
+                variant="danger"
+                onClick={() => {
+                  removePlayer(pendingRemoval.id);
+                  setPendingRemoval(null);
+                }}
+              >
+                Remove player
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

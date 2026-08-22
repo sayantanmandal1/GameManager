@@ -63,3 +63,7 @@ export interface CreateLobbyPayload {
 export interface JoinLobbyPayload {
   code: string;
 }
+
+export interface RemoveLobbyPlayerPayload {
+  targetUserId: string;
+}

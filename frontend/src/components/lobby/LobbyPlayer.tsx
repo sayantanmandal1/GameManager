@@ -6,9 +6,16 @@ import type { LobbyPlayer } from '@/shared';
 interface LobbyPlayerProps {
   readonly player: LobbyPlayer;
   readonly isCurrentUser: boolean;
+  readonly canRemove?: boolean;
+  readonly onRemove?: () => void;
 }
 
-export function LobbyPlayerCard({ player, isCurrentUser }: LobbyPlayerProps) {
+export function LobbyPlayerCard({
+  player,
+  isCurrentUser,
+  canRemove = false,
+  onRemove,
+}: LobbyPlayerProps) {
   return (
     <motion.div
       initial={{ opacity: 0, x: -20 }}
@@ -47,6 +54,17 @@ export function LobbyPlayerCard({ player, isCurrentUser }: LobbyPlayerProps) {
             : 'bg-game-muted/30'
         }`}
       />
+
+      {canRemove && onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          className="min-h-9 rounded-lg border border-red-400/25 px-2.5 text-xs font-bold text-red-200 transition hover:bg-red-400/10"
+          aria-label={`Remove ${player.username}`}
+        >
+          Remove
+        </button>
+      )}
     </motion.div>
   );
 }

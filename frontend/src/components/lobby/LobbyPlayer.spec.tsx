@@ -2,7 +2,7 @@
  * Tests for components/lobby/LobbyPlayer.tsx
  */
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { LobbyPlayerCard } from './LobbyPlayer';
 import type { LobbyPlayer } from '@/shared';
 
@@ -59,5 +59,24 @@ describe('LobbyPlayerCard Component', () => {
   it('shows the server-selected partnership team', () => {
     render(<LobbyPlayerCard player={{ ...basePlayer, team: 1 }} isCurrentUser />);
     expect(screen.getByText('Team 2')).toBeInTheDocument();
+  });
+
+  it('offers removal only when the host-facing caller enables it', () => {
+    const onRemove = jest.fn();
+    const { rerender } = render(
+      <LobbyPlayerCard player={basePlayer} isCurrentUser={false} />,
+    );
+    expect(screen.queryByRole('button', { name: 'Remove Alice' })).not.toBeInTheDocument();
+
+    rerender(
+      <LobbyPlayerCard
+        player={basePlayer}
+        isCurrentUser={false}
+        canRemove
+        onRemove={onRemove}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Alice' }));
+    expect(onRemove).toHaveBeenCalledTimes(1);
   });
 });

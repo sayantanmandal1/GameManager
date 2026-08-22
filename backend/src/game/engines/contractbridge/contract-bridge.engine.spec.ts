@@ -256,6 +256,51 @@ describe('ContractBridgeEngine', () => {
     expect(state.leaderId).toBe('d');
   });
 
+  it('keeps all four cards visible for 3.5 seconds and rejects the next play during that gap', () => {
+    let now = 1_000;
+    const engine = new ContractBridgeEngine((cards) => cards, () => now);
+    const state = engine.initGame(players, names);
+    engine.applyAction(state, 'a', { type: 'select_bridge_mode', mode: 'duplicate' });
+    state.phase = 'playing';
+    state.contract = contract();
+    state.currentTurnId = 'd';
+    state.trick = [
+      { playerId: 'a', card: card('clubs', 'A') },
+      { playerId: 'b', card: card('clubs', '2') },
+      { playerId: 'c', card: card('clubs', 'K') },
+    ];
+    state.hands = {
+      a: [card('diamonds', '2')],
+      b: [card('diamonds', '3')],
+      c: [card('diamonds', '4')],
+      d: [card('clubs', '3'), card('diamonds', '5')],
+    };
+
+    expect(engine.applyAction(state, 'd', {
+      type: 'play_bridge_card',
+      cardId: 'c-clubs-3',
+    })).toEqual({ valid: true });
+    expect(state.lastTrick).toMatchObject({
+      winnerId: 'a',
+      completedAt: 1_000,
+    });
+    expect(state.lastTrick?.cards).toHaveLength(4);
+    expect(state.trickDisplayUntil).toBe(4_500);
+    expect(engine.applyAction(state, 'a', {
+      type: 'play_bridge_card',
+      cardId: 'c-diamonds-2',
+    })).toEqual({ valid: false, reason: 'Wait for the completed trick to clear' });
+
+    now = 4_500;
+    expect(engine.applyAction(state, 'a', {
+      type: 'play_bridge_card',
+      cardId: 'c-diamonds-2',
+    })).toEqual({ valid: true });
+    expect(state.trick).toHaveLength(1);
+    expect(state.lastTrick?.cards).toHaveLength(4);
+    expect(state.trickDisplayUntil).toBeNull();
+  });
+
   it('integrates duplicate raw score into the persistent session ledger', () => {
     const { engine, state } = game('duplicate');
     prepareFinalTrick(state, 'duplicate', contract(), [9, 3]);
@@ -315,23 +360,61 @@ describe('ContractBridgeEngine', () => {
     expect(honors.state.pendingHonorBonus).toEqual({ team: 0, points: 150 });
   });
 
-  it('awards surrender to the opposite partnership and rejects all later actions', () => {
+  it('requires both partners to surrender, awards every remaining trick, and scores the deal', () => {
     const { engine, state } = game();
-    expect(engine.surrender(state, 'c').result).toMatchObject({
-      winnerTeam: 1,
-      winnerId: 'b',
-      reason: 'surrender',
-    });
-    expect(call(engine, state, 'b', { type: 'pass' })).toEqual({
-      valid: false,
-      reason: 'Game already finished',
+    state.phase = 'playing';
+    state.contract = contract();
+    state.currentTurnId = 'a';
+    state.tricksWon = [3, 2];
+
+    expect(engine.applyAction(state, 'a', {
+      type: 'bridge_surrender_vote',
+      confirmed: true,
+    })).toEqual({ valid: true });
+    expect(state).toMatchObject({
+      phase: 'playing',
+      surrenderVotes: [['a'], []],
+      tricksWon: [3, 2],
     });
 
-    const setupState = engine.initGame(players, names);
-    expect(engine.surrender(setupState, 'b').result).toMatchObject({
-      winnerTeam: 0,
-      mode: null,
-      reason: 'surrender',
+    expect(engine.applyAction(state, 'a', {
+      type: 'bridge_surrender_vote',
+      confirmed: false,
+    })).toEqual({ valid: true });
+    expect(state.surrenderVotes).toEqual([[], []]);
+
+    engine.applyAction(state, 'a', { type: 'bridge_surrender_vote', confirmed: true });
+    expect(engine.applyAction(state, 'c', {
+      type: 'bridge_surrender_vote',
+      confirmed: true,
+    })).toEqual({ valid: true });
+    expect(state).toMatchObject({
+      phase: 'deal_complete',
+      tricksWon: [3, 10],
+      sessionScores: [-350, 350],
+    });
+    expect(state.dealHistory.at(-1)).toMatchObject({
+      concededByTeam: 0,
+      tricksWon: [3, 10],
+      score: [-350, 350],
+    });
+    expect(state.players.every((player) => state.hands[player.id].length === 0)).toBe(true);
+  });
+
+  it('rejects one-click generic surrender and voting before a contract exists', () => {
+    const { engine, state } = game();
+    expect(engine.surrender(state, 'c')).toEqual({
+      valid: false,
+      reason: 'Both partners must confirm surrender at the Bridge table',
+    });
+    state.phase = 'opening_lead';
+    state.contract = null;
+    expect(engine.applyAction(state, 'a', {
+      type: 'bridge_surrender_vote',
+      confirmed: true,
+    })).toEqual({
+      valid: false,
+      reason: 'A contract is required before surrender',
     });
   });
 });
