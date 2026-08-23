@@ -11,6 +11,7 @@ import {
   PHOTOBOOTH_MAX_ACTIVE_GAMES,
   TicTacToeMode,
   TicTacToePhase,
+  UnoPhase,
 } from '../shared';
 
 describe('GameService', () => {
@@ -442,6 +443,106 @@ describe('GameService', () => {
 
       expect(result).toEqual({ ok: false, error: 'Game not found' });
       expect(onStateChanged).not.toHaveBeenCalled();
+    });
+
+    it('rejects a roulette color paired with another lobby code', async () => {
+      mockLobbyService.getLobby!.mockResolvedValue({
+        ...fakeLobby,
+        gameType: GameType.UNO,
+      });
+      const { gameId } = await service.startUnoGame('123456');
+      const onStateChanged = jest.fn();
+      service.onUnoStateChanged = onStateChanged;
+
+      const result = await service.unoChooseRouletteColor(
+        gameId,
+        'player1',
+        'red',
+        '654321',
+      );
+
+      expect(result).toEqual({ ok: false, error: 'Game not found' });
+      expect(onStateChanged).not.toHaveBeenCalled();
+    });
+
+    it('rejects an opening color paired with another lobby code', async () => {
+      mockLobbyService.getLobby!.mockResolvedValue({
+        ...fakeLobby,
+        gameType: GameType.UNO,
+      });
+      const { gameId } = await service.startUnoGame('123456');
+      const onStateChanged = jest.fn();
+      service.onUnoStateChanged = onStateChanged;
+
+      const result = await service.unoChooseOpeningColor(
+        gameId,
+        'player1',
+        'red',
+        '654321',
+      );
+
+      expect(result).toEqual({ ok: false, error: 'Game not found' });
+      expect(onStateChanged).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('UNO match pacing', () => {
+    it('never auto-starts another round after a terminal match result', async () => {
+      mockLobbyService.getLobby!.mockResolvedValue({
+        ...fakeLobby,
+        gameType: GameType.UNO,
+      });
+      const { gameId, state } = await service.startUnoGame('123456');
+      state.phase = UnoPhase.FINISHED;
+      state.matchWinnerId = 'player1';
+      state.roundWinnerId = 'player1';
+      (service as unknown as { unoNextRoundAt: Map<string, number> })
+        .unoNextRoundAt.set(gameId, 0);
+
+      await service.unoTick();
+
+      expect(state.phase).toBe(UnoPhase.FINISHED);
+      expect(state.roundNumber).toBe(1);
+      expect(state.matchWinnerId).toBe('player1');
+    });
+
+    it('awaits final player-state delivery before emitting game over', async () => {
+      let releaseState!: () => void;
+      const stateDelivered = new Promise<void>((resolve) => {
+        releaseState = resolve;
+      });
+      const order: string[] = [];
+      service.onUnoStateChanged = jest.fn(async () => {
+        order.push('state-start');
+        await stateDelivered;
+        order.push('state-complete');
+      });
+      service.onUnoGameOver = jest.fn(() => {
+        order.push('game-over');
+      });
+      const result = {
+        roundWinnerId: 'player1',
+        roundWinnerName: 'Alice',
+        points: 0,
+        scores: { player1: 0, player2: 0 },
+        matchOver: true,
+        matchWinnerId: 'player1',
+        reason: 'single' as const,
+      };
+
+      const handling = (service as unknown as {
+        handleUnoResult: (
+          gameId: string,
+          lobbyCode: string,
+          action: { ok: boolean; roundResult: typeof result },
+        ) => Promise<{ ok: boolean }>;
+      }).handleUnoResult('game1', '123456', { ok: true, roundResult: result });
+      await Promise.resolve();
+
+      expect(order).toEqual(['state-start']);
+      releaseState();
+      await handling;
+      expect(order).toEqual(['state-start', 'state-complete', 'game-over']);
     });
   });
 

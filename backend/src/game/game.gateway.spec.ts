@@ -3,10 +3,11 @@ import { GameService } from './game.service';
 import { JwtService } from '@nestjs/jwt';
 import { ChessMoveDto, ChessResignDto, ChessRejoinDto } from './dto/chess.dto';
 import { PhotoboothCaptureDto } from './dto/photobooth.dto';
+import { UnoColorChoiceDto } from './dto/uno.dto';
 import { DistinctGameActionDto } from './dto/distinct-game.dto';
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
-import { CHESS_EVENTS, GAME_EVENTS, LUDO_EVENTS } from '../shared';
+import { CHESS_EVENTS, GAME_EVENTS, LUDO_EVENTS, UNO_EVENTS } from '../shared';
 
 // ─── DTO-level validation tests (exercise the actual validators the
 // ValidationPipe uses at runtime). Gateway-level rate-limit + auth tests
@@ -214,6 +215,29 @@ describe('distinct game DTOs - class-validator', () => {
   });
 });
 
+describe('UNO DTOs - class-validator', () => {
+  it('accepts a bounded light-side roulette color', async () => {
+    const dto = plainToInstance(UnoColorChoiceDto, {
+      gameId: '123e4567-e89b-12d3-a456-426614174000',
+      lobbyCode: '123456',
+      chosenColor: 'red',
+    });
+    await expect(validate(dto)).resolves.toHaveLength(0);
+  });
+
+  it('rejects dark-side and forged roulette colors', async () => {
+    for (const chosenColor of ['purple', 'chartreuse']) {
+      const dto = plainToInstance(UnoColorChoiceDto, {
+        gameId: '123e4567-e89b-12d3-a456-426614174000',
+        lobbyCode: '123456',
+        chosenColor,
+      });
+      const errors = await validate(dto);
+      expect(errors.length).toBeGreaterThan(0);
+    }
+  });
+});
+
 // ─── Gateway-level tests (auth + rate limiting) ───────────────────────────
 
 interface MockSocket {
@@ -257,6 +281,7 @@ describe('GameGateway handlers', () => {
         turnSkipped: true,
         turnCanceled: false,
       }),
+      unoChooseOpeningColor: jest.fn().mockResolvedValue({ ok: true }),
     };
     jwtService = {
       verify: jest.fn(),
@@ -332,6 +357,41 @@ describe('GameGateway handlers', () => {
       } as ChessMoveDto,
     );
     expect(gameService.applyChessMove).toHaveBeenCalledTimes(1);
+  });
+
+  it('forwards an authenticated UNO Flip opening color choice', async () => {
+    const sock = mkSocket({ sub: 'user1', username: 'A' });
+    await gateway.handleUnoChooseOpeningColor(sock as never, {
+      gameId: '123e4567-e89b-12d3-a456-426614174000',
+      lobbyCode: '123456',
+      chosenColor: 'blue',
+    });
+
+    expect(gameService.unoChooseOpeningColor).toHaveBeenCalledWith(
+      '123e4567-e89b-12d3-a456-426614174000',
+      'user1',
+      'blue',
+      '123456',
+    );
+    expect(sock.emit).not.toHaveBeenCalledWith(UNO_EVENTS.ERROR, expect.anything());
+  });
+
+  it('emits an UNO error when an opening color choice is rejected', async () => {
+    const sock = mkSocket({ sub: 'user1', username: 'A' });
+    (gameService.unoChooseOpeningColor as jest.Mock).mockResolvedValue({
+      ok: false,
+      error: 'No opening colour to choose',
+    });
+
+    await gateway.handleUnoChooseOpeningColor(sock as never, {
+      gameId: '123e4567-e89b-12d3-a456-426614174000',
+      lobbyCode: '123456',
+      chosenColor: 'blue',
+    });
+
+    expect(sock.emit).toHaveBeenCalledWith(UNO_EVENTS.ERROR, {
+      message: 'No opening colour to choose',
+    });
   });
 
   it('emits chess:move_rejected with code=rate_limited after bucket exhaustion', async () => {

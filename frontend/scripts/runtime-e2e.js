@@ -40,6 +40,8 @@ async function main() {
     alphaSocket = await connect(alpha.token);
 
     await verifyUnoReconnectAndPrivacy(alpha, beta, alphaSocket, betaSocket);
+    await verifyUnoFlipVisibilityAndRematch(gamma, delta, gammaSocket, deltaSocket);
+    await verifyUnoNoMercyContract(gamma, delta, gammaSocket, deltaSocket);
     alphaSocket.disconnect();
     alphaSocket = await connect(alpha.token);
 
@@ -65,6 +67,217 @@ async function main() {
     gammaSocket.disconnect();
     deltaSocket.disconnect();
   }
+}
+
+async function verifyUnoNoMercyContract(gamma, delta, gammaSocket, deltaSocket) {
+  console.log('Runtime E2E UNO No Mercy: official mode contract and terminal persistence');
+  const lobby = (await emitAndWait(
+    gammaSocket,
+    'lobby:create',
+    {
+      gameType: 'uno',
+      maxPlayers: 99,
+      unoRules: {
+        mode: 'noMercy',
+        targetScore: 500,
+        stacking: false,
+        drawToMatch: false,
+        jumpIn: false,
+        sevenZero: false,
+        forcePlay: false,
+        noBluffing: false,
+      },
+    },
+    'lobby:state',
+    (payload) => payload.lobby?.gameType === 'uno'
+      && payload.lobby?.unoRules?.mode === 'noMercy',
+    'UNO No Mercy: create lobby',
+  )).lobby;
+  assert.equal(lobby.maxPlayers, 6);
+  assert.equal(lobby.unoRules.targetScore, null);
+  await joinAndReady(gammaSocket, deltaSocket, lobby.code, delta.user.id);
+
+  const gammaStatePromise = waitForEvent(
+    gammaSocket,
+    'uno:state',
+    (payload) => payload.view?.mode === 'noMercy',
+    'UNO No Mercy: host state',
+  );
+  const deltaStatePromise = waitForEvent(
+    deltaSocket,
+    'uno:state',
+    (payload) => payload.view?.mode === 'noMercy',
+    'UNO No Mercy: guest state',
+  );
+  gammaSocket.emit('lobby:start_game');
+  const [gammaState, deltaState] = await Promise.all([
+    gammaStatePromise,
+    deltaStatePromise,
+  ]);
+  for (const state of [gammaState, deltaState]) {
+    assert.equal(state.view.mercyLimit, 25);
+    assert.equal(state.view.stacking, true);
+    assert.equal(state.view.targetScore, null);
+    assert.equal(state.view.yourHand.length, 7);
+    assert(state.view.players.every((player) => player.visibleBackFaces.length === 0));
+  }
+
+  const gameOver = waitForEvent(
+    gammaSocket,
+    'uno:game_over',
+    (payload) => payload.gameId === gammaState.gameId,
+    'UNO No Mercy: terminal result',
+  );
+  deltaSocket.emit('uno:surrender', {
+    gameId: gammaState.gameId,
+    lobbyCode: lobby.code,
+  });
+  const terminal = await gameOver;
+  assert.equal(terminal.result.matchOver, true);
+  assert.equal(terminal.result.matchWinnerId, gamma.user.id);
+
+  await delay(7_000);
+  const persisted = await emitAndWait(
+    gammaSocket,
+    'uno:rejoin',
+    { lobbyCode: lobby.code },
+    'uno:state',
+    (payload) => payload.gameId === gammaState.gameId,
+    'UNO No Mercy: terminal state persists',
+  );
+  assert.equal(persisted.view.phase, 'finished');
+  assert.equal(persisted.view.lastResult.matchWinnerId, gamma.user.id);
+
+  await leaveLobbyAndWait(deltaSocket, lobby.code);
+  await leaveLobbyAndWait(gammaSocket, lobby.code);
+}
+
+async function verifyUnoFlipVisibilityAndRematch(gamma, delta, gammaSocket, deltaSocket) {
+  console.log('Runtime E2E UNO Flip: inactive faces and terminal rematch');
+  const lobby = (await emitAndWait(
+    gammaSocket,
+    'lobby:create',
+    {
+      gameType: 'uno',
+      maxPlayers: 2,
+      unoRules: {
+        mode: 'flip',
+        targetScore: null,
+        stacking: false,
+        drawToMatch: false,
+        jumpIn: false,
+        sevenZero: false,
+        forcePlay: false,
+        noBluffing: false,
+      },
+    },
+    'lobby:state',
+    (payload) => payload.lobby?.gameType === 'uno',
+    'UNO Flip: create lobby',
+  )).lobby;
+  await joinAndReady(gammaSocket, deltaSocket, lobby.code, delta.user.id);
+
+  const gammaStatePromise = waitForEvent(
+    gammaSocket,
+    'uno:state',
+    (payload) => payload.view?.mode === 'flip',
+    'UNO Flip: host state',
+  );
+  const deltaStatePromise = waitForEvent(
+    deltaSocket,
+    'uno:state',
+    (payload) => payload.view?.mode === 'flip',
+    'UNO Flip: guest state',
+  );
+  gammaSocket.emit('lobby:start_game');
+  const [gammaState, deltaState] = await Promise.all([
+    gammaStatePromise,
+    deltaStatePromise,
+  ]);
+  const deltaPublic = gammaState.view.players.find(
+    (player) => player.id === delta.user.id,
+  );
+  assert(deltaPublic);
+  assert.equal(deltaPublic.visibleBackFaces.length, 7);
+  assert(deltaPublic.visibleBackFaces.every((face) => !Object.hasOwn(face, 'id')));
+  assert(deltaState.view.yourHand.every((card) => !Object.hasOwn(card, 'dark')));
+  const deltaIds = deltaState.view.yourHand.map((card) => card.id);
+  assert(deltaIds.every((id) => !JSON.stringify(deltaPublic).includes(id)));
+
+  const gameOver = waitForEvent(
+    gammaSocket,
+    'uno:game_over',
+    (payload) => payload.gameId === gammaState.gameId,
+    'UNO Flip: terminal result',
+  );
+  deltaSocket.emit('uno:surrender', {
+    gameId: gammaState.gameId,
+    lobbyCode: lobby.code,
+  });
+  const terminal = await gameOver;
+  assert.equal(terminal.result.matchOver, true);
+  assert.equal(terminal.result.matchWinnerId, gamma.user.id);
+
+  await delay(7_000);
+  const persisted = await emitAndWait(
+    gammaSocket,
+    'uno:rejoin',
+    { lobbyCode: lobby.code },
+    'uno:state',
+    (payload) => payload.gameId === gammaState.gameId,
+    'UNO Flip: terminal state persists',
+  );
+  assert.equal(persisted.view.phase, 'finished');
+  assert.equal(persisted.view.matchWinnerId, gamma.user.id);
+
+  const firstVote = waitForEvent(
+    deltaSocket,
+    'lobby:rematch_state',
+    (payload) => payload.requestedBy?.includes(gamma.user.id),
+    'UNO Flip: first rematch vote',
+  );
+  gammaSocket.emit('lobby:rematch_request', { lobbyCode: lobby.code });
+  await firstVote;
+  await delay(250);
+  const stillOld = await emitAndWait(
+    gammaSocket,
+    'uno:rejoin',
+    { lobbyCode: lobby.code },
+    'uno:state',
+    (payload) => payload.gameId === gammaState.gameId,
+    'UNO Flip: no restart after one vote',
+  );
+  assert.equal(stillOld.view.phase, 'finished');
+
+  const gammaFreshPromise = waitForEvent(
+    gammaSocket,
+    'uno:state',
+    (payload) => payload.gameId !== gammaState.gameId && payload.view?.mode === 'flip',
+    'UNO Flip: host rematch state',
+  );
+  const deltaFreshPromise = waitForEvent(
+    deltaSocket,
+    'uno:state',
+    (payload) => payload.gameId !== gammaState.gameId && payload.view?.mode === 'flip',
+    'UNO Flip: guest rematch state',
+  );
+  deltaSocket.emit('lobby:rematch_request', { lobbyCode: lobby.code });
+  const [gammaFresh] = await Promise.all([gammaFreshPromise, deltaFreshPromise]);
+  assert.notEqual(gammaFresh.gameId, gammaState.gameId);
+
+  const cleanupResult = waitForEvent(
+    gammaSocket,
+    'uno:game_over',
+    (payload) => payload.gameId === gammaFresh.gameId,
+    'UNO Flip: cleanup result',
+  );
+  deltaSocket.emit('uno:surrender', {
+    gameId: gammaFresh.gameId,
+    lobbyCode: lobby.code,
+  });
+  await cleanupResult;
+  await leaveLobbyAndWait(deltaSocket, lobby.code);
+  await leaveLobbyAndWait(gammaSocket, lobby.code);
 }
 
 async function verifyHostRemoval(alpha, beta, alphaSocket, betaSocket) {
@@ -856,6 +1069,40 @@ async function verifyDistinctGames(
         assert.equal(view.revealedPhrase, null);
         assert.equal(JSON.stringify(view).includes('HIDDEN WORD'), false);
       },
+      afterTransition: async ({ initialState, lobby }) => {
+        const correct = waitForEvent(
+          betaSocket,
+          'distinct:state',
+          (payload) => payload.gameId === initialState.gameId
+            && payload.view?.pattern === '__DD__ ___D',
+          'hangman: repeated correct letters',
+        );
+        betaSocket.emit('distinct:action', {
+          gameId: initialState.gameId,
+          lobbyCode: lobby.code,
+          action: { type: 'guess_letter', letter: 'D' },
+        });
+        const correctState = await correct;
+        assert.equal(correctState.view.misses, 0);
+        assert.deepEqual(correctState.view.guessedLetters, ['D']);
+        assert.equal(JSON.stringify(correctState.view).includes('HIDDEN WORD'), false);
+
+        const wrong = waitForEvent(
+          betaSocket,
+          'distinct:state',
+          (payload) => payload.gameId === initialState.gameId
+            && payload.view?.misses === 1,
+          'hangman: wrong letter builds figure',
+        );
+        betaSocket.emit('distinct:action', {
+          gameId: initialState.gameId,
+          lobbyCode: lobby.code,
+          action: { type: 'guess_letter', letter: 'Z' },
+        });
+        const wrongState = await wrong;
+        assert.equal(wrongState.view.pattern, '__DD__ ___D');
+        assert.deepEqual(wrongState.view.guessedLetters, ['D', 'Z']);
+      },
     },
     {
       gameKey: 'go-fish',
@@ -1434,6 +1681,14 @@ async function verifyDistinctGames(
     const nextState = await transitioned;
     if (scenario.gameKey === 'hearts') console.log('Runtime E2E hearts: first trick card accepted');
     scenario.assertTransition(nextState.view, actorState.view);
+    await scenario.afterTransition?.({
+      initialState,
+      nextState,
+      actorState,
+      playerStates,
+      lobby,
+      activeClients,
+    });
 
     const resultPromise = waitForEvent(
       observer.socket,

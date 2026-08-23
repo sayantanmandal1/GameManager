@@ -113,6 +113,8 @@ export const UNO_EVENTS = {
   CATCH: 'uno:catch',
   SURRENDER: 'uno:surrender',
   CHOOSE_SEVEN: 'uno:choose_seven',
+  CHOOSE_OPENING_COLOR: 'uno:choose_opening_color',
+  CHOOSE_ROULETTE_COLOR: 'uno:choose_roulette_color',
   JUMP_IN: 'uno:jump_in',
   REJOIN: 'uno:rejoin',
   SPECTATE: 'uno:spectate',

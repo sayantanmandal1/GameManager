@@ -135,12 +135,14 @@ export class GameService {
     null;
 
   /** UNO-specific callbacks */
-  onUnoStateChanged: ((gameId: string, lobbyCode: string) => void) | null = null;
+  onUnoStateChanged:
+    | ((gameId: string, lobbyCode: string) => void | Promise<void>)
+    | null = null;
   onUnoRoundOver:
-    | ((gameId: string, lobbyCode: string, result: UnoRoundResult) => void)
+    | ((gameId: string, lobbyCode: string, result: UnoRoundResult) => void | Promise<void>)
     | null = null;
   onUnoGameOver:
-    | ((gameId: string, lobbyCode: string, result: UnoRoundResult) => void)
+    | ((gameId: string, lobbyCode: string, result: UnoRoundResult) => void | Promise<void>)
     | null = null;
 
   onTicTacToeStateChanged: ((gameId: string, lobbyCode: string) => void) | null = null;
@@ -1646,6 +1648,40 @@ export class GameService {
     );
   }
 
+  async unoChooseRouletteColor(
+    gameId: string,
+    playerId: string,
+    color: UnoColor,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const state = this.unoGameStates.get(gameId);
+    if (!state || state.lobbyCode !== lobbyCode) {
+      return { ok: false, error: 'Game not found' };
+    }
+    return this.handleUnoResult(
+      gameId,
+      state.lobbyCode,
+      this.unoEngine.chooseRouletteColor(state, playerId, color),
+    );
+  }
+
+  async unoChooseOpeningColor(
+    gameId: string,
+    playerId: string,
+    color: UnoColor,
+    lobbyCode: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const state = this.unoGameStates.get(gameId);
+    if (!state || state.lobbyCode !== lobbyCode) {
+      return { ok: false, error: 'Game not found' };
+    }
+    return this.handleUnoResult(
+      gameId,
+      state.lobbyCode,
+      this.unoEngine.chooseOpeningColor(state, playerId, color),
+    );
+  }
+
   async unoJumpIn(
     gameId: string,
     playerId: string,
@@ -1734,7 +1770,7 @@ export class GameService {
   ): Promise<{ ok: boolean; error?: string }> {
     if (!result.ok) return { ok: false, error: result.error };
 
-    this.onUnoStateChanged?.(gameId, lobbyCode);
+    await this.onUnoStateChanged?.(gameId, lobbyCode);
 
     const rr = result.roundResult;
     if (rr) {
@@ -1749,13 +1785,13 @@ export class GameService {
         await this.lobbyService
           .setStatus(lobbyCode, LobbyStatus.WAITING)
           .catch(() => {});
-        this.onUnoGameOver?.(gameId, lobbyCode, rr);
+        await this.onUnoGameOver?.(gameId, lobbyCode, rr);
       } else {
         this.unoNextRoundAt.set(
           gameId,
           Date.now() + this.UNO_NEXT_ROUND_DELAY_MS,
         );
-        this.onUnoRoundOver?.(gameId, lobbyCode, rr);
+        await this.onUnoRoundOver?.(gameId, lobbyCode, rr);
       }
     }
     return { ok: true };

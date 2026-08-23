@@ -12,7 +12,7 @@ A real-time multiplayer gaming platform built with **Next.js**, **NestJS**, **So
 | Ludo | 2–4 | Standard 15×15 board, safe squares, blocks, capture, exact finish, and offline bots. |
 | Chess | 2 | `chess.js` rules, optional clocks, spectators, resign, and draw offers. |
 | Photobooth | 2 | Synchronized camera session and shared photo strip. |
-| UNO | 2–4 | Classic, custom, No Mercy, and Flip modes with per-player private state. |
+| UNO | 2–10 | Classic, custom, No Mercy (2–6), and Flip modes with per-player private state. |
 | Tic Tac Toe | 2 | Classic and three-piece movement modes; online play and local minimax bot. |
 | Connect Four | 2 | Server-authoritative gravity and wins; online play and local alpha-beta bot. |
 | Sudoku | 1 | Resumable local puzzles with notes, hints, mistakes, timer, and four difficulties. |

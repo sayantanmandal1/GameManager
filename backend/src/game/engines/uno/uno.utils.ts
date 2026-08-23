@@ -3,7 +3,6 @@ import {
   UnoCardFace,
   UnoColor,
   UnoLightColor,
-  UnoDarkColor,
   UnoSide,
   UnoMode,
   UnoDrawKind,
@@ -23,15 +22,19 @@ const WILD_KINDS = new Set([
   'wild4',
   'wildDraw2',
   'wildDrawColor',
+  'draw6',
   'draw10',
   'reverseDraw4',
+  'wildColorRoulette',
 ]);
 export function isWildKind(kind: string): boolean {
   return WILD_KINDS.has(kind);
 }
 
 const DRAW_AMOUNT: Record<string, number> = {
+  draw1: 1,
   draw2: 2,
+  draw4: 4,
   wild4: 4,
   wildDraw2: 2,
   draw5: 5,
@@ -39,6 +42,7 @@ const DRAW_AMOUNT: Record<string, number> = {
   draw10: 10,
   reverseDraw4: 4,
   wildDrawColor: 0,
+  wildColorRoulette: 0,
 };
 export function isDrawKind(kind: string): kind is UnoDrawKind {
   return kind in DRAW_AMOUNT;
@@ -169,26 +173,27 @@ export function buildDeck(): UnoCard[] {
   return buildClassicDeck();
 }
 
-/** No Mercy deck — brutal: Draw 6/10, Discard All, Skip Everyone, Reverse Draw 4. */
+/** Official 168-card Show 'Em No Mercy deck. */
 export function buildNoMercyDeck(): UnoCard[] {
   const cards: UnoCard[] = [];
   const push = (color: UnoLightColor | null, kind: UnoCard['kind'], value: number | null) =>
     cards.push({ id: nextId(`nm-${color ?? kind}-${kind}`), color, kind, value });
   for (const color of UNO_LIGHT_COLORS) {
-    push(color, 'number', 0);
-    for (let v = 1; v <= 9; v += 1) {
+    for (let v = 0; v <= 9; v += 1) {
       push(color, 'number', v);
       push(color, 'number', v);
     }
-    for (const kind of ['skip', 'reverse', 'draw2', 'draw6', 'discardAll', 'skipAll'] as const) {
-      push(color, kind, null);
-      push(color, kind, null);
-    }
+    for (let copy = 0; copy < 3; copy += 1) push(color, 'draw2', null);
+    for (let copy = 0; copy < 2; copy += 1) push(color, 'draw4', null);
+    for (let copy = 0; copy < 3; copy += 1) push(color, 'skip', null);
+    for (let copy = 0; copy < 2; copy += 1) push(color, 'skipAll', null);
+    for (let copy = 0; copy < 3; copy += 1) push(color, 'reverse', null);
+    for (let copy = 0; copy < 3; copy += 1) push(color, 'discardAll', null);
   }
-  for (let i = 0; i < 4; i += 1) push(null, 'wild', null);
-  for (let i = 0; i < 8; i += 1) push(null, 'wild4', null);
+  for (let i = 0; i < 8; i += 1) push(null, 'reverseDraw4', null);
+  for (let i = 0; i < 4; i += 1) push(null, 'draw6', null);
   for (let i = 0; i < 4; i += 1) push(null, 'draw10', null);
-  for (let i = 0; i < 4; i += 1) push(null, 'reverseDraw4', null);
+  for (let i = 0; i < 8; i += 1) push(null, 'wildColorRoulette', null);
   return cards;
 }
 

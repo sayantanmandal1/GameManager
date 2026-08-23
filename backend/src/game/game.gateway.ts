@@ -52,6 +52,7 @@ import {
 import {
   UnoPlayDto,
   UnoActionDto,
+  UnoColorChoiceDto,
   UnoCatchDto,
   UnoRejoinDto,
 } from './dto/uno.dto';
@@ -220,17 +221,15 @@ export class GameGateway
 
     // ─── UNO callbacks ───
     this.gameService.onUnoStateChanged = (gameId, lobbyCode) => {
-      this.broadcastUnoPlayerViews(gameId, lobbyCode);
+      return this.broadcastUnoPlayerViews(gameId, lobbyCode);
     };
     this.gameService.onUnoRoundOver = (gameId, lobbyCode, result) => {
-      this.broadcastUnoPlayerViews(gameId, lobbyCode);
       this.server.to(`game:${lobbyCode}`).emit(UNO_EVENTS.ROUND_OVER, {
         gameId,
         result,
       });
     };
     this.gameService.onUnoGameOver = (gameId, lobbyCode, result) => {
-      this.broadcastUnoPlayerViews(gameId, lobbyCode);
       this.server.to(`game:${lobbyCode}`).emit(UNO_EVENTS.GAME_OVER, {
         gameId,
         result,
@@ -1324,6 +1323,40 @@ export class GameGateway
       data.gameId,
       user.sub,
       data.targetId,
+      data.lobbyCode,
+    );
+    if (!res.ok) client.emit(UNO_EVENTS.ERROR, { message: res.error });
+  }
+
+  @SubscribeMessage(UNO_EVENTS.CHOOSE_ROULETTE_COLOR)
+  @UsePipes(WS_VALIDATION)
+  async handleUnoChooseRouletteColor(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: UnoColorChoiceDto,
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const res = await this.gameService.unoChooseRouletteColor(
+      data.gameId,
+      user.sub,
+      data.chosenColor,
+      data.lobbyCode,
+    );
+    if (!res.ok) client.emit(UNO_EVENTS.ERROR, { message: res.error });
+  }
+
+  @SubscribeMessage(UNO_EVENTS.CHOOSE_OPENING_COLOR)
+  @UsePipes(WS_VALIDATION)
+  async handleUnoChooseOpeningColor(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: UnoColorChoiceDto,
+  ): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const res = await this.gameService.unoChooseOpeningColor(
+      data.gameId,
+      user.sub,
+      data.chosenColor,
       data.lobbyCode,
     );
     if (!res.ok) client.emit(UNO_EVENTS.ERROR, { message: res.error });

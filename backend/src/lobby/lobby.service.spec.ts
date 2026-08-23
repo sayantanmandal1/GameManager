@@ -120,6 +120,30 @@ describe('LobbyService', () => {
       expect(lobby.maxPlayers).toBe(4);
     });
 
+    it('uses official UNO Flip and No Mercy player capacities', async () => {
+      const rules = (mode: 'flip' | 'noMercy') => ({
+        mode,
+        targetScore: null,
+        stacking: false,
+        drawToMatch: false,
+        jumpIn: false,
+        sevenZero: false,
+        forcePlay: false,
+        noBluffing: false,
+      });
+      mockUserService.findById!.mockResolvedValue(fakeUser);
+      const flip = await service.createLobby(
+        'user1', GameType.UNO, 4, null, rules('flip'),
+      );
+      expect(flip.maxPlayers).toBe(10);
+
+      mockUserService.findById!.mockResolvedValue(fakeUser);
+      const noMercy = await service.createLobby(
+        'user1', GameType.UNO, 10, null, rules('noMercy'),
+      );
+      expect(noMercy.maxPlayers).toBe(6);
+    });
+
     it('derives distinct capacity and persists the validated game key', async () => {
       mockUserService.findById!.mockResolvedValue(fakeUser);
 

@@ -16,7 +16,7 @@ interface OpponentSeatProps {
   orientation?: 'top' | 'left' | 'right';
 }
 
-const MAX_FANNED = 7;
+const MAX_HIDDEN_FANNED = 7;
 
 export function OpponentSeat({
   player,
@@ -26,8 +26,11 @@ export function OpponentSeat({
   onCatch,
   side,
 }: OpponentSeatProps) {
-  const shown = Math.min(player.handCount, MAX_FANNED);
+  const shown = player.visibleBackFaces.length > 0
+    ? player.visibleBackFaces.length
+    : Math.min(player.handCount, MAX_HIDDEN_FANNED);
   const backs = Array.from({ length: shown });
+  const rotationStep = Math.min(6, 30 / Math.max(shown - 1, 1));
 
   return (
     <motion.div
@@ -64,20 +67,27 @@ export function OpponentSeat({
       </div>
 
       {/* Fanned card backs */}
-      <div className="relative mt-1 flex h-12 items-center justify-center">
-        {backs.map((_, i) => (
-          <div
-            key={i}
-            style={{
-              marginLeft: i === 0 ? 0 : -22,
-              transform: `rotate(${(i - (shown - 1) / 2) * 6}deg)`,
-              transformOrigin: 'bottom center',
-              zIndex: i,
-            }}
-          >
-            <UnoCard faceDown width={30} side={side} />
-          </div>
-        ))}
+      <div className="relative mt-1 h-12 max-w-64 overflow-x-auto overflow-y-hidden [scrollbar-width:thin]">
+        <div className="flex min-w-max items-center justify-center px-2">
+          {backs.map((_, i) => (
+            <div
+              key={i}
+              style={{
+                marginLeft: i === 0 ? 0 : -22,
+                transform: `rotate(${(i - (shown - 1) / 2) * rotationStep}deg)`,
+                transformOrigin: 'bottom center',
+                zIndex: i,
+              }}
+            >
+              <UnoCard
+                face={player.visibleBackFaces[i] ?? null}
+                faceDown={!player.visibleBackFaces[i]}
+                width={30}
+                side={side === 'light' ? 'dark' : 'light'}
+              />
+            </div>
+          ))}
+        </div>
         <span className="absolute -right-2 -top-1 rounded-full bg-black/70 px-1.5 text-[10px] font-bold text-white ring-1 ring-white/20">
           {player.handCount}
         </span>

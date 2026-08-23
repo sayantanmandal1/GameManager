@@ -11,10 +11,21 @@ interface ColorPickerProps {
   side: UnoSide;
   onPick: (color: UnoColor) => void;
   onCancel: () => void;
+  title?: string;
+  canCancel?: boolean;
+  onSurrender?: () => void;
 }
 
 /** Modal shown when a wild needs a colour chosen (palette follows the side). */
-export function ColorPicker({ open, side, onPick, onCancel }: ColorPickerProps) {
+export function ColorPicker({
+  open,
+  side,
+  onPick,
+  onCancel,
+  title = S.hud.pickColor,
+  canCancel = true,
+  onSurrender,
+}: ColorPickerProps) {
   const palette: readonly UnoColor[] = side === 'dark' ? UNO_DARK_COLORS : UNO_LIGHT_COLORS;
   return (
     <AnimatePresence>
@@ -25,14 +36,20 @@ export function ColorPicker({ open, side, onPick, onCancel }: ColorPickerProps) 
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
         >
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel} />
+          <button
+            type="button"
+            aria-label="Close color picker"
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={canCancel ? onCancel : undefined}
+            disabled={!canCancel}
+          />
           <motion.div
             initial={{ scale: 0.9, y: 20, opacity: 0 }}
             animate={{ scale: 1, y: 0, opacity: 1 }}
             exit={{ scale: 0.9, y: 20, opacity: 0 }}
             className="relative rounded-3xl border border-white/10 bg-[#111] p-6 shadow-2xl"
           >
-            <h3 className="mb-4 text-center text-lg font-bold text-white">{S.hud.pickColor}</h3>
+            <h3 className="mb-4 text-center text-lg font-bold text-white">{title}</h3>
             <div className="grid grid-cols-2 gap-3">
               {palette.map((color) => (
                 <motion.button
@@ -49,6 +66,15 @@ export function ColorPicker({ open, side, onPick, onCancel }: ColorPickerProps) 
                 />
               ))}
             </div>
+            {onSurrender && (
+              <button
+                type="button"
+                onClick={onSurrender}
+                className="mx-auto mt-5 block rounded-full border border-red-500/40 px-4 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/10"
+              >
+                Surrender match
+              </button>
+            )}
           </motion.div>
         </motion.div>
       )}

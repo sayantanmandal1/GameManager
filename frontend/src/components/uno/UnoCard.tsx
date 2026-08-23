@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import type { UnoCard as UnoCardT, UnoSide } from '@/shared';
+import type { UnoCard as UnoCardT, UnoCardFace, UnoSide } from '@/shared';
 import {
   UNO_COLOR_HEX,
   WILD_WHEEL_LIGHT,
@@ -16,6 +16,7 @@ import {
 
 interface UnoCardProps {
   card?: UnoCardT | null;
+  face?: UnoCardFace | null;
   side?: UnoSide;
   faceDown?: boolean;
   width?: number;
@@ -55,6 +56,7 @@ function CardBack({ width, dark }: { width: number; dark: boolean }) {
 
 export function UnoCard({
   card,
+  face: projectedFace,
   side = 'light',
   faceDown = false,
   width = 66,
@@ -67,7 +69,7 @@ export function UnoCard({
   const height = width * 1.5;
   const dark = side === 'dark';
 
-  if (faceDown || !card) {
+  if (faceDown || (!card && !projectedFace)) {
     const back = <CardBack width={width} dark={dark} />;
     return onClick ? (
       <button onClick={onClick} disabled={disabled} className={className} style={style}>
@@ -80,7 +82,7 @@ export function UnoCard({
     );
   }
 
-  const face = faceOf(card, side);
+  const face = projectedFace ?? faceOf(card!, side);
   const isWild = isWildKind(face.kind);
   const c = face.color ? UNO_COLOR_HEX[face.color] : null;
   const glyph = cardGlyph(face);

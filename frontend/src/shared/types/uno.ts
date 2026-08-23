@@ -22,6 +22,7 @@ export type UnoCardKind =
   | 'skip'
   | 'reverse'
   | 'draw2'
+  | 'draw4'
   | 'wild'
   | 'wild4'
   // flip
@@ -35,7 +36,8 @@ export type UnoCardKind =
   | 'draw6'
   | 'draw10'
   | 'discardAll'
-  | 'reverseDraw4';
+  | 'reverseDraw4'
+  | 'wildColorRoulette';
 
 export interface UnoCardFace {
   color: UnoColor | null;
@@ -56,13 +58,15 @@ export type UnoMode = 'classic' | 'custom' | 'noMercy' | 'flip';
 
 export type UnoDrawKind =
   | 'draw2'
+  | 'draw4'
   | 'wild4'
   | 'wildDraw2'
   | 'draw5'
   | 'draw6'
   | 'draw10'
   | 'reverseDraw4'
-  | 'wildDrawColor';
+  | 'wildDrawColor'
+  | 'wildColorRoulette';
 export type UnoPendingDrawType = UnoDrawKind;
 
 export interface UnoPendingDraw {
@@ -72,6 +76,7 @@ export interface UnoPendingDraw {
   challengeable: boolean;
   wild4By: string | null;
   wild4PrevColor: UnoColor | null;
+  wild4WasBluff: boolean | null;
   reverseOnResolve: boolean;
 }
 
@@ -90,9 +95,10 @@ export interface UnoPlayerPublic {
   unoVulnerable: boolean;
   score: number;
   eliminated: boolean;
+  visibleBackFaces: UnoCardFace[];
 }
 
-export interface UnoPlayerState extends UnoPlayerPublic {
+export interface UnoPlayerState extends Omit<UnoPlayerPublic, 'visibleBackFaces'> {
   hand: UnoCard[];
   isSpectator?: false;
 }
@@ -141,12 +147,15 @@ export interface UnoGameState {
   direction: 1 | -1;
   currentIndex: number;
   drawPile: UnoCard[];
+  eliminatedCards: UnoCard[];
   discardPile: UnoCard[];
   activeColor: UnoColor;
   pendingDraw: UnoPendingDraw | null;
   pendingSevenBy: string | null;
+  openingColorBy: string | null;
+  pendingWinnerId: string | null;
   drawnCardId: string | null;
-  unoWindowFor: string | null;
+  unoWindows: Record<string, number>;
   turnStartedAt: number;
   turnEndsAt: number;
   targetScore: number | null;
@@ -160,6 +169,7 @@ export interface UnoGameState {
   roundNumber: number;
   roundWinnerId: string | null;
   matchWinnerId: string | null;
+  lastResult: UnoRoundResult | null;
   events: UnoEvent[];
   eventSeq: number;
   startedAt: number;
@@ -198,6 +208,7 @@ export interface UnoPlayerView {
   roundNumber: number;
   roundWinnerId: string | null;
   matchWinnerId: string | null;
+  lastResult: UnoRoundResult | null;
   scores: Record<string, number>;
   events: UnoEvent[];
   legalCardIds: string[];
@@ -206,9 +217,12 @@ export interface UnoPlayerView {
   canCallUno: boolean;
   canChallenge: boolean;
   canTake: boolean;
+  canChooseOpeningColor: boolean;
+  canChooseRouletteColor: boolean;
   canSurrender: boolean;
   jumpInIds: string[];
   catchableIds: string[];
+  catchableRemainingMs: Record<string, number>;
 }
 
 export interface UnoRoundResult {
@@ -236,7 +250,7 @@ export const UNO_MODES: readonly UnoMode[] = ['classic', 'custom', 'noMercy', 'f
 
 export const UNO_CONSTANTS = {
   INITIAL_HAND_SIZE: 7,
-  MAX_PLAYERS: 4,
+  MAX_PLAYERS: 10,
   MIN_PLAYERS: 2,
   TURN_MS: 45_000,
   DECK_SIZE: 108,
@@ -245,4 +259,11 @@ export const UNO_CONSTANTS = {
   ACTION_CARD_POINTS: 20,
   WILD_CARD_POINTS: 50,
   MERCY_LIMIT: 25,
+  UNO_CATCH_WINDOW_MS: 3_000,
+  MODE_MAX_PLAYERS: {
+    classic: 10,
+    custom: 10,
+    noMercy: 6,
+    flip: 10,
+  } as const,
 } as const;

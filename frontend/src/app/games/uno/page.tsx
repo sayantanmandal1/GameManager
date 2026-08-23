@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/Input';
 import { useAuthStore } from '@/stores/authStore';
 import { useLobbyStore } from '@/stores/lobbyStore';
 import { useSocket } from '@/hooks/useSocket';
-import { GameType, LOBBY_EVENTS, type UnoMode, type UnoRules } from '@/shared';
+import { GameType, LOBBY_EVENTS, UNO_CONSTANTS, type UnoMode, type UnoRules } from '@/shared';
 import { getSocket } from '@/lib/socket';
 import { unoStrings as S } from '@/components/uno';
 
@@ -44,7 +44,7 @@ export default function UnoLandingPage() {
   const [showJoin, setShowJoin] = useState(false);
   const [joinCode, setJoinCode] = useState('');
   const [mode, setMode] = useState<UnoMode>('classic');
-  const [format, setFormat] = useState<FormatKey>('500');
+  const [format, setFormat] = useState<FormatKey>('single');
   const [creating, setCreating] = useState(false);
   const [toggles, setToggles] = useState({
     stacking: false,
@@ -88,7 +88,7 @@ export default function UnoLandingPage() {
     };
     socket.emit(LOBBY_EVENTS.CREATE, {
       gameType: GameType.UNO,
-      maxPlayers: 4,
+      maxPlayers: UNO_CONSTANTS.MODE_MAX_PLAYERS[mode],
       unoRules,
     });
   };
@@ -220,7 +220,9 @@ export default function UnoLandingPage() {
               <h3 className="font-bold text-white mb-1">
                 {creating || isLoading ? S.landing.creating : S.landing.createLobby}
               </h3>
-              <p className="text-xs text-white/40">Up to 4 players</p>
+              <p className="text-xs text-white/40">
+                Up to {UNO_CONSTANTS.MODE_MAX_PLAYERS[mode]} players
+              </p>
             </Card>
           </motion.div>
 

@@ -107,7 +107,7 @@ export function TableCenter({ view, onDrawPile }: TableCenterProps) {
                 exit={{ scale: 0 }}
                 className="absolute -right-4 -top-4 rounded-full bg-red-500 px-2.5 py-1 text-sm font-black text-white shadow-lg ring-2 ring-white"
               >
-                +{view.pendingDraw.count}
+                {view.pendingDraw.type === 'wildColorRoulette' ? '?' : `+${view.pendingDraw.count}`}
               </motion.div>
             )}
           </AnimatePresence>

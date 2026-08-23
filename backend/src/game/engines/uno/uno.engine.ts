@@ -35,10 +35,11 @@ export interface UnoActionResult {
 
 const WILD_DRAW_KINDS = new Set([
   'wild4',
-  'reverseDraw4',
   'wildDraw2',
   'wildDrawColor',
 ]);
+
+type CardShuffler = (cards: readonly UnoCard[]) => UnoCard[];
 
 /**
  * Pure, authoritative UNO rules engine covering four modes (Classic, Custom,
@@ -46,6 +47,8 @@ const WILD_DRAW_KINDS = new Set([
  * is enforced at projection time (getPlayerView).
  */
 export class UnoEngine {
+  constructor(private readonly shuffleCards: CardShuffler = shuffle) {}
+
   // ─── Setup ─────────────────────────────────────────────────────────
 
   initRound(
@@ -71,22 +74,41 @@ export class UnoEngine {
     }));
 
     const noMercy = rules.mode === 'noMercy';
-    const deck = shuffle(buildDeckForMode(rules.mode));
+    const deck = this.shuffleCards(buildDeckForMode(rules.mode));
     for (let r = 0; r < UNO_CONSTANTS.INITIAL_HAND_SIZE; r += 1) {
       for (const p of players) p.hand.push(deck.pop()!);
     }
     for (const p of players) p.handCount = p.hand.length;
 
-    // First discard must be a number on the starting (light) side.
+    const openingCards: UnoCard[] = [];
     let first = deck.pop()!;
-    while (faceOf(first, 'light').kind !== 'number') {
-      const at = Math.floor(Math.random() * (deck.length + 1));
-      deck.splice(at, 0, first);
-      first = deck.pop()!;
+    if (rules.mode === 'noMercy') {
+      // Official setup: action cards stay in the discard pile but are ignored
+      // until a number card establishes normal play.
+      openingCards.push(first);
+      while (faceOf(first, 'light').kind !== 'number') {
+        first = deck.pop()!;
+        openingCards.push(first);
+      }
+    } else if (rules.mode === 'flip') {
+      // An opening Wild Draw Two is returned to the deck and replaced.
+      while (faceOf(first, 'light').kind === 'wildDraw2') {
+        deck.unshift(first);
+        first = deck.pop()!;
+      }
+      openingCards.push(first);
+    } else {
+      // Preserve the established Classic/Custom setup contract.
+      while (faceOf(first, 'light').kind !== 'number') {
+        const at = Math.floor(Math.random() * (deck.length + 1));
+        deck.splice(at, 0, first);
+        first = deck.pop()!;
+      }
+      openingCards.push(first);
     }
 
     const now = Date.now();
-    return {
+    const state: UnoGameState = {
       gameId,
       lobbyCode,
       mode: rules.mode,
@@ -97,30 +119,36 @@ export class UnoEngine {
       direction: 1,
       currentIndex: firstIndex % players.length,
       drawPile: deck,
-      discardPile: [first],
+      eliminatedCards: [],
+      discardPile: openingCards,
       activeColor: faceOf(first, 'light').color as UnoColor,
       pendingDraw: null,
       pendingSevenBy: null,
+      openingColorBy: null,
+      pendingWinnerId: null,
       drawnCardId: null,
-      unoWindowFor: null,
+      unoWindows: {},
       turnStartedAt: now,
       turnEndsAt: now + UNO_CONSTANTS.TURN_MS,
       targetScore: noMercy ? null : rules.targetScore,
       stacking: noMercy ? true : rules.stacking,
-      drawToMatch: rules.drawToMatch,
+      drawToMatch: noMercy ? true : rules.drawToMatch,
       jumpIn: rules.jumpIn,
-      sevenZero: rules.sevenZero,
-      forcePlay: rules.forcePlay,
+      sevenZero: noMercy ? true : rules.sevenZero,
+      forcePlay: noMercy ? true : rules.forcePlay,
       noBluffing: rules.noBluffing,
       mercyLimit: noMercy ? UNO_CONSTANTS.MERCY_LIMIT : null,
       roundNumber: 1,
       roundWinnerId: null,
       matchWinnerId: null,
+      lastResult: null,
       events: [],
       eventSeq: 0,
       startedAt: now,
       finishedAt: null,
     };
+    if (rules.mode === 'flip') this.applyFlipOpeningCard(state, first);
+    return state;
   }
 
   startNextRound(state: UnoGameState): void {
@@ -169,6 +197,8 @@ export class UnoEngine {
   ): UnoActionResult {
     if (state.phase !== UnoPhase.PLAYING)
       return { ok: false, error: 'Round is not in progress' };
+    if (state.openingColorBy)
+      return { ok: false, error: 'Choose the opening colour first' };
     if (state.pendingSevenBy)
       return { ok: false, error: 'Choose a player to swap with first' };
     const idx = this.indexOf(state, playerId);
@@ -179,6 +209,10 @@ export class UnoEngine {
     const card = player.hand.find((c) => c.id === cardId);
     if (!card) return { ok: false, error: 'You do not have that card' };
     const f = faceOf(card, state.side);
+
+    if (state.pendingDraw?.type === 'wildColorRoulette') {
+      return { ok: false, error: 'Choose a roulette color first' };
+    }
 
     const pd = state.pendingDraw;
     if (pd) {
@@ -195,18 +229,18 @@ export class UnoEngine {
     if (
       !pd &&
       state.noBluffing &&
-      (f.kind === 'wild4' || f.kind === 'reverseDraw4') &&
+      (f.kind === 'wild4' || f.kind === 'wildDraw2' || f.kind === 'wildDrawColor') &&
       this.hasActiveColor(state, player)
     ) {
       return { ok: false, error: 'You still hold a matching colour' };
     }
 
-    if (this.isWildFace(f)) {
+    if (this.isWildFace(f) && f.kind !== 'wildColorRoulette') {
       if (!chosenColor || !this.paletteFor(state.side).includes(chosenColor))
         return { ok: false, error: 'Choose a colour' };
     }
 
-    this.closeStaleUnoWindow(state, playerId);
+    this.closeExpiredUnoWindow(state);
 
     player.hand = player.hand.filter((c) => c.id !== cardId);
     player.handCount = player.hand.length;
@@ -219,24 +253,36 @@ export class UnoEngine {
     // Handle Flip: toggle side, then colour follows the flipped top face.
     if (f.kind === 'flip') {
       state.side = state.side === 'light' ? 'dark' : 'light';
+      state.discardPile.reverse();
+      state.drawPile.reverse();
       this.pushEvent(state, { type: 'flip', by: playerId, side: state.side });
-      state.activeColor = faceOf(card, state.side).color as UnoColor;
-    } else if (this.isWildFace(f)) {
+      state.activeColor = faceOf(this.top(state)!, state.side).color as UnoColor;
+    } else if (this.isWildFace(f) && f.kind !== 'wildColorRoulette') {
       state.activeColor = chosenColor as UnoColor;
       this.pushEvent(state, { type: 'color', by: playerId, color: state.activeColor, side: state.side });
+    } else if (f.kind === 'wildColorRoulette') {
+      state.activeColor = prevColor;
     } else {
       state.activeColor = f.color as UnoColor;
     }
 
     // Discard All (No Mercy): shed every card of the played colour.
     if (f.kind === 'discardAll' && f.color) {
+      const discarded = player.hand.filter((c) => faceOf(c, state.side).color === f.color);
       player.hand = player.hand.filter((c) => faceOf(c, state.side).color !== f.color);
+      state.discardPile.splice(state.discardPile.length - 1, 0, ...discarded);
       player.handCount = player.hand.length;
       this.pushEvent(state, { type: 'discardAll', by: playerId, color: f.color });
     }
 
     // Going out?
     if (player.hand.length === 0) {
+      if (state.mode === 'noMercy') return this.endRound(state, player);
+      if (WILD_DRAW_KINDS.has(f.kind)) {
+        state.pendingWinnerId = player.id;
+        this.applyEffect(state, f, prevColor, playerId);
+        return this.settleOrEnd(state, { ok: true });
+      }
       if (isDrawKind(f.kind)) {
         const victim = state.players[this.step(state, state.currentIndex, 1)];
         if (f.kind === 'wildDrawColor') this.drawUntilColor(state, victim, state.activeColor);
@@ -265,28 +311,43 @@ export class UnoEngine {
   draw(state: UnoGameState, playerId: string): UnoActionResult {
     if (state.phase !== UnoPhase.PLAYING)
       return { ok: false, error: 'Round is not in progress' };
+    if (state.openingColorBy)
+      return { ok: false, error: 'Choose the opening colour first' };
     if (state.pendingSevenBy) return { ok: false, error: 'Choose a player to swap with first' };
     const idx = this.indexOf(state, playerId);
     if (idx !== state.currentIndex) return { ok: false, error: 'It is not your turn' };
     if (state.pendingDraw) return { ok: false, error: 'Resolve the draw cards first' };
     if (state.drawnCardId) return { ok: false, error: 'You already drew this turn' };
 
-    this.closeStaleUnoWindow(state, playerId);
+    this.closeExpiredUnoWindow(state);
     const player = state.players[idx];
+    if (
+      state.mode === 'noMercy'
+      && player.hand.some((card) =>
+        cardMatches(card, state.activeColor, this.top(state), state.side))
+    ) {
+      return { ok: false, error: 'You already have a playable card' };
+    }
 
     // Draw to Match keeps drawing until a playable card appears.
     let drawn: UnoCard | undefined;
+    let drawnCount = 0;
     do {
       drawn = this.giveCards(state, player, 1)[0];
+      if (drawn) drawnCount += 1;
     } while (
       state.drawToMatch &&
       drawn &&
-      !cardMatches(drawn, state.activeColor, this.top(state), state.side) &&
-      state.drawPile.length + state.discardPile.length > 1
+      !player.eliminated &&
+      !cardMatches(drawn, state.activeColor, this.top(state), state.side)
     );
-    this.pushEvent(state, { type: 'draw', by: playerId, amount: 1 });
+    this.pushEvent(state, { type: 'draw', by: playerId, amount: drawnCount });
 
-    if (player.eliminated) return this.settleOrEnd(state, { ok: true });
+    if (player.eliminated) {
+      state.drawnCardId = null;
+      this.advanceTurn(state, 1);
+      return this.settleOrEnd(state, { ok: true });
+    }
 
     if (drawn && cardMatches(drawn, state.activeColor, this.top(state), state.side)) {
       state.drawnCardId = drawn.id;
@@ -300,13 +361,15 @@ export class UnoEngine {
   pass(state: UnoGameState, playerId: string): UnoActionResult {
     if (state.phase !== UnoPhase.PLAYING)
       return { ok: false, error: 'Round is not in progress' };
+    if (state.openingColorBy)
+      return { ok: false, error: 'Choose the opening colour first' };
     const idx = this.indexOf(state, playerId);
     if (idx !== state.currentIndex) return { ok: false, error: 'It is not your turn' };
     if (!state.drawnCardId) return { ok: false, error: 'You can only pass after drawing' };
     // Force Play: a drawn playable card must be played.
     if (state.forcePlay) return { ok: false, error: 'You must play the drawn card' };
 
-    this.closeStaleUnoWindow(state, playerId);
+    this.closeExpiredUnoWindow(state);
     state.drawnCardId = null;
     this.advanceTurn(state, 1);
     return { ok: true };
@@ -315,11 +378,16 @@ export class UnoEngine {
   take(state: UnoGameState, playerId: string): UnoActionResult {
     if (state.phase !== UnoPhase.PLAYING)
       return { ok: false, error: 'Round is not in progress' };
+    if (state.openingColorBy)
+      return { ok: false, error: 'Choose the opening colour first' };
     const idx = this.indexOf(state, playerId);
     if (idx !== state.currentIndex) return { ok: false, error: 'It is not your turn' };
     if (!state.pendingDraw) return { ok: false, error: 'Nothing to take' };
+    if (state.pendingDraw.type === 'wildColorRoulette') {
+      return { ok: false, error: 'Choose a roulette color' };
+    }
 
-    this.closeStaleUnoWindow(state, playerId);
+    this.closeExpiredUnoWindow(state);
     this.resolveTake(state, playerId);
     return this.settleOrEnd(state, { ok: true });
   }
@@ -327,17 +395,17 @@ export class UnoEngine {
   challenge(state: UnoGameState, playerId: string): UnoActionResult {
     if (state.phase !== UnoPhase.PLAYING)
       return { ok: false, error: 'Round is not in progress' };
+    if (state.openingColorBy)
+      return { ok: false, error: 'Choose the opening colour first' };
     const idx = this.indexOf(state, playerId);
     if (idx !== state.currentIndex) return { ok: false, error: 'It is not your turn' };
     const pd = state.pendingDraw;
     if (!pd || !pd.challengeable || state.noBluffing)
       return { ok: false, error: 'Nothing to challenge' };
 
-    this.closeStaleUnoWindow(state, playerId);
+    this.closeExpiredUnoWindow(state);
     const accused = pd.wild4By ? this.player(state, pd.wild4By) : null;
-    const bluffed =
-      !!accused &&
-      accused.hand.some((c) => faceOf(c, state.side).color === pd.wild4PrevColor);
+    const bluffed = pd.wild4WasBluff === true;
 
     if (bluffed && accused) {
       if (pd.type === 'wildDrawColor' && pd.untilColor)
@@ -377,10 +445,53 @@ export class UnoEngine {
     target.handCount = target.hand.length;
     this.refreshUno(state, me, false);
     this.refreshUno(state, target, false);
+    this.enforceMercyLimit(state);
     state.pendingSevenBy = null;
     this.pushEvent(state, { type: 'swap', by: playerId, target: targetId });
     this.advanceTurn(state, 1);
     return this.settleOrEnd(state, { ok: true });
+  }
+
+  chooseRouletteColor(
+    state: UnoGameState,
+    playerId: string,
+    color: UnoColor,
+  ): UnoActionResult {
+    const pending = state.pendingDraw;
+    if (state.phase !== UnoPhase.PLAYING
+      || state.mode !== 'noMercy'
+      || state.players[state.currentIndex]?.id !== playerId
+      || pending?.type !== 'wildColorRoulette'
+      || pending.untilColor !== null
+      || !UNO_LIGHT_COLORS.includes(color as (typeof UNO_LIGHT_COLORS)[number])) {
+      return { ok: false, error: 'No roulette color to choose' };
+    }
+    const player = state.players[state.currentIndex];
+    pending.untilColor = color;
+    state.activeColor = color;
+    this.drawUntilColor(state, player, color);
+    state.pendingDraw = null;
+    this.pushEvent(state, { type: 'color', by: playerId, color, side: state.side });
+    this.advanceTurn(state, 1);
+    return this.settleOrEnd(state, { ok: true });
+  }
+
+  chooseOpeningColor(
+    state: UnoGameState,
+    playerId: string,
+    color: UnoColor,
+  ): UnoActionResult {
+    if (state.phase !== UnoPhase.PLAYING
+      || state.mode !== 'flip'
+      || state.openingColorBy !== playerId
+      || !UNO_LIGHT_COLORS.includes(color as (typeof UNO_LIGHT_COLORS)[number])) {
+      return { ok: false, error: 'No opening colour to choose' };
+    }
+    state.activeColor = color;
+    state.openingColorBy = null;
+    this.pushEvent(state, { type: 'color', by: playerId, color, side: 'light' });
+    this.resetTimer(state);
+    return { ok: true };
   }
 
   /** Out-of-turn Jump-In on an identical card (Custom). */
@@ -392,7 +503,7 @@ export class UnoEngine {
   ): UnoActionResult {
     if (state.phase !== UnoPhase.PLAYING || !state.jumpIn)
       return { ok: false, error: 'Jump-in not allowed' };
-    if (state.pendingDraw || state.pendingSevenBy || state.drawnCardId)
+    if (state.pendingDraw || state.pendingSevenBy || state.openingColorBy || state.drawnCardId)
       return { ok: false, error: 'Cannot jump in right now' };
     const idx = this.indexOf(state, playerId);
     if (idx < 0 || state.players[idx].eliminated)
@@ -412,7 +523,7 @@ export class UnoEngine {
     if (player.handCount !== 1) return { ok: false, error: 'You can only call UNO on your last card' };
     player.calledUno = true;
     player.unoVulnerable = false;
-    if (state.unoWindowFor === playerId) state.unoWindowFor = null;
+    this.clearUnoWindow(state, playerId);
     this.pushEvent(state, { type: 'uno', by: playerId });
     return { ok: true };
   }
@@ -420,13 +531,14 @@ export class UnoEngine {
   catchPlayer(state: UnoGameState, catcherId: string, targetId: string): UnoActionResult {
     if (state.phase !== UnoPhase.PLAYING) return { ok: false, error: 'Round is not in progress' };
     if (catcherId === targetId) return { ok: false, error: 'You cannot catch yourself' };
-    if (this.indexOf(state, catcherId) < 0) return { ok: false, error: 'Only players can catch' };
+    const catcher = this.player(state, catcherId);
+    if (!catcher || catcher.eliminated) return { ok: false, error: 'Only active players can catch' };
     const target = this.player(state, targetId);
-    if (!target || !target.unoVulnerable || state.unoWindowFor !== targetId)
+    if (!target || !target.unoVulnerable || !this.isUnoWindowOpen(state, targetId))
       return { ok: false, error: 'Nothing to catch' };
     this.giveCards(state, target, 2);
     target.unoVulnerable = false;
-    state.unoWindowFor = null;
+    this.clearUnoWindow(state, targetId);
     this.pushEvent(state, { type: 'caught', by: catcherId, target: targetId, amount: 2 });
     return this.settleOrEnd(state, { ok: true });
   }
@@ -437,9 +549,15 @@ export class UnoEngine {
     if (idx < 0) return { ok: false, error: 'You are not in this game' };
     const player = state.players[idx];
     if (player.eliminated) return { ok: false, error: 'You are already out' };
+    if (state.pendingDraw?.challengeable && state.pendingDraw.wild4By === playerId) {
+      return { ok: false, error: 'Resolve the wild draw challenge first' };
+    }
 
     const wasCurrent = idx === state.currentIndex;
+    const ownedOpeningChoice = state.openingColorBy === playerId;
     this.eliminate(state, player);
+    if (state.pendingWinnerId === playerId) state.pendingWinnerId = null;
+    if (ownedOpeningChoice) state.openingColorBy = null;
     this.pushEvent(state, { type: 'surrender', by: playerId });
 
     if (state.pendingSevenBy === playerId) state.pendingSevenBy = null;
@@ -448,15 +566,24 @@ export class UnoEngine {
       state.drawnCardId = null;
       this.advanceTurn(state, 1);
     }
-    const end = this.checkLastStanding(state);
-    return end ? { ok: true, roundResult: end } : { ok: true };
+    const settled = this.settleOrEnd(state, { ok: true });
+    if (settled.roundResult) return settled;
+    if (ownedOpeningChoice) {
+      state.openingColorBy = state.players[state.currentIndex].id;
+      this.resetTimer(state);
+    }
+    return { ok: true };
   }
 
   timeout(state: UnoGameState): UnoActionResult {
     if (state.phase !== UnoPhase.PLAYING) return { ok: false };
     const current = state.players[state.currentIndex];
     if (!current) return { ok: false };
-    this.closeStaleUnoWindow(state, current.id);
+    this.closeExpiredUnoWindow(state);
+
+    if (state.openingColorBy === current.id) {
+      return this.chooseOpeningColor(state, current.id, UNO_LIGHT_COLORS[0]);
+    }
 
     if (state.pendingSevenBy === current.id) {
       const target = state.players.find((p) => p.id !== current.id && !p.eliminated);
@@ -466,13 +593,31 @@ export class UnoEngine {
       return this.settleOrEnd(state, { ok: true });
     }
     if (state.pendingDraw) {
+      if (state.pendingDraw.type === 'wildColorRoulette') {
+        return this.chooseRouletteColor(state, current.id, UNO_LIGHT_COLORS[0]);
+      }
       this.resolveTake(state, current.id);
       return this.settleOrEnd(state, { ok: true });
     }
     if (state.drawnCardId) {
+      if (state.forcePlay) {
+        return this.playAutomaticCard(state, current, state.drawnCardId);
+      }
       state.drawnCardId = null;
       this.advanceTurn(state, 1);
       return { ok: true };
+    }
+    if (state.mode === 'noMercy') {
+      const playableId = this.legalCardIds(state, current.id)[0];
+      if (playableId) return this.playAutomaticCard(state, current, playableId);
+
+      const drawResult = this.draw(state, current.id);
+      if (!drawResult.ok || drawResult.roundResult || state.phase !== UnoPhase.PLAYING) {
+        return drawResult;
+      }
+      return state.drawnCardId
+        ? this.playAutomaticCard(state, current, state.drawnCardId)
+        : drawResult;
     }
     this.giveCards(state, current, 1);
     this.pushEvent(state, { type: 'draw', by: current.id, amount: 1 });
@@ -504,15 +649,19 @@ export class UnoEngine {
     const isPlayer = meIdx >= 0;
     const me = isPlayer ? state.players[meIdx] : null;
 
+    this.closeExpiredUnoWindow(state);
     const players = state.players.map((p) => ({
       id: p.id,
       name: p.name,
       handCount: p.handCount,
       isConnected: p.isConnected,
       calledUno: p.calledUno,
-      unoVulnerable: p.unoVulnerable,
+      unoVulnerable: this.isUnoWindowOpen(state, p.id) && p.unoVulnerable,
       score: p.score,
       eliminated: p.eliminated,
+      visibleBackFaces: state.mode === 'flip' && (!isPlayer || p.id !== recipientId)
+        ? p.hand.map((card) => this.inactiveFlipFace(card, state.side))
+        : [],
     }));
     const scores: Record<string, number> = {};
     for (const p of state.players) scores[p.id] = p.score;
@@ -520,6 +669,9 @@ export class UnoEngine {
     const active = !!me && !me.eliminated;
     const isMyTurn =
       active && meIdx === state.currentIndex && state.phase === UnoPhase.PLAYING;
+    const legalCardIds = isMyTurn && !state.openingColorBy
+      ? this.legalCardIds(state, recipientId)
+      : [];
 
     return {
       gameId: state.gameId,
@@ -529,12 +681,16 @@ export class UnoEngine {
       phase: state.phase,
       side: state.side,
       youId: me ? me.id : null,
-      yourHand: me ? me.hand.slice() : [],
+      yourHand: me
+        ? me.hand.map((card) => this.projectActiveCard(card, state.side))
+        : [],
       players,
       direction: state.direction,
       currentPlayerId: state.players[state.currentIndex]?.id ?? null,
       activeColor: state.activeColor,
-      topCard: this.top(state),
+      topCard: this.top(state)
+        ? this.projectActiveCard(this.top(state)!, state.side)
+        : null,
       drawPileCount: state.drawPile.length,
       discardCount: state.discardPile.length,
       pendingDraw: state.pendingDraw
@@ -555,28 +711,101 @@ export class UnoEngine {
       roundNumber: state.roundNumber,
       roundWinnerId: state.roundWinnerId,
       matchWinnerId: state.matchWinnerId,
+      lastResult: state.lastResult
+        ? { ...state.lastResult, scores: { ...state.lastResult.scores } }
+        : null,
       scores,
-      events: state.events.slice(-UNO_CONSTANTS.EVENT_LOG_LIMIT),
-      legalCardIds: isMyTurn ? this.legalCardIds(state, recipientId) : [],
-      canDraw: isMyTurn && !state.pendingDraw && !state.drawnCardId && !state.pendingSevenBy,
+      events: state.events.slice(-UNO_CONSTANTS.EVENT_LOG_LIMIT).map((event) => ({
+        ...event,
+        card: event.card
+          ? this.projectActiveCard(event.card, event.side ?? state.side)
+          : event.card,
+      })),
+      legalCardIds,
+      canDraw:
+        isMyTurn
+        && !state.openingColorBy
+        && !state.pendingDraw
+        && !state.drawnCardId
+        && !state.pendingSevenBy
+        && (state.mode !== 'noMercy' || legalCardIds.length === 0),
       canPass: isMyTurn && !!state.drawnCardId && !state.forcePlay,
       canCallUno: active && !!me && me.handCount === 1 && !me.calledUno,
       canChallenge:
         isMyTurn && !!state.pendingDraw?.challengeable && !state.noBluffing,
-      canTake: isMyTurn && !!state.pendingDraw,
+      canTake:
+        isMyTurn
+        && !state.openingColorBy
+        && !!state.pendingDraw
+        && state.pendingDraw.type !== 'wildColorRoulette',
+      canChooseOpeningColor:
+        isMyTurn
+        && state.openingColorBy === recipientId,
+      canChooseRouletteColor:
+        isMyTurn
+        && state.pendingDraw?.type === 'wildColorRoulette'
+        && state.pendingDraw.untilColor === null,
       canSurrender: active && state.phase === UnoPhase.PLAYING && this.activeCount(state) >= 2,
       jumpInIds:
         active && state.jumpIn && !isMyTurn && !state.pendingDraw && !state.pendingSevenBy
+          && !state.openingColorBy
           ? me!.hand.filter((c) => this.isExactMatch(state, c)).map((c) => c.id)
           : [],
-      catchableIds:
-        isPlayer && state.unoWindowFor && state.unoWindowFor !== recipientId
-          ? [state.unoWindowFor]
-          : [],
+      catchableIds: isPlayer
+        ? Object.keys(state.unoWindows).filter(
+          (id) => id !== recipientId && this.isUnoWindowOpen(state, id),
+        )
+        : [],
+      catchableRemainingMs: isPlayer
+        ? Object.fromEntries(
+          Object.entries(state.unoWindows)
+            .filter(([id]) => id !== recipientId && this.isUnoWindowOpen(state, id))
+            .map(([id, deadline]) => [id, Math.max(0, deadline - Date.now())]),
+        )
+        : {},
     };
   }
 
   // ─── Internals ─────────────────────────────────────────────────────
+
+  private applyFlipOpeningCard(state: UnoGameState, card: UnoCard): void {
+    const face = faceOf(card, 'light');
+    state.activeColor = (face.color ?? UNO_LIGHT_COLORS[0]) as UnoColor;
+    if (face.kind === 'draw1') {
+      const skipped = state.players[state.currentIndex];
+      this.giveCards(state, skipped, 1);
+      this.pushEvent(state, { type: 'draw', by: null, target: skipped.id, amount: 1 });
+      this.advanceTurn(state, 1);
+      return;
+    }
+    if (face.kind === 'reverse') {
+      state.direction = -1;
+      state.currentIndex = (state.currentIndex - 1 + state.players.length)
+        % state.players.length;
+      this.pushEvent(state, { type: 'reverse', by: null });
+      this.resetTimer(state);
+      return;
+    }
+    if (face.kind === 'skip') {
+      const skipped = state.players[state.currentIndex];
+      this.pushEvent(state, { type: 'skip', by: null, target: skipped.id });
+      this.advanceTurn(state, 1);
+      return;
+    }
+    if (face.kind === 'wild') {
+      state.openingColorBy = state.players[state.currentIndex].id;
+      this.resetTimer(state);
+      return;
+    }
+    if (face.kind === 'flip') {
+      state.side = 'dark';
+      state.discardPile.reverse();
+      state.drawPile.reverse();
+      state.activeColor = faceOf(this.top(state)!, 'dark').color as UnoColor;
+      this.pushEvent(state, { type: 'flip', by: null, side: 'dark' });
+      this.resetTimer(state);
+    }
+  }
 
   private applyEffect(
     state: UnoGameState,
@@ -617,6 +846,10 @@ export class UnoEngine {
     const isUntil = type === 'wildDrawColor';
     const amount = drawAmount(type);
     const challengeable = WILD_DRAW_KINDS.has(type);
+    const actor = this.player(state, playerId);
+    const wasBluff = challengeable && actor
+      ? actor.hand.some((card) => faceOf(card, state.side).color === prevColor)
+      : null;
 
     if (state.pendingDraw) {
       const pd = state.pendingDraw;
@@ -627,6 +860,7 @@ export class UnoEngine {
       if (challengeable) {
         pd.wild4By = playerId;
         pd.wild4PrevColor = prevColor;
+        pd.wild4WasBluff = wasBluff;
       }
     } else {
       state.pendingDraw = {
@@ -636,17 +870,27 @@ export class UnoEngine {
         challengeable,
         wild4By: challengeable ? playerId : null,
         wild4PrevColor: challengeable ? prevColor : null,
+        wild4WasBluff: wasBluff,
         reverseOnResolve: false,
       };
     }
-    this.advanceTurn(state, 1);
+    if (type === 'wildColorRoulette') {
+      this.advanceTurn(state, 1);
+      return;
+    }
+    const reverseTargetsActor = type === 'reverseDraw4' && this.activeCount(state) === 2;
+    if (reverseTargetsActor) this.resetTimer(state);
+    else this.advanceTurn(state, 1);
     this.settlePendingForCurrent(state);
   }
 
   /** Whether a played card may stack onto the pending draw (mode-dependent). */
   private canStack(state: UnoGameState, kind: string, pd: UnoGameState['pendingDraw']): boolean {
     if (!pd || !isDrawKind(kind)) return false;
-    if (state.mode === 'noMercy') return pd.type !== 'wildDrawColor';
+    if (state.mode === 'noMercy') {
+      if (pd.type === 'wildColorRoulette' || kind === 'wildColorRoulette') return false;
+      return drawAmount(kind) >= drawAmount(pd.type);
+    }
     if (state.mode === 'flip') return false;
     if (!state.stacking) return false;
     // Custom stacking: only +2 on +2 and +4 on +4.
@@ -658,6 +902,7 @@ export class UnoEngine {
   private settlePendingForCurrent(state: UnoGameState): void {
     const pd = state.pendingDraw;
     if (!pd) return;
+    if (pd.type === 'wildColorRoulette') return;
     const current = state.players[state.currentIndex];
     const canStack = current.hand.some((c) => this.canStack(state, faceOf(c, state.side).kind, pd));
     const canChallenge = pd.challengeable && !state.noBluffing;
@@ -680,13 +925,10 @@ export class UnoEngine {
   }
 
   private drawUntilColor(state: UnoGameState, player: UnoPlayerState, color: UnoColor): void {
-    let guard = 0;
-    while (guard < 60) {
-      guard += 1;
+    while (!player.eliminated) {
       const drawn = this.giveCards(state, player, 1)[0];
       if (!drawn || player.eliminated) break;
       if (faceOf(drawn, state.side).color === color) break;
-      if (state.drawPile.length + state.discardPile.length <= 1) break;
     }
   }
 
@@ -703,6 +945,7 @@ export class UnoEngine {
       active[i].handCount = active[i].hand.length;
     }
     for (const p of active) this.refreshUno(state, p, false);
+    this.enforceMercyLimit(state);
     this.pushEvent(state, { type: 'rotate', by: null });
   }
 
@@ -714,17 +957,18 @@ export class UnoEngine {
       if (!card) break;
       player.hand.push(card);
       drawn.push(card);
+      player.handCount = player.hand.length;
+      if (state.mercyLimit && player.handCount >= state.mercyLimit && !player.eliminated) {
+        this.eliminate(state, player);
+        this.pushEvent(state, { type: 'eliminated', by: player.id });
+        break;
+      }
     }
     player.handCount = player.hand.length;
     if (player.handCount !== 1) {
       player.unoVulnerable = false;
       player.calledUno = false;
-      if (state.unoWindowFor === player.id) state.unoWindowFor = null;
-    }
-    // No Mercy knockout.
-    if (state.mercyLimit && player.handCount >= state.mercyLimit && !player.eliminated) {
-      this.eliminate(state, player);
-      this.pushEvent(state, { type: 'eliminated', by: player.id });
+      this.clearUnoWindow(state, player.id);
     }
     return drawn;
   }
@@ -733,22 +977,40 @@ export class UnoEngine {
     player.eliminated = true;
     player.unoVulnerable = false;
     player.calledUno = false;
-    if (state.unoWindowFor === player.id) state.unoWindowFor = null;
+    this.clearUnoWindow(state, player.id);
     if (player.hand.length) {
-      state.drawPile.push(...player.hand);
-      state.drawPile = shuffle(state.drawPile);
+      if (state.mode === 'noMercy') state.eliminatedCards.push(...player.hand);
+      else {
+        state.drawPile.push(...player.hand);
+        state.drawPile = shuffle(state.drawPile);
+      }
       player.hand = [];
       player.handCount = 0;
+    }
+  }
+
+  private enforceMercyLimit(state: UnoGameState): void {
+    if (!state.mercyLimit) return;
+    for (const player of state.players) {
+      if (!player.eliminated && player.handCount >= state.mercyLimit) {
+        this.eliminate(state, player);
+        this.pushEvent(state, { type: 'eliminated', by: player.id });
+      }
     }
   }
 
   private reshuffle(state: UnoGameState): void {
     // Preferred: recycle the discard pile (all but the top) — no new cards, so
     // the exact deck composition is preserved.
-    if (state.discardPile.length > 1) {
+    if (state.discardPile.length > 1 || state.eliminatedCards.length > 0) {
       const top = state.discardPile.pop()!;
-      state.drawPile = shuffle([...state.drawPile, ...state.discardPile]);
+      state.drawPile = shuffle([
+        ...state.drawPile,
+        ...state.discardPile,
+        ...state.eliminatedCards,
+      ]);
       state.discardPile = [top];
+      state.eliminatedCards = [];
       this.pushEvent(state, { type: 'reshuffle', by: null });
       return;
     }
@@ -763,11 +1025,13 @@ export class UnoEngine {
     if (player.hand.length === 1) {
       player.unoVulnerable = openWindow;
       player.calledUno = false;
-      if (openWindow) state.unoWindowFor = player.id;
+      if (openWindow) {
+        state.unoWindows[player.id] = Date.now() + UNO_CONSTANTS.UNO_CATCH_WINDOW_MS;
+      }
     } else {
       player.unoVulnerable = false;
       player.calledUno = false;
-      if (state.unoWindowFor === player.id) state.unoWindowFor = null;
+      this.clearUnoWindow(state, player.id);
     }
   }
 
@@ -792,17 +1056,54 @@ export class UnoEngine {
     return idx;
   }
 
-  private closeStaleUnoWindow(state: UnoGameState, actingPlayerId: string): void {
-    if (state.unoWindowFor && state.unoWindowFor !== actingPlayerId) {
-      const p = this.player(state, state.unoWindowFor);
-      if (p) p.unoVulnerable = false;
-      state.unoWindowFor = null;
+  private closeExpiredUnoWindow(state: UnoGameState): void {
+    const now = Date.now();
+    for (const [playerId, deadline] of Object.entries(state.unoWindows)) {
+      if (now < deadline) continue;
+      const player = this.player(state, playerId);
+      if (player) player.unoVulnerable = false;
+      delete state.unoWindows[playerId];
     }
+  }
+
+  private isUnoWindowOpen(state: UnoGameState, targetId?: string): boolean {
+    if (targetId) return (state.unoWindows[targetId] ?? 0) > Date.now();
+    return Object.values(state.unoWindows).some((deadline) => deadline > Date.now());
+  }
+
+  private clearUnoWindow(state: UnoGameState, targetId?: string): void {
+    if (targetId) {
+      delete state.unoWindows[targetId];
+      return;
+    }
+    state.unoWindows = {};
+  }
+
+  private inactiveFlipFace(card: UnoCard, side: UnoSide): UnoCardFace {
+    if (side === 'light') return { ...card.dark! };
+    return { color: card.color, kind: card.kind, value: card.value };
+  }
+
+  private projectActiveCard(card: UnoCard, side: UnoSide): UnoCard {
+    const activeFace = faceOf(card, side);
+    return {
+      id: card.id,
+      color: activeFace.color,
+      kind: activeFace.kind,
+      value: activeFace.value,
+    };
   }
 
   /** If the action left a single active player, end the match for them. */
   private settleOrEnd(state: UnoGameState, res: UnoActionResult): UnoActionResult {
     if (res.roundResult) return res;
+    if (state.pendingWinnerId && !state.pendingDraw) {
+      const winner = this.player(state, state.pendingWinnerId);
+      state.pendingWinnerId = null;
+      if (winner && !winner.eliminated && winner.hand.length === 0) {
+        return this.endRound(state, winner);
+      }
+    }
     const end = this.checkLastStanding(state);
     return end ? { ...res, roundResult: end } : res;
   }
@@ -818,11 +1119,13 @@ export class UnoEngine {
     state.finishedAt = Date.now();
     state.pendingDraw = null;
     state.pendingSevenBy = null;
-    state.unoWindowFor = null;
+    state.openingColorBy = null;
+    state.pendingWinnerId = null;
+    this.clearUnoWindow(state);
     this.pushEvent(state, { type: 'gameOver', by: winner.id });
     const scores: Record<string, number> = {};
     for (const p of state.players) scores[p.id] = p.score;
-    return {
+    const result: UnoRoundResult = {
       roundWinnerId: winner.id,
       roundWinnerName: winner.name,
       points: 0,
@@ -831,13 +1134,17 @@ export class UnoEngine {
       matchWinnerId: winner.id,
       reason: 'lastStanding',
     };
+    state.lastResult = result;
+    return result;
   }
 
   private endRound(state: UnoGameState, winner: UnoPlayerState): UnoActionResult {
     state.roundWinnerId = winner.id;
-    state.unoWindowFor = null;
+    this.clearUnoWindow(state);
     state.pendingDraw = null;
     state.pendingSevenBy = null;
+    state.openingColorBy = null;
+    state.pendingWinnerId = null;
     state.drawnCardId = null;
 
     // No Mercy: going out ends the whole game immediately (no scoring).
@@ -846,10 +1153,9 @@ export class UnoEngine {
       state.matchWinnerId = winner.id;
       state.finishedAt = Date.now();
       this.pushEvent(state, { type: 'gameOver', by: winner.id });
-      return {
-        ok: true,
-        roundResult: this.result(state, winner, 0, true, 'single'),
-      };
+      const result = this.result(state, winner, 0, true, 'single');
+      state.lastResult = result;
+      return { ok: true, roundResult: result };
     }
 
     const points = state.players
@@ -864,14 +1170,21 @@ export class UnoEngine {
       state.matchWinnerId = winner.id;
       state.finishedAt = Date.now();
       this.pushEvent(state, { type: 'gameOver', by: winner.id, amount: winner.score });
-      return {
-        ok: true,
-        roundResult: this.result(state, winner, points, true, target === null ? 'single' : 'target'),
-      };
+      const result = this.result(
+        state,
+        winner,
+        points,
+        true,
+        target === null ? 'single' : 'target',
+      );
+      state.lastResult = result;
+      return { ok: true, roundResult: result };
     }
     state.phase = UnoPhase.ROUND_OVER;
     this.pushEvent(state, { type: 'roundOver', by: winner.id, amount: points });
-    return { ok: true, roundResult: this.result(state, winner, points, false) };
+    const result = this.result(state, winner, points, false);
+    state.lastResult = result;
+    return { ok: true, roundResult: result };
   }
 
   private result(
@@ -910,7 +1223,7 @@ export class UnoEngine {
         const kind = faceOf(c, state.side).kind;
         if (
           state.noBluffing &&
-          (kind === 'wild4' || kind === 'reverseDraw4') &&
+          (kind === 'wild4' || kind === 'wildDraw2' || kind === 'wildDrawColor') &&
           this.hasActiveColor(state, player)
         )
           return false;
@@ -939,6 +1252,33 @@ export class UnoEngine {
 
   private isWildFace(f: UnoCardFace): boolean {
     return isWildKind(f.kind) && f.kind !== 'flip';
+  }
+
+  private playAutomaticCard(
+    state: UnoGameState,
+    player: UnoPlayerState,
+    cardId: string,
+  ): UnoActionResult {
+    const card = player.hand.find((candidate) => candidate.id === cardId);
+    if (!card) return { ok: false, error: 'Playable card is unavailable' };
+    const face = faceOf(card, state.side);
+    const color = this.isWildFace(face) && face.kind !== 'wildColorRoulette'
+      ? this.automaticColor(state, player)
+      : undefined;
+    return this.play(state, player.id, cardId, color);
+  }
+
+  private automaticColor(state: UnoGameState, player: UnoPlayerState): UnoColor {
+    const palette = this.paletteFor(state.side);
+    return palette.reduce((best, color) => {
+      const count = player.hand.filter(
+        (card) => faceOf(card, state.side).color === color,
+      ).length;
+      const bestCount = player.hand.filter(
+        (card) => faceOf(card, state.side).color === best,
+      ).length;
+      return count > bestCount ? color : best;
+    }, palette[0]);
   }
 
   private paletteFor(side: UnoSide): readonly UnoColor[] {

@@ -25,6 +25,7 @@ export type UnoCardKind =
   | 'skip'
   | 'reverse'
   | 'draw2'
+  | 'draw4'
   | 'wild'
   | 'wild4'
   // flip
@@ -38,7 +39,8 @@ export type UnoCardKind =
   | 'draw6'
   | 'draw10'
   | 'discardAll'
-  | 'reverseDraw4';
+  | 'reverseDraw4'
+  | 'wildColorRoulette';
 
 /** One printed face of a card. */
 export interface UnoCardFace {
@@ -65,13 +67,15 @@ export type UnoMode = 'classic' | 'custom' | 'noMercy' | 'flip';
 /** Kinds that make the next player draw (stacking + settlement). */
 export type UnoDrawKind =
   | 'draw2'
+  | 'draw4'
   | 'wild4'
   | 'wildDraw2'
   | 'draw5'
   | 'draw6'
   | 'draw10'
   | 'reverseDraw4'
-  | 'wildDrawColor';
+  | 'wildDrawColor'
+  | 'wildColorRoulette';
 /** Back-compat alias. */
 export type UnoPendingDrawType = UnoDrawKind;
 
@@ -87,6 +91,8 @@ export interface UnoPendingDraw {
   wild4By: string | null;
   /** Active colour before that card — challenge legality. */
   wild4PrevColor: UnoColor | null;
+  /** Legality snapshot taken before the challengeable card changed colour. */
+  wild4WasBluff: boolean | null;
   /** Reverse direction when this resolves (No Mercy Reverse Draw 4). */
   reverseOnResolve: boolean;
 }
@@ -110,10 +116,15 @@ export interface UnoPlayerPublic {
   score: number;
   /** Out of the game (surrendered, or No Mercy 25-card knockout). */
   eliminated: boolean;
+  /**
+   * UNO Flip only: the inactive printed faces physically visible to opponents.
+   * No physical-card IDs or active faces are included.
+   */
+  visibleBackFaces: UnoCardFace[];
 }
 
 /** Server-only per-player record (includes the secret hand). */
-export interface UnoPlayerState extends UnoPlayerPublic {
+export interface UnoPlayerState extends Omit<UnoPlayerPublic, 'visibleBackFaces'> {
   hand: UnoCard[];
   isSpectator?: false;
 }
@@ -167,16 +178,22 @@ export interface UnoGameState {
   direction: 1 | -1;
   currentIndex: number;
   drawPile: UnoCard[];
+  /** No Mercy hands set aside until the next discard-pile reshuffle. */
+  eliminatedCards: UnoCard[];
   discardPile: UnoCard[];
   /** Colour that must currently be matched (chosen colour for wilds). */
   activeColor: UnoColor;
   pendingDraw: UnoPendingDraw | null;
   /** Player who must choose a Seven-0 swap target before their turn resolves. */
   pendingSevenBy: string | null;
+  /** UNO Flip: first player must choose the colour for an opening Wild. */
+  openingColorBy: string | null;
+  /** Zero-card player waiting for a challengeable final draw card to resolve. */
+  pendingWinnerId: string | null;
   /** If the current player has drawn and may now play THAT card or pass. */
   drawnCardId: string | null;
-  /** Player currently inside an open "UNO!" catch window (else null). */
-  unoWindowFor: string | null;
+  /** Server deadlines for independent three-second catch windows by player. */
+  unoWindows: Record<string, number>;
   turnStartedAt: number;
   turnEndsAt: number;
   targetScore: number | null;
@@ -192,6 +209,8 @@ export interface UnoGameState {
   roundNumber: number;
   roundWinnerId: string | null;
   matchWinnerId: string | null;
+  /** Last authoritative round/match result, retained for reconnect. */
+  lastResult: UnoRoundResult | null;
   events: UnoEvent[];
   eventSeq: number;
   startedAt: number;
@@ -236,6 +255,7 @@ export interface UnoPlayerView {
   roundNumber: number;
   roundWinnerId: string | null;
   matchWinnerId: string | null;
+  lastResult: UnoRoundResult | null;
   scores: Record<string, number>;
   events: UnoEvent[];
   // ─── Server-computed affordances (also re-validated on every action) ───
@@ -246,11 +266,15 @@ export interface UnoPlayerView {
   canCallUno: boolean;
   canChallenge: boolean;
   canTake: boolean;
+  canChooseOpeningColor: boolean;
+  canChooseRouletteColor: boolean;
   canSurrender: boolean;
   /** Cards you may Jump-In with right now (out of turn). */
   jumpInIds: string[];
   /** Opponents you may currently catch for not calling UNO. */
   catchableIds: string[];
+  /** Server-computed time remaining by catchable player; avoids clock skew. */
+  catchableRemainingMs: Record<string, number>;
 }
 
 /** Per-hand scoring (official): numbers face value, actions 20, wilds 50. */
@@ -283,7 +307,7 @@ export const UNO_MODES: readonly UnoMode[] = ['classic', 'custom', 'noMercy', 'f
 
 export const UNO_CONSTANTS = {
   INITIAL_HAND_SIZE: 7,
-  MAX_PLAYERS: 4,
+  MAX_PLAYERS: 10,
   MIN_PLAYERS: 2,
   TURN_MS: 45_000,
   DECK_SIZE: 108,
@@ -295,4 +319,12 @@ export const UNO_CONSTANTS = {
   WILD_CARD_POINTS: 50,
   /** No Mercy: reaching this many cards eliminates you. */
   MERCY_LIMIT: 25,
+  /** Platform catch grace period after a player reaches one card. */
+  UNO_CATCH_WINDOW_MS: 3_000,
+  MODE_MAX_PLAYERS: {
+    classic: 10,
+    custom: 10,
+    noMercy: 6,
+    flip: 10,
+  } as const,
 } as const;

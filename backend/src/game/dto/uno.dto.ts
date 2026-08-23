@@ -7,7 +7,7 @@ import {
   Matches,
   MaxLength,
 } from 'class-validator';
-import { UNO_ALL_COLORS, type UnoColor } from '../../shared';
+import { UNO_ALL_COLORS, UNO_LIGHT_COLORS, type UnoColor } from '../../shared';
 
 /**
  * WebSocket DTOs for UNO. Validated by the gateway's WS_VALIDATION pipe.
@@ -41,6 +41,11 @@ export class UnoActionDto {
   @Length(6, 6)
   @Matches(/^[0-9]{6}$/)
   lobbyCode!: string;
+}
+
+export class UnoColorChoiceDto extends UnoActionDto {
+  @IsIn([...UNO_LIGHT_COLORS])
+  chosenColor!: UnoColor;
 }
 
 export class UnoCatchDto {

@@ -30,8 +30,10 @@ const WILD_KINDS = new Set([
   'wild4',
   'wildDraw2',
   'wildDrawColor',
+  'draw6',
   'draw10',
   'reverseDraw4',
+  'wildColorRoulette',
 ]);
 export function isWildKind(kind: string): boolean {
   return WILD_KINDS.has(kind);
@@ -62,6 +64,8 @@ export function cardGlyph(face: UnoCardFace): string {
       return '+1';
     case 'draw2':
       return '+2';
+    case 'draw4':
+      return '+4';
     case 'draw5':
       return '+5';
     case 'draw6':
@@ -79,10 +83,14 @@ export function wildOverlay(kind: string): string {
       return '+4';
     case 'wildDraw2':
       return '+2';
+    case 'draw6':
+      return '+6';
     case 'draw10':
       return '+10';
     case 'wildDrawColor':
       return '+?';
+    case 'wildColorRoulette':
+      return '◉';
     default:
       return '';
   }
@@ -105,14 +113,16 @@ export function cardAriaLabel(face: UnoCardFace): string {
     discardAll: `${color} Discard All`,
     draw1: `${color} Draw One`,
     draw2: `${color} Draw Two`,
+    draw4: `${color} Draw Four`,
     draw5: `${color} Draw Five`,
-    draw6: `${color} Draw Six`,
+    draw6: 'Wild Draw Six',
     wild: 'Wild',
     wild4: 'Wild Draw Four',
     wildDraw2: 'Wild Draw Two',
     wildDrawColor: 'Wild Draw Color',
     draw10: 'Wild Draw Ten',
     reverseDraw4: 'Reverse Draw Four',
+    wildColorRoulette: 'Wild Color Roulette',
   };
   return names[face.kind] ?? color;
 }

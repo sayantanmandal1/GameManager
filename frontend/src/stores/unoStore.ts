@@ -30,6 +30,8 @@ interface UnoStoreState {
   catchPlayer: (targetId: string) => void;
   surrender: () => void;
   chooseSeven: (targetId: string) => void;
+  chooseOpeningColor: (color: UnoColor) => void;
+  chooseRouletteColor: (color: UnoColor) => void;
   jumpIn: (cardId: string, chosenColor?: UnoColor) => void;
   dismissRoundResult: () => void;
 
@@ -105,6 +107,28 @@ export const useUnoStore = create<UnoStoreState>()((set, get) => ({
     socket.emit(UNO_EVENTS.CHOOSE_SEVEN, { gameId, lobbyCode, targetId });
   },
 
+  chooseOpeningColor: (chosenColor) => {
+    const socket = getSocket();
+    const { gameId, lobbyCode } = get();
+    if (!socket || !gameId || !lobbyCode) return;
+    socket.emit(UNO_EVENTS.CHOOSE_OPENING_COLOR, {
+      gameId,
+      lobbyCode,
+      chosenColor,
+    });
+  },
+
+  chooseRouletteColor: (chosenColor) => {
+    const socket = getSocket();
+    const { gameId, lobbyCode } = get();
+    if (!socket || !gameId || !lobbyCode) return;
+    socket.emit(UNO_EVENTS.CHOOSE_ROULETTE_COLOR, {
+      gameId,
+      lobbyCode,
+      chosenColor,
+    });
+  },
+
   jumpIn: (cardId, chosenColor) => {
     const socket = getSocket();
     const { gameId, lobbyCode } = get();
@@ -127,7 +151,25 @@ export const useUnoStore = create<UnoStoreState>()((set, get) => ({
     ) {
       return;
     }
-    set({ gameId: payload.gameId, view: payload.view, error: null });
+    set((state) => {
+      const changedGame = state.gameId !== null && state.gameId !== payload.gameId;
+      const result = payload.view.lastResult;
+      return {
+        gameId: payload.gameId,
+        view: payload.view,
+        error: null,
+        roundResult: result && !result.matchOver
+          ? result
+          : payload.view.phase === 'playing' || changedGame
+            ? null
+            : state.roundResult,
+        matchResult: result?.matchOver
+          ? result
+          : changedGame
+            ? null
+            : state.matchResult,
+      };
+    });
   },
 
   initListeners: () => {
@@ -136,13 +178,20 @@ export const useUnoStore = create<UnoStoreState>()((set, get) => ({
 
     const onState = (data: { gameId: string; view: UnoPlayerView }) =>
       get().applyState(data);
-    const onRoundOver = (data: { result: UnoRoundResult }) =>
-      set({ roundResult: data.result });
-    const onGameOver = (data: { result: UnoRoundResult }) =>
-      set({ matchResult: data.result, roundResult: null });
+    const onRoundOver = (data: { gameId: string; result: UnoRoundResult }) => {
+      if (data.gameId === get().gameId) set({ roundResult: data.result });
+    };
+    const onGameOver = (data: { gameId: string; result: UnoRoundResult }) => {
+      if (data.gameId === get().gameId) {
+        set({ matchResult: data.result, roundResult: null });
+      }
+    };
     const onError = (data: { message: string }) => set({ error: data.message });
-    const onGameStarting = () =>
-      set({ error: null, roundResult: null, matchResult: null });
+    const onGameStarting = (data: { lobbyCode?: string }) => {
+      if (data.lobbyCode === get().lobbyCode) {
+        set({ error: null, roundResult: null, matchResult: null });
+      }
+    };
     const onConnect = () => {
       set({ connected: true });
       const { lobbyCode } = get();

@@ -27,6 +27,7 @@ import {
   TurnTimer,
   unoStrings as S,
   COLOR_NAME,
+  isWildKind,
 } from '@/components/uno';
 import {
   playUnoPlay,
@@ -68,6 +69,8 @@ export default function UnoPlayClient({ code }: Props) {
   const catchPlayer = useUnoStore((s) => s.catchPlayer);
   const surrender = useUnoStore((s) => s.surrender);
   const chooseSeven = useUnoStore((s) => s.chooseSeven);
+  const chooseOpeningColor = useUnoStore((s) => s.chooseOpeningColor);
+  const chooseRouletteColor = useUnoStore((s) => s.chooseRouletteColor);
   const jumpIn = useUnoStore((s) => s.jumpIn);
   const dismissRoundResult = useUnoStore((s) => s.dismissRoundResult);
   const reset = useUnoStore((s) => s.reset);
@@ -75,6 +78,7 @@ export default function UnoPlayClient({ code }: Props) {
   const [wildCardId, setWildCardId] = useState<string | null>(null);
   const [confirmQuit, setConfirmQuit] = useState(false);
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
+  const [activeCatchIds, setActiveCatchIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (hasHydrated && !isAuthenticated) router.push('/');
@@ -186,9 +190,24 @@ export default function UnoPlayClient({ code }: Props) {
     if (matchResult) playWin();
   }, [matchResult]);
 
+  useEffect(() => {
+    const windows = view?.catchableRemainingMs ?? {};
+    const ids = Object.entries(windows)
+      .filter(([, remaining]) => remaining > 0)
+      .map(([id]) => id);
+    setActiveCatchIds(ids);
+    const timers = Object.entries(windows)
+      .filter(([, remaining]) => remaining > 0)
+      .map(([id, remaining]) => setTimeout(
+        () => setActiveCatchIds((current) => current.filter((entry) => entry !== id)),
+        remaining + 25,
+      ));
+    return () => timers.forEach((timer) => clearTimeout(timer));
+  }, [view?.catchableRemainingMs]);
+
   const onSelectCard = (card: UnoCardT) => {
     const kind = view?.side === 'dark' && card.dark ? card.dark.kind : card.kind;
-    const isWild = ['wild', 'wild4', 'wildDraw2', 'wildDrawColor', 'draw10', 'reverseDraw4'].includes(kind);
+    const isWild = isWildKind(kind) && kind !== 'wildColorRoulette';
     if (isWild) setWildCardId(card.id);
     else play(card.id);
   };
@@ -273,7 +292,7 @@ export default function UnoPlayClient({ code }: Props) {
                 side={view.side}
                 isCurrent={view.currentPlayerId === p.id && view.phase === UnoPhase.PLAYING}
                 turnEndsAt={view.turnEndsAt}
-                catchable={canAct && view.catchableIds.includes(p.id)}
+                catchable={canAct && activeCatchIds.includes(p.id) && view.catchableIds.includes(p.id)}
                 onCatch={() => catchPlayer(p.id)}
               />
             ))}
@@ -358,7 +377,23 @@ export default function UnoPlayClient({ code }: Props) {
       </div>
 
       {/* Colour picker */}
-      <ColorPicker open={wildCardId !== null} side={view.side} onPick={onPickColor} onCancel={() => setWildCardId(null)} />
+      <ColorPicker
+        open={wildCardId !== null || view.canChooseOpeningColor || view.canChooseRouletteColor}
+        side={view.side}
+        onPick={view.canChooseOpeningColor
+          ? chooseOpeningColor
+          : view.canChooseRouletteColor
+            ? chooseRouletteColor
+            : onPickColor}
+        onCancel={() => setWildCardId(null)}
+        title={view.canChooseOpeningColor
+          ? 'Choose the opening color'
+          : view.canChooseRouletteColor
+            ? 'Choose roulette color'
+            : S.hud.pickColor}
+        canCancel={!view.canChooseOpeningColor && !view.canChooseRouletteColor}
+        onSurrender={view.canChooseOpeningColor ? () => setConfirmQuit(true) : undefined}
+      />
 
       {/* Seven-0 swap target picker */}
       <AnimatePresence>

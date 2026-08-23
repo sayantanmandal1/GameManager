@@ -65,9 +65,14 @@ export class LobbyService {
       throw new Error('mismatched_game_key');
     }
 
+    const uno =
+      gameType === GameType.UNO
+        ? LobbyService.validateUnoRules(unoRules ?? null)
+        : null;
+
     const code = this.generateCode();
-    // Chess and Photobooth are strictly 2-player; UNO is 2–4; ignore bogus
-    // client overrides in every case.
+    // Chess and Photobooth are strictly 2-player; UNO follows each official
+    // mode's capacity. Ignore forged client overrides in every case.
     let requestedMax: number;
     if (distinctAdapter) {
       requestedMax = distinctAdapter.maxPlayers;
@@ -79,10 +84,7 @@ export class LobbyService {
     ) {
       requestedMax = 2;
     } else if (gameType === GameType.UNO) {
-      requestedMax = Math.min(
-        Math.max(maxPlayers || UNO_CONSTANTS.MAX_PLAYERS, UNO_CONSTANTS.MIN_PLAYERS),
-        UNO_CONSTANTS.MAX_PLAYERS,
-      );
+      requestedMax = UNO_CONSTANTS.MODE_MAX_PLAYERS[uno!.mode];
     } else if (gameType === GameType.LUDO) {
       requestedMax = Math.min(maxPlayers || 4, 4);
     } else {
@@ -100,10 +102,6 @@ export class LobbyService {
         : null;
     // SECURITY_NOTE: validate UNO rules against an allow-list (target score,
     // boolean stacking) so a crafted payload can't smuggle arbitrary config.
-    const uno =
-      gameType === GameType.UNO
-        ? LobbyService.validateUnoRules(unoRules ?? null)
-        : null;
     const tttMode =
       gameType === GameType.TICTACTOE
         ? LobbyService.validateTicTacToeMode(tictactoeMode)
