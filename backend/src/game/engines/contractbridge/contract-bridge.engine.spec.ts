@@ -220,6 +220,243 @@ describe('ContractBridgeEngine', () => {
     expect(engine.applyAction(state, 'a', { type: 'play_bridge_card', cardId: legalDummyCard })).toEqual({ valid: true });
   });
 
+  it('reveals the declarer hand to dummy only after dummy goes down', () => {
+    const { engine, state } = game();
+    call(engine, state, 'a', { type: 'bid', level: 1, strain: 'spades' });
+    call(engine, state, 'b', { type: 'pass' });
+    call(engine, state, 'c', { type: 'pass' });
+    call(engine, state, 'd', { type: 'pass' });
+    const declarerCardIds = state.hands.a.map((entry) => entry.id);
+
+    expect(engine.getPlayerView(state, 'c').partnerHand).toEqual([]);
+    expect(JSON.stringify(engine.getPlayerView(state, 'c'))).not.toContain(`"${declarerCardIds[0]}"`);
+
+    const leadCardId = engine.getPlayerView(state, 'b').legalCardIds[0];
+    engine.applyAction(state, 'b', { type: 'play_bridge_card', cardId: leadCardId });
+
+    expect(engine.getPlayerView(state, 'c').partnerHand.map((entry) => entry.id))
+      .toEqual(declarerCardIds);
+    expect(engine.getPlayerView(state, 'd').partnerHand).toEqual([]);
+  });
+
+  it('immediately undoes the latest play before another player acts', () => {
+    const { engine, state } = game();
+    call(engine, state, 'a', { type: 'bid', level: 1, strain: 'spades' });
+    call(engine, state, 'b', { type: 'pass' });
+    call(engine, state, 'c', { type: 'pass' });
+    call(engine, state, 'd', { type: 'pass' });
+    const leadCardId = engine.getPlayerView(state, 'b').legalCardIds[0];
+    engine.applyAction(state, 'b', { type: 'play_bridge_card', cardId: leadCardId });
+    expect(engine.getPlayerView(state, 'b')).toMatchObject({
+      canRequestUndo: true,
+      undoIsImmediate: true,
+    });
+
+    expect(engine.applyAction(state, 'b', { type: 'bridge_request_undo' }))
+      .toEqual({ valid: true });
+
+    expect(state).toMatchObject({
+      phase: 'opening_lead',
+      currentTurnId: 'b',
+      dummyRevealed: false,
+      trick: [],
+      playHistory: [],
+      undoRequest: null,
+    });
+    expect(state.hands.b.some((entry) => entry.id === leadCardId)).toBe(true);
+  });
+
+  it('requires all other players to approve undo after a later play', () => {
+    const { engine, state } = game();
+    call(engine, state, 'a', { type: 'bid', level: 1, strain: 'spades' });
+    call(engine, state, 'b', { type: 'pass' });
+    call(engine, state, 'c', { type: 'pass' });
+    call(engine, state, 'd', { type: 'pass' });
+    const leadCardId = engine.getPlayerView(state, 'b').legalCardIds[0];
+    engine.applyAction(state, 'b', { type: 'play_bridge_card', cardId: leadCardId });
+    const dummyCardId = engine.getPlayerView(state, 'a').legalCardIds[0];
+    engine.applyAction(state, 'a', { type: 'play_bridge_card', cardId: dummyCardId });
+    expect(engine.getPlayerView(state, 'b')).toMatchObject({
+      canRequestUndo: true,
+      undoIsImmediate: false,
+    });
+
+    expect(engine.applyAction(state, 'b', { type: 'bridge_request_undo' }))
+      .toEqual({ valid: true });
+    expect(state.undoRequest).toMatchObject({ requesterId: 'b', approvals: [] });
+    expect(engine.applyAction(state, 'd', {
+      type: 'play_bridge_card',
+      cardId: engine.getPlayerView(state, 'd').legalCardIds[0],
+    })).toEqual({ valid: false, reason: 'Resolve the undo request first' });
+    expect(engine.applyAction(state, 'b', {
+      type: 'bridge_respond_undo',
+      approved: true,
+    })).toEqual({ valid: false, reason: 'The requester cannot approve their own undo' });
+
+    for (const approver of ['a', 'c']) {
+      expect(engine.applyAction(state, approver, {
+        type: 'bridge_respond_undo',
+        approved: true,
+      })).toEqual({ valid: true });
+      expect(state.undoRequest).not.toBeNull();
+    }
+    expect(engine.applyAction(state, 'd', {
+      type: 'bridge_respond_undo',
+      approved: true,
+    })).toEqual({ valid: true });
+
+    expect(state).toMatchObject({
+      phase: 'opening_lead',
+      currentTurnId: 'b',
+      dummyRevealed: false,
+      trick: [],
+      playHistory: [],
+      undoRequest: null,
+    });
+    expect(state.hands.b.some((entry) => entry.id === leadCardId)).toBe(true);
+    expect(state.hands.c.some((entry) => entry.id === dummyCardId)).toBe(true);
+  });
+
+  it('lets any approver reject and only the requester cancel a voted undo', () => {
+    const { engine, state } = game();
+    state.phase = 'playing';
+    state.contract = contract();
+    state.currentTurnId = 'c';
+    state.playHistory = [
+      {
+        playId: 1,
+        actorId: 'a',
+        handOwnerId: 'a',
+        cardId: 'c-clubs-A',
+        snapshot: structuredClone({
+          hands: state.hands,
+          trick: state.trick,
+          lastTrick: state.lastTrick,
+          trickDisplayUntil: state.trickDisplayUntil,
+          tricksWon: state.tricksWon,
+          currentTurnId: state.currentTurnId,
+          leaderId: state.leaderId,
+          dummyRevealed: state.dummyRevealed,
+          sessionScores: state.sessionScores,
+          rubber: state.rubber,
+          dealHistory: state.dealHistory,
+          pendingHonorBonus: state.pendingHonorBonus,
+          surrenderVotes: state.surrenderVotes,
+          phase: state.phase,
+          winnerId: state.winnerId,
+          winnerTeam: state.winnerTeam,
+          isDraw: state.isDraw,
+          finishReason: state.finishReason,
+        }),
+      },
+      {
+        playId: 2,
+        actorId: 'b',
+        handOwnerId: 'b',
+        cardId: 'c-clubs-2',
+        snapshot: {} as never,
+      },
+    ];
+    expect(engine.applyAction(state, 'a', { type: 'bridge_request_undo' })).toEqual({ valid: true });
+    expect(engine.applyAction(state, 'b', { type: 'bridge_respond_undo', approved: false }))
+      .toEqual({ valid: true });
+    expect(state.undoRequest).toBeNull();
+
+    expect(engine.applyAction(state, 'a', { type: 'bridge_request_undo' })).toEqual({ valid: true });
+    expect(engine.applyAction(state, 'b', { type: 'bridge_cancel_undo' }))
+      .toEqual({ valid: false, reason: 'Only the requester can cancel the undo' });
+    expect(engine.applyAction(state, 'a', { type: 'bridge_cancel_undo' }))
+      .toEqual({ valid: true });
+    expect(state.undoRequest).toBeNull();
+  });
+
+  it('rolls back a completed trick and never projects private snapshots', () => {
+    let now = 1_000;
+    const engine = new ContractBridgeEngine((cards) => cards, () => now);
+    const state = engine.initGame(players, names);
+    engine.applyAction(state, 'a', { type: 'select_bridge_mode', mode: 'duplicate' });
+    state.phase = 'playing';
+    state.contract = contract();
+    state.currentTurnId = 'd';
+    state.trick = [
+      { playerId: 'a', card: card('clubs', 'A') },
+      { playerId: 'b', card: card('clubs', '2') },
+      { playerId: 'c', card: card('clubs', 'K') },
+    ];
+    state.hands = {
+      a: [card('diamonds', '2')],
+      b: [card('diamonds', '3')],
+      c: [card('diamonds', '4')],
+      d: [card('clubs', '3'), card('diamonds', '5')],
+    };
+    engine.applyAction(state, 'd', { type: 'play_bridge_card', cardId: 'c-clubs-3' });
+    expect(state).toMatchObject({ tricksWon: [1, 0], currentTurnId: 'a' });
+    expect(state.lastTrick?.cards).toHaveLength(4);
+    expect(JSON.stringify(engine.getPlayerView(state, 'a'))).not.toContain('snapshot');
+
+    now = 1_100;
+    expect(engine.applyAction(state, 'd', { type: 'bridge_request_undo' }))
+      .toEqual({ valid: true });
+
+    expect(state).toMatchObject({
+      tricksWon: [0, 0],
+      currentTurnId: 'd',
+      lastTrick: null,
+      trickDisplayUntil: null,
+    });
+    expect(state.trick).toHaveLength(3);
+    expect(state.hands.d.map((entry) => entry.id)).toContain('c-clubs-3');
+  });
+
+  it('auto-plays only a single legal card and preserves a 1.5-second undo grace', () => {
+    const now = 2_000;
+    const engine = new ContractBridgeEngine((cards) => cards, () => now);
+    const state = engine.initGame(players, names);
+    engine.applyAction(state, 'a', { type: 'select_bridge_mode', mode: 'duplicate' });
+    state.phase = 'playing';
+    state.contract = contract();
+    state.currentTurnId = 'b';
+    state.trick = [{ playerId: 'a', card: card('clubs', '5') }];
+    state.hands.b = [card('clubs', 'K'), card('hearts', 'A')];
+
+    expect(engine.getAutomaticAction(state)).toEqual({
+      playerId: 'b',
+      action: { type: 'play_bridge_card', cardId: 'c-clubs-K' },
+      delayMs: 1_500,
+    });
+
+    state.hands.b.push(card('clubs', 'Q'));
+    expect(engine.getAutomaticAction(state)).toBeNull();
+
+    state.hands.b = [card('clubs', 'K'), card('hearts', 'A')];
+    state.undoRequest = {
+      requesterId: 'a',
+      targetPlayId: 1,
+      approvals: [],
+      requestedAt: now,
+    };
+    expect(engine.getAutomaticAction(state)).toBeNull();
+  });
+
+  it('auto-plays the only dummy card as declarer after the reveal window', () => {
+    const now = 2_000;
+    const engine = new ContractBridgeEngine((cards) => cards, () => now);
+    const state = engine.initGame(players, names);
+    engine.applyAction(state, 'a', { type: 'select_bridge_mode', mode: 'duplicate' });
+    state.phase = 'playing';
+    state.contract = contract();
+    state.currentTurnId = 'c';
+    state.trick = [{ playerId: 'b', card: card('clubs', '5') }];
+    state.hands.c = [card('clubs', 'Q'), card('hearts', 'A')];
+    state.trickDisplayUntil = 5_500;
+
+    expect(engine.getAutomaticAction(state)).toEqual({
+      playerId: 'a',
+      action: { type: 'play_bridge_card', cardId: 'c-clubs-Q' },
+      delayMs: 3_900,
+    });
+  });
+
   it('rejects a revoke when the controlled hand can follow suit', () => {
     const { engine, state } = game();
     state.phase = 'playing';

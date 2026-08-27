@@ -17,6 +17,12 @@ export interface DistinctActionResult<Result extends DistinctGameResult> {
   result?: Result;
 }
 
+export interface DistinctAutomaticAction {
+  playerId: string;
+  action: object;
+  delayMs: number;
+}
+
 export interface DistinctGameAdapter<
   State,
   Action,
@@ -32,6 +38,7 @@ export interface DistinctGameAdapter<
   initGame(playerIds: string[], playerNames: Record<string, string>): State;
   applyAction(state: State, playerId: string, action: Action): DistinctActionResult<Result>;
   getPlayerView(state: State, playerId: string): View;
+  getAutomaticAction?(state: State): DistinctAutomaticAction | null;
   surrender(state: State, playerId: string): DistinctActionResult<Result>;
   getResult(state: State): Result;
 }
@@ -49,6 +56,7 @@ export interface RuntimeDistinctGameAdapter {
     action: object,
   ): DistinctActionResult<DistinctGameResult>;
   getPlayerView(state: object, playerId: string): object;
+  getAutomaticAction?(state: object): DistinctAutomaticAction | null;
   surrender(
     state: object,
     playerId: string,

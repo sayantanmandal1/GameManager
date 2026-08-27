@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { DistinctGameKey } from '../shared';
 import type {
+  DistinctAutomaticAction,
   DistinctActionResult,
   DistinctGameResult,
   RuntimeDistinctGameAdapter,
@@ -56,10 +57,17 @@ export class DistinctGameLifecycle {
 
   getPlayerView(gameId: string, playerId: string): object | null {
     const session = this.sessions.get(gameId);
-    if (!session || !session.playerIds.includes(playerId)) return null;
+    if (!session?.playerIds.includes(playerId)) return null;
     return this.registry
       .getDistinctGame(session.gameKey)
       .getPlayerView(session.state, playerId);
+  }
+
+  getAutomaticAction(gameId: string): DistinctAutomaticAction | null {
+    const session = this.sessions.get(gameId);
+    if (!session) return null;
+    const adapter = this.registry.getDistinctGame(session.gameKey);
+    return adapter.getAutomaticAction?.(session.state) ?? null;
   }
 
   applyAction(

@@ -222,7 +222,8 @@ export interface UnoPlayerView {
   canSurrender: boolean;
   jumpInIds: string[];
   catchableIds: string[];
-  catchableRemainingMs: Record<string, number>;
+  /** Time remaining before each missed declaration becomes catchable. */
+  unoCallRemainingMs: Record<string, number>;
 }
 
 export interface UnoRoundResult {
@@ -259,7 +260,7 @@ export const UNO_CONSTANTS = {
   ACTION_CARD_POINTS: 20,
   WILD_CARD_POINTS: 50,
   MERCY_LIMIT: 25,
-  UNO_CATCH_WINDOW_MS: 3_000,
+  UNO_CALL_GRACE_MS: 3_000,
   MODE_MAX_PLAYERS: {
     classic: 10,
     custom: 10,

@@ -1876,6 +1876,50 @@ async function verifyContractBridge(clients) {
   assert.equal(latest.view.currentActorId, clients[0].user.id);
   assert.equal(latest.view.dummyHand.length, 13);
 
+  const dummyAfterLead = await requestGameState(
+    clients[2].socket,
+    lobby.code,
+    'distinct:state',
+  );
+  const defenderAfterLead = await requestGameState(
+    clients[3].socket,
+    lobby.code,
+    'distinct:state',
+  );
+  assert.equal(dummyAfterLead.view.partnerHand.length, 13);
+  assert.equal(defenderAfterLead.view.partnerHand.length, 0);
+
+  const immediateUndo = await emitDistinctActionAndWait(
+    clients[1].socket,
+    clients[0].socket,
+    {
+      gameId,
+      lobbyCode: lobby.code,
+      action: { type: 'bridge_request_undo' },
+    },
+    (payload) => payload.gameId === gameId
+      && payload.view?.phase === 'opening_lead'
+      && payload.view?.dummyRevealed === false,
+  );
+  assert.equal(immediateUndo.view.undoRequest, null);
+  const restoredLeader = await requestGameState(
+    clients[1].socket,
+    lobby.code,
+    'distinct:state',
+  );
+  assert(restoredLeader.view.yourHand.some((card) => card.id === openingCard.id));
+
+  latest = await emitDistinctActionAndWait(
+    clients[1].socket,
+    clients[0].socket,
+    {
+      gameId,
+      lobbyCode: lobby.code,
+      action: { type: 'play_bridge_card', cardId: openingCard.id },
+    },
+    (payload) => payload.gameId === gameId && payload.view?.dummyRevealed === true,
+  );
+
   await emitDistinctActionExpectError(
     clients[2].socket,
     {
@@ -1886,6 +1930,61 @@ async function verifyContractBridge(clients) {
     'Not your turn',
   );
   let actorState = await requestGameState(clients[0].socket, lobby.code, 'distinct:state');
+  latest = await emitDistinctActionAndWait(
+    clients[0].socket,
+    clients[1].socket,
+    {
+      gameId,
+      lobbyCode: lobby.code,
+      action: { type: 'play_bridge_card', cardId: actorState.view.legalCardIds[0] },
+    },
+    (payload) => payload.gameId === gameId && payload.view?.trick?.length === 2,
+  );
+
+  const undoRequested = await emitDistinctActionAndWait(
+    clients[1].socket,
+    clients[2].socket,
+    {
+      gameId,
+      lobbyCode: lobby.code,
+      action: { type: 'bridge_request_undo' },
+    },
+    (payload) => payload.gameId === gameId
+      && payload.view?.undoRequest?.requesterId === clients[1].user.id,
+  );
+  assert.equal(undoRequested.view.canAct, false);
+  const approvers = [clients[0], clients[2], clients[3]];
+  for (const [index, approver] of approvers.entries()) {
+    const finalApproval = index === approvers.length - 1;
+    latest = await emitDistinctActionAndWait(
+      approver.socket,
+      clients[1].socket,
+      {
+        gameId,
+        lobbyCode: lobby.code,
+        action: { type: 'bridge_respond_undo', approved: true },
+      },
+      (payload) => payload.gameId === gameId && (
+        finalApproval
+          ? payload.view?.phase === 'opening_lead'
+            && payload.view?.dummyRevealed === false
+            && payload.view?.undoRequest === null
+          : payload.view?.undoRequest?.approvals?.length === index + 1
+      ),
+    );
+  }
+
+  latest = await emitDistinctActionAndWait(
+    clients[1].socket,
+    clients[0].socket,
+    {
+      gameId,
+      lobbyCode: lobby.code,
+      action: { type: 'play_bridge_card', cardId: openingCard.id },
+    },
+    (payload) => payload.gameId === gameId && payload.view?.dummyRevealed === true,
+  );
+  actorState = await requestGameState(clients[0].socket, lobby.code, 'distinct:state');
   latest = await emitDistinctActionAndWait(
     clients[0].socket,
     clients[1].socket,
@@ -1918,6 +2017,20 @@ async function verifyContractBridge(clients) {
     assert(safety <= 52, 'Bridge deal should complete within 52 card plays');
     if (latest.view.trickDisplayUntil > Date.now()) {
       await delay(latest.view.trickDisplayUntil - Date.now() + 50);
+    }
+    const cardsRemaining = latest.view.players.reduce(
+      (sum, player) => sum + player.handCount,
+      0,
+    );
+    if (cardsRemaining === 4) {
+      latest = await waitForEvent(
+        clients[0].socket,
+        'distinct:state',
+        (payload) => payload.gameId === gameId
+          && payload.view?.phase === 'deal_complete',
+        'Bridge final forced-card autoplay',
+      );
+      break;
     }
     const actor = clients.find((client) => client.user.id === latest.view.currentActorId);
     assert(actor, 'Bridge current actor should be connected');

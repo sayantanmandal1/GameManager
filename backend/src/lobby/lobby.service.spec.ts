@@ -512,7 +512,7 @@ describe('LobbyService', () => {
       expect(service.canStartGame(lobby, 'user1')).toEqual({ ok: true });
     });
 
-    it('alternates chosen teams into opposite engine seats', () => {
+    it('alternates chosen teams with the host first from either team', () => {
       const lobby = partnershipLobby();
       lobby.players[0].team = 0;
 
@@ -520,6 +520,16 @@ describe('LobbyService', () => {
         'user1',
         'user3',
         'user2',
+        'user4',
+      ]);
+
+      lobby.players[0].team = 1;
+      lobby.players[3].team = 0;
+
+      expect(service.orderPlayersForGame(lobby).map((player) => player.id)).toEqual([
+        'user1',
+        'user2',
+        'user3',
         'user4',
       ]);
     });

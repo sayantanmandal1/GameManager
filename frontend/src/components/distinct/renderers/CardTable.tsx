@@ -25,6 +25,7 @@ interface Props {
   }>;
   readonly topRail?: ReactNode;
   readonly bottomRail?: ReactNode;
+  readonly expandedHandRail?: boolean;
 }
 
 export function CardTable({
@@ -37,16 +38,25 @@ export function CardTable({
   revealedHandAction,
   topRail,
   bottomRail,
+  expandedHandRail = false,
 }: Props) {
   const ordered = rotatePlayers(players, youId);
   const you = ordered[0];
   const left = ordered[1];
   const top = ordered[2];
   const right = ordered[3];
+  const topHandRevealed = !!top && !!revealedHands[top.id];
+  const tableHeight = expandedHandRail
+    ? 'min-h-[55rem]'
+    : 'min-h-[43rem] sm:min-h-[47rem]';
+  let centerTop = 'top-[9rem] max-sm:top-[8.5rem]';
+  if (expandedHandRail) {
+    centerTop = topHandRevealed ? 'top-[20rem]' : 'top-[13.5rem]';
+  }
 
   return (
     <section
-      className="relative min-h-[43rem] w-full overflow-hidden rounded-[1.75rem] border border-[#d2b76f]/35 bg-[#123f33] shadow-[0_28px_70px_rgba(0,0,0,0.4)] sm:min-h-[47rem]"
+      className={`relative w-full overflow-hidden rounded-[1.75rem] border border-[#d2b76f]/35 bg-[#123f33] shadow-[0_28px_70px_rgba(0,0,0,0.4)] ${tableHeight}`}
       aria-label="Card table"
     >
       <div className="pointer-events-none absolute inset-3 rounded-[1.35rem] border border-white/10" />
@@ -61,6 +71,7 @@ export function CardTable({
           active={top.id === currentTurnId}
           revealedCards={revealedHands[top.id]}
           revealedAction={revealedHandAction?.playerId === top.id ? revealedHandAction : undefined}
+          lowered={expandedHandRail}
         />
       )}
       {left && (
@@ -82,7 +93,7 @@ export function CardTable({
         />
       )}
 
-      <div className="absolute inset-x-[5.25rem] bottom-[12.5rem] top-[9rem] z-10 flex items-center justify-center max-sm:inset-x-[7.15rem] max-sm:bottom-[12rem] max-sm:top-[8.5rem]">
+      <div className={`absolute inset-x-[5.25rem] z-10 flex items-center justify-center max-sm:inset-x-[7.15rem] ${centerTop} ${expandedHandRail ? 'bottom-[17rem] max-sm:bottom-[18rem]' : 'bottom-[12.5rem] max-sm:bottom-[12rem]'}`}>
         {center}
       </div>
 
@@ -95,15 +106,16 @@ export function CardTable({
   );
 }
 
-function TableSeat({ player, position, active, revealedCards, revealedAction }: Readonly<{
+function TableSeat({ player, position, active, revealedCards, revealedAction, lowered = false }: Readonly<{
   player: CardTablePlayer;
   position: 'top' | 'left' | 'right';
   active: boolean;
   revealedCards?: StandardCard[];
-  revealedAction?: Props['revealedHandAction'];
+  revealedAction?: NonNullable<Props['revealedHandAction']>;
+  lowered?: boolean;
 }>) {
   const positionClass = {
-    top: 'left-1/2 top-12 -translate-x-1/2',
+    top: `left-1/2 -translate-x-1/2 ${lowered ? 'top-[6.5rem]' : 'top-12'}`,
     left: 'left-2 top-[38%] -translate-y-1/2 sm:left-4',
     right: 'right-2 top-[38%] -translate-y-1/2 sm:right-4',
   }[position];
@@ -151,28 +163,28 @@ export function CardBackFan({ count }: Readonly<{ count: number }>) {
 
 function RevealedHand({ cards, action }: Readonly<{
   cards: StandardCard[];
-  action?: Props['revealedHandAction'];
+  action?: NonNullable<Props['revealedHandAction']>;
 }>) {
   const suits: StandardCard['suit'][] = ['spades', 'hearts', 'clubs', 'diamonds'];
   const ranks: StandardCard['rank'][] = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
   const legal = new Set(action?.legalCardIds ?? []);
   return (
-    <div className="mt-1 flex h-[7.4rem] w-28 flex-col" aria-label={`${cards.length} revealed cards`}>
+    <div className="mt-1 flex h-[9.5rem] w-28 flex-col" aria-label={`${cards.length} revealed cards`}>
       {suits.map((suit) => {
         const suited = cards
           .filter((card) => card.suit === suit)
           .sort((left, right) => ranks.indexOf(left.rank) - ranks.indexOf(right.rank));
         if (suited.length === 0) return null;
         return (
-          <div key={suit} className="relative h-[1.45rem] last:h-12">
+          <div key={suit} className="relative h-[1.7rem] last:h-[4.5rem]">
             <div className="absolute left-1/2 top-0 flex -translate-x-1/2">
               {suited.map((card, index) => {
                 const playable = !!action?.active && legal.has(card.id);
                 return (
-                  <span key={card.id} className={index === 0 ? '' : '-ml-5'}>
+                  <span key={card.id} className={index === 0 ? '' : '-ml-9'}>
                     <CardFace
                       card={card}
-                      size="micro"
+                      size="mini"
                       disabled={!!action?.disabled || !playable}
                       onClick={action?.active ? () => action.onPlay(card.id) : undefined}
                     />

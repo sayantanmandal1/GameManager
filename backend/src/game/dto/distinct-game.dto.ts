@@ -121,6 +121,7 @@ export class DistinctActionPayloadDto {
     'remove_stone', 'roll_ceelo', 'answer_trivia', 'next_question',
     'reveal_tile', 'acknowledge_mismatch',
     'select_bridge_mode', 'bridge_call', 'play_bridge_card',
+    'bridge_request_undo', 'bridge_respond_undo', 'bridge_cancel_undo',
     'bridge_surrender_vote', 'next_bridge_deal',
     'bourre_decide', 'play_bourre_card', 'next_bourre_hand',
     'bluff_play', 'bluff_accept', 'bluff_challenge',
@@ -152,6 +153,10 @@ export class DistinctActionPayloadDto {
   @IsOptional()
   @IsBoolean()
   confirmed?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  approved?: boolean;
 
   @IsOptional()
   @IsObject()

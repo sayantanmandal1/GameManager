@@ -204,6 +204,9 @@ export class UnoEngine {
     const idx = this.indexOf(state, playerId);
     if (idx < 0) return { ok: false, error: 'You are not in this game' };
     if (idx !== state.currentIndex) return { ok: false, error: 'It is not your turn' };
+    if (this.hasActiveUnoCallGrace(state)) {
+      return { ok: false, error: 'Wait for the UNO call window' };
+    }
 
     const player = state.players[idx];
     const card = player.hand.find((c) => c.id === cardId);
@@ -240,7 +243,7 @@ export class UnoEngine {
         return { ok: false, error: 'Choose a colour' };
     }
 
-    this.closeExpiredUnoWindow(state);
+    this.clearMissedUnoOpportunities(state);
 
     player.hand = player.hand.filter((c) => c.id !== cardId);
     player.handCount = player.hand.length;
@@ -316,10 +319,12 @@ export class UnoEngine {
     if (state.pendingSevenBy) return { ok: false, error: 'Choose a player to swap with first' };
     const idx = this.indexOf(state, playerId);
     if (idx !== state.currentIndex) return { ok: false, error: 'It is not your turn' };
+    if (this.hasActiveUnoCallGrace(state)) {
+      return { ok: false, error: 'Wait for the UNO call window' };
+    }
     if (state.pendingDraw) return { ok: false, error: 'Resolve the draw cards first' };
     if (state.drawnCardId) return { ok: false, error: 'You already drew this turn' };
 
-    this.closeExpiredUnoWindow(state);
     const player = state.players[idx];
     if (
       state.mode === 'noMercy'
@@ -328,6 +333,7 @@ export class UnoEngine {
     ) {
       return { ok: false, error: 'You already have a playable card' };
     }
+    this.clearMissedUnoOpportunities(state);
 
     // Draw to Match keeps drawing until a playable card appears.
     let drawn: UnoCard | undefined;
@@ -365,11 +371,14 @@ export class UnoEngine {
       return { ok: false, error: 'Choose the opening colour first' };
     const idx = this.indexOf(state, playerId);
     if (idx !== state.currentIndex) return { ok: false, error: 'It is not your turn' };
+    if (this.hasActiveUnoCallGrace(state)) {
+      return { ok: false, error: 'Wait for the UNO call window' };
+    }
     if (!state.drawnCardId) return { ok: false, error: 'You can only pass after drawing' };
     // Force Play: a drawn playable card must be played.
     if (state.forcePlay) return { ok: false, error: 'You must play the drawn card' };
 
-    this.closeExpiredUnoWindow(state);
+    this.clearMissedUnoOpportunities(state);
     state.drawnCardId = null;
     this.advanceTurn(state, 1);
     return { ok: true };
@@ -382,12 +391,15 @@ export class UnoEngine {
       return { ok: false, error: 'Choose the opening colour first' };
     const idx = this.indexOf(state, playerId);
     if (idx !== state.currentIndex) return { ok: false, error: 'It is not your turn' };
+    if (this.hasActiveUnoCallGrace(state)) {
+      return { ok: false, error: 'Wait for the UNO call window' };
+    }
     if (!state.pendingDraw) return { ok: false, error: 'Nothing to take' };
     if (state.pendingDraw.type === 'wildColorRoulette') {
       return { ok: false, error: 'Choose a roulette color' };
     }
 
-    this.closeExpiredUnoWindow(state);
+    this.clearMissedUnoOpportunities(state);
     this.resolveTake(state, playerId);
     return this.settleOrEnd(state, { ok: true });
   }
@@ -399,11 +411,14 @@ export class UnoEngine {
       return { ok: false, error: 'Choose the opening colour first' };
     const idx = this.indexOf(state, playerId);
     if (idx !== state.currentIndex) return { ok: false, error: 'It is not your turn' };
+    if (this.hasActiveUnoCallGrace(state)) {
+      return { ok: false, error: 'Wait for the UNO call window' };
+    }
     const pd = state.pendingDraw;
     if (!pd || !pd.challengeable || state.noBluffing)
       return { ok: false, error: 'Nothing to challenge' };
 
-    this.closeExpiredUnoWindow(state);
+    this.clearMissedUnoOpportunities(state);
     const accused = pd.wild4By ? this.player(state, pd.wild4By) : null;
     const bluffed = pd.wild4WasBluff === true;
 
@@ -466,6 +481,10 @@ export class UnoEngine {
       || !UNO_LIGHT_COLORS.includes(color as (typeof UNO_LIGHT_COLORS)[number])) {
       return { ok: false, error: 'No roulette color to choose' };
     }
+    if (this.hasActiveUnoCallGrace(state)) {
+      return { ok: false, error: 'Wait for the UNO call window' };
+    }
+    this.clearMissedUnoOpportunities(state);
     const player = state.players[state.currentIndex];
     pending.untilColor = color;
     state.activeColor = color;
@@ -503,7 +522,8 @@ export class UnoEngine {
   ): UnoActionResult {
     if (state.phase !== UnoPhase.PLAYING || !state.jumpIn)
       return { ok: false, error: 'Jump-in not allowed' };
-    if (state.pendingDraw || state.pendingSevenBy || state.openingColorBy || state.drawnCardId)
+    if (state.pendingDraw || state.pendingSevenBy || state.openingColorBy || state.drawnCardId
+      || Object.keys(state.unoWindows).length > 0)
       return { ok: false, error: 'Cannot jump in right now' };
     const idx = this.indexOf(state, playerId);
     if (idx < 0 || state.players[idx].eliminated)
@@ -518,9 +538,14 @@ export class UnoEngine {
   }
 
   callUno(state: UnoGameState, playerId: string): UnoActionResult {
+    if (state.phase !== UnoPhase.PLAYING) return { ok: false, error: 'Round is not in progress' };
     const player = this.player(state, playerId);
     if (!player) return { ok: false, error: 'You are not in this game' };
+    if (player.eliminated) return { ok: false, error: 'You are already out' };
     if (player.handCount !== 1) return { ok: false, error: 'You can only call UNO on your last card' };
+    if (!this.isUnoCallGraceOpen(state, playerId)) {
+      return { ok: false, error: 'The UNO call window has closed' };
+    }
     player.calledUno = true;
     player.unoVulnerable = false;
     this.clearUnoWindow(state, playerId);
@@ -534,8 +559,11 @@ export class UnoEngine {
     const catcher = this.player(state, catcherId);
     if (!catcher || catcher.eliminated) return { ok: false, error: 'Only active players can catch' };
     const target = this.player(state, targetId);
-    if (!target || !target.unoVulnerable || !this.isUnoWindowOpen(state, targetId))
+    if (!target || !target.unoVulnerable || !this.isUnoCatchAvailable(state, targetId))
       return { ok: false, error: 'Nothing to catch' };
+    if (state.players[state.currentIndex]?.id !== catcherId) {
+      return { ok: false, error: 'Only the next player can catch' };
+    }
     this.giveCards(state, target, 2);
     target.unoVulnerable = false;
     this.clearUnoWindow(state, targetId);
@@ -579,7 +607,8 @@ export class UnoEngine {
     if (state.phase !== UnoPhase.PLAYING) return { ok: false };
     const current = state.players[state.currentIndex];
     if (!current) return { ok: false };
-    this.closeExpiredUnoWindow(state);
+    if (this.hasActiveUnoCallGrace(state)) return { ok: false };
+    this.clearMissedUnoOpportunities(state);
 
     if (state.openingColorBy === current.id) {
       return this.chooseOpeningColor(state, current.id, UNO_LIGHT_COLORS[0]);
@@ -649,14 +678,13 @@ export class UnoEngine {
     const isPlayer = meIdx >= 0;
     const me = isPlayer ? state.players[meIdx] : null;
 
-    this.closeExpiredUnoWindow(state);
     const players = state.players.map((p) => ({
       id: p.id,
       name: p.name,
       handCount: p.handCount,
       isConnected: p.isConnected,
       calledUno: p.calledUno,
-      unoVulnerable: this.isUnoWindowOpen(state, p.id) && p.unoVulnerable,
+      unoVulnerable: p.unoVulnerable,
       score: p.score,
       eliminated: p.eliminated,
       visibleBackFaces: state.mode === 'flip' && (!isPlayer || p.id !== recipientId)
@@ -669,7 +697,8 @@ export class UnoEngine {
     const active = !!me && !me.eliminated;
     const isMyTurn =
       active && meIdx === state.currentIndex && state.phase === UnoPhase.PLAYING;
-    const legalCardIds = isMyTurn && !state.openingColorBy
+    const waitingForUnoCall = this.hasActiveUnoCallGrace(state);
+    const legalCardIds = isMyTurn && !state.openingColorBy && !waitingForUnoCall
       ? this.legalCardIds(state, recipientId)
       : [];
 
@@ -725,17 +754,20 @@ export class UnoEngine {
       canDraw:
         isMyTurn
         && !state.openingColorBy
+        && !waitingForUnoCall
         && !state.pendingDraw
         && !state.drawnCardId
         && !state.pendingSevenBy
         && (state.mode !== 'noMercy' || legalCardIds.length === 0),
-      canPass: isMyTurn && !!state.drawnCardId && !state.forcePlay,
-      canCallUno: active && !!me && me.handCount === 1 && !me.calledUno,
+      canPass: isMyTurn && !waitingForUnoCall && !!state.drawnCardId && !state.forcePlay,
+      canCallUno: active && !!me && me.handCount === 1 && !me.calledUno
+        && this.isUnoCallGraceOpen(state, me.id),
       canChallenge:
-        isMyTurn && !!state.pendingDraw?.challengeable && !state.noBluffing,
+        isMyTurn && !waitingForUnoCall && !!state.pendingDraw?.challengeable && !state.noBluffing,
       canTake:
         isMyTurn
         && !state.openingColorBy
+        && !waitingForUnoCall
         && !!state.pendingDraw
         && state.pendingDraw.type !== 'wildColorRoulette',
       canChooseOpeningColor:
@@ -743,6 +775,7 @@ export class UnoEngine {
         && state.openingColorBy === recipientId,
       canChooseRouletteColor:
         isMyTurn
+        && !waitingForUnoCall
         && state.pendingDraw?.type === 'wildColorRoulette'
         && state.pendingDraw.untilColor === null,
       canSurrender: active && state.phase === UnoPhase.PLAYING && this.activeCount(state) >= 2,
@@ -751,15 +784,16 @@ export class UnoEngine {
           && !state.openingColorBy
           ? me!.hand.filter((c) => this.isExactMatch(state, c)).map((c) => c.id)
           : [],
-      catchableIds: isPlayer
+      catchableIds: isMyTurn
         ? Object.keys(state.unoWindows).filter(
-          (id) => id !== recipientId && this.isUnoWindowOpen(state, id),
+          (id) => id !== recipientId && this.isUnoCatchAvailable(state, id),
         )
         : [],
-      catchableRemainingMs: isPlayer
+      unoCallRemainingMs: isPlayer
         ? Object.fromEntries(
           Object.entries(state.unoWindows)
-            .filter(([id]) => id !== recipientId && this.isUnoWindowOpen(state, id))
+            .filter(([id]) => this.player(state, id)?.unoVulnerable
+              && this.isUnoCallGraceOpen(state, id))
             .map(([id, deadline]) => [id, Math.max(0, deadline - Date.now())]),
         )
         : {},
@@ -1026,7 +1060,7 @@ export class UnoEngine {
       player.unoVulnerable = openWindow;
       player.calledUno = false;
       if (openWindow) {
-        state.unoWindows[player.id] = Date.now() + UNO_CONSTANTS.UNO_CATCH_WINDOW_MS;
+        state.unoWindows[player.id] = Date.now() + UNO_CONSTANTS.UNO_CALL_GRACE_MS;
       }
     } else {
       player.unoVulnerable = false;
@@ -1056,7 +1090,12 @@ export class UnoEngine {
     return idx;
   }
 
-  private closeExpiredUnoWindow(state: UnoGameState): void {
+  private hasActiveUnoCallGrace(state: UnoGameState): boolean {
+    return Object.keys(state.unoWindows).some((playerId) =>
+      this.isUnoCallGraceOpen(state, playerId));
+  }
+
+  private clearMissedUnoOpportunities(state: UnoGameState): void {
     const now = Date.now();
     for (const [playerId, deadline] of Object.entries(state.unoWindows)) {
       if (now < deadline) continue;
@@ -1066,9 +1105,13 @@ export class UnoEngine {
     }
   }
 
-  private isUnoWindowOpen(state: UnoGameState, targetId?: string): boolean {
-    if (targetId) return (state.unoWindows[targetId] ?? 0) > Date.now();
-    return Object.values(state.unoWindows).some((deadline) => deadline > Date.now());
+  private isUnoCallGraceOpen(state: UnoGameState, targetId: string): boolean {
+    return (state.unoWindows[targetId] ?? 0) > Date.now();
+  }
+
+  private isUnoCatchAvailable(state: UnoGameState, targetId: string): boolean {
+    const deadline = state.unoWindows[targetId];
+    return deadline !== undefined && deadline <= Date.now();
   }
 
   private clearUnoWindow(state: UnoGameState, targetId?: string): void {

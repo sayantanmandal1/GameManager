@@ -1160,6 +1160,9 @@ export type BridgeAction =
   | { type: 'select_bridge_mode'; mode: BridgeMode }
   | { type: 'bridge_call'; call: BridgeCall }
   | { type: 'play_bridge_card'; cardId: string }
+  | { type: 'bridge_request_undo' }
+  | { type: 'bridge_respond_undo'; approved: boolean }
+  | { type: 'bridge_cancel_undo' }
   | { type: 'bridge_surrender_vote'; confirmed: boolean }
   | { type: 'next_bridge_deal' };
 export interface BridgeAuctionEntry {
@@ -1181,6 +1184,39 @@ export interface BridgeCompletedTrick {
   cards: BridgeTrickCard[];
   winnerId: string;
   completedAt: number;
+}
+export interface BridgeUndoSnapshot {
+  hands: Record<string, StandardCard[]>;
+  trick: BridgeTrickCard[];
+  lastTrick: BridgeCompletedTrick | null;
+  trickDisplayUntil: number | null;
+  tricksWon: [number, number];
+  currentTurnId: string | null;
+  leaderId: string | null;
+  dummyRevealed: boolean;
+  sessionScores: [number, number];
+  rubber: BridgeRubberState;
+  dealHistory: BridgeDealSummary[];
+  pendingHonorBonus: { team: BridgeTeam; points: number } | null;
+  surrenderVotes: [string[], string[]];
+  phase: BridgeGameState['phase'];
+  winnerId: string | null;
+  winnerTeam: BridgeTeam | null;
+  isDraw: boolean;
+  finishReason: BridgeGameState['finishReason'];
+}
+export interface BridgePlayHistoryEntry {
+  playId: number;
+  actorId: string;
+  handOwnerId: string;
+  cardId: string;
+  snapshot: BridgeUndoSnapshot;
+}
+export interface BridgeUndoRequest {
+  requesterId: string;
+  targetPlayId: number;
+  approvals: string[];
+  requestedAt: number;
 }
 export interface BridgeRubberState {
   belowLine: [number, number];
@@ -1222,6 +1258,9 @@ export interface BridgeGameState {
   dealHistory: BridgeDealSummary[];
   pendingHonorBonus: { team: BridgeTeam; points: number } | null;
   surrenderVotes: [string[], string[]];
+  playHistory: BridgePlayHistoryEntry[];
+  nextPlayId: number;
+  undoRequest: BridgeUndoRequest | null;
   phase: 'setup' | 'auction' | 'opening_lead' | 'playing' | 'deal_complete' | 'finished';
   winnerId: string | null;
   winnerTeam: BridgeTeam | null;
@@ -1259,6 +1298,7 @@ export interface BridgePlayerView {
   dummyRevealed: boolean;
   yourHand: StandardCard[];
   dummyHand: StandardCard[];
+  partnerHand: StandardCard[];
   sessionScores: [number, number];
   rubber: BridgeRubberState;
   dealHistory: BridgeDealSummary[];
@@ -1272,6 +1312,11 @@ export interface BridgePlayerView {
   actingHand: 'own' | 'dummy' | null;
   surrenderVotes: [string[], string[]];
   canVoteSurrender: boolean;
+  undoRequest: { requesterId: string; approvals: string[] } | null;
+  canRequestUndo: boolean;
+  undoIsImmediate: boolean;
+  canRespondUndo: boolean;
+  canCancelUndo: boolean;
   winnerId: string | null;
   winnerTeam: BridgeTeam | null;
   isDraw: boolean;

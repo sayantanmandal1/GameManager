@@ -12,7 +12,11 @@ import type {
   StandardCard,
 } from '../../../shared';
 import { BRIDGE_MODES, BRIDGE_STRAINS } from '../../../shared';
-import type { DistinctActionResult, DistinctGameAdapter } from '../distinct-game.adapter';
+import type {
+  DistinctActionResult,
+  DistinctAutomaticAction,
+  DistinctGameAdapter,
+} from '../distinct-game.adapter';
 import { hasExactActionShape, isBoundedInteger } from '../action-shape';
 import { createStandardDeck, secureShuffle } from '../standard-cards';
 import { scoreDuplicateDeal, scoreHomeDeal, scoreRubberDeal } from './bridge-scoring';
@@ -72,6 +76,9 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
       dealHistory: [],
       pendingHonorBonus: null,
       surrenderVotes: [[], []],
+      playHistory: [],
+      nextPlayId: 1,
+      undoRequest: null,
       phase: 'setup',
       winnerId: null,
       winnerTeam: null,
@@ -86,6 +93,16 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
     action: BridgeAction,
   ): DistinctActionResult<BridgeResult> {
     if (state.phase === 'finished') return { valid: false, reason: 'Game already finished' };
+    if (action.type === 'bridge_request_undo') {
+      return this.requestUndo(state, playerId, action);
+    }
+    if (action.type === 'bridge_respond_undo') {
+      return this.respondToUndo(state, playerId, action);
+    }
+    if (action.type === 'bridge_cancel_undo') {
+      return this.cancelUndo(state, playerId, action);
+    }
+    if (state.undoRequest) return { valid: false, reason: 'Resolve the undo request first' };
     if (state.phase === 'setup') return this.selectMode(state, playerId, action);
     if (state.phase === 'auction') return this.makeCall(state, playerId, action);
     if (state.phase === 'opening_lead' || state.phase === 'playing') {
@@ -103,6 +120,11 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
     const currentActorId = this.currentActorId(state);
     const canAct = this.canPlayerAct(state, playerId, currentActorId);
     const actingAsDummy = canAct && !!contract && state.currentTurnId === contract.dummyId;
+    const lastOwnPlay = [...state.playHistory]
+      .reverse()
+      .find((entry) => entry.actorId === playerId);
+    const latestPlay = state.playHistory.at(-1);
+    const undoRequest = state.undoRequest;
     const legalCards = canAct && (state.phase === 'opening_lead' || state.phase === 'playing')
       ? this.legalCards(state, state.currentTurnId!)
       : [];
@@ -141,6 +163,9 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
       dummyHand: state.dummyRevealed && contract
         ? state.hands[contract.dummyId].map((card) => ({ ...card }))
         : [],
+      partnerHand: state.dummyRevealed && contract?.dummyId === playerId
+        ? state.hands[contract.declarerId].map((card) => ({ ...card }))
+        : [],
       sessionScores: [...state.sessionScores],
       rubber: {
         belowLine: [...state.rubber.belowLine],
@@ -164,9 +189,40 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
       ],
       canVoteSurrender: !!contract
         && (state.phase === 'opening_lead' || state.phase === 'playing'),
+      undoRequest: undoRequest
+        ? { requesterId: undoRequest.requesterId, approvals: [...undoRequest.approvals] }
+        : null,
+      canRequestUndo: !undoRequest
+        && !!lastOwnPlay
+        && this.canUndoInPhase(state),
+      undoIsImmediate: !undoRequest
+        && !!lastOwnPlay
+        && latestPlay?.playId === lastOwnPlay.playId,
+      canRespondUndo: !!undoRequest
+        && undoRequest.requesterId !== playerId
+        && !undoRequest.approvals.includes(playerId),
+      canCancelUndo: undoRequest?.requesterId === playerId,
       winnerId: state.winnerId,
       winnerTeam: state.winnerTeam,
       isDraw: state.isDraw,
+    };
+  }
+
+  getAutomaticAction(state: BridgeGameState): DistinctAutomaticAction | null {
+    if (state.undoRequest
+      || (state.phase !== 'opening_lead' && state.phase !== 'playing')
+      || !state.currentTurnId) {
+      return null;
+    }
+    const actorId = this.currentActorId(state);
+    if (!actorId) return null;
+    const legalCards = this.legalCards(state, state.currentTurnId);
+    if (legalCards.length !== 1) return null;
+    const revealRemaining = Math.max(0, (state.trickDisplayUntil ?? 0) - this.now());
+    return {
+      playerId: actorId,
+      action: { type: 'play_bridge_card', cardId: legalCards[0].id },
+      delayMs: Math.max(1_500, revealRemaining + 400),
     };
   }
 
@@ -279,6 +335,15 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
       return { valid: false, reason: 'Must follow suit' };
     }
 
+    state.playHistory.push({
+      playId: state.nextPlayId,
+      actorId: playerId,
+      handOwnerId,
+      cardId: card.id,
+      snapshot: this.captureUndoSnapshot(state),
+    });
+    state.nextPlayId += 1;
+
     state.hands[handOwnerId] = state.hands[handOwnerId].filter((entry) => entry.id !== card.id);
     state.trick.push({ playerId: handOwnerId, card });
     if (state.phase === 'opening_lead') {
@@ -378,7 +443,132 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
     state.dummyRevealed = false;
     state.pendingHonorBonus = null;
     state.surrenderVotes = [[], []];
+    state.playHistory = [];
+    state.undoRequest = null;
     state.phase = 'auction';
+  }
+
+  private requestUndo(
+    state: BridgeGameState,
+    playerId: string,
+    action: Extract<BridgeAction, { type: 'bridge_request_undo' }>,
+  ): DistinctActionResult<BridgeResult> {
+    if (!hasExactActionShape(action, 'bridge_request_undo', [])) {
+      return { valid: false, reason: 'Invalid undo request' };
+    }
+    if (!this.canUndoInPhase(state)) return { valid: false, reason: 'Undo is not available now' };
+    if (state.undoRequest) return { valid: false, reason: 'An undo request is already pending' };
+    const targetIndex = this.findLatestActorPlayIndex(state, playerId);
+    if (targetIndex < 0) return { valid: false, reason: 'You have no play to undo' };
+    const target = state.playHistory[targetIndex];
+    if (targetIndex === state.playHistory.length - 1) {
+      this.restorePlay(state, targetIndex);
+      return { valid: true };
+    }
+    state.undoRequest = {
+      requesterId: playerId,
+      targetPlayId: target.playId,
+      approvals: [],
+      requestedAt: this.now(),
+    };
+    return { valid: true };
+  }
+
+  private respondToUndo(
+    state: BridgeGameState,
+    playerId: string,
+    action: Extract<BridgeAction, { type: 'bridge_respond_undo' }>,
+  ): DistinctActionResult<BridgeResult> {
+    if (!hasExactActionShape(action, 'bridge_respond_undo', ['approved'])
+      || typeof action.approved !== 'boolean') {
+      return { valid: false, reason: 'Invalid undo response' };
+    }
+    const request = state.undoRequest;
+    if (!request) return { valid: false, reason: 'No undo request is pending' };
+    if (request.requesterId === playerId) {
+      return { valid: false, reason: 'The requester cannot approve their own undo' };
+    }
+    if (!state.players.some((player) => player.id === playerId)) {
+      return { valid: false, reason: 'Player not found' };
+    }
+    if (!action.approved) {
+      state.undoRequest = null;
+      return { valid: true };
+    }
+    if (!request.approvals.includes(playerId)) request.approvals.push(playerId);
+    const required = state.players
+      .filter((player) => player.id !== request.requesterId)
+      .map((player) => player.id);
+    if (!required.every((id) => request.approvals.includes(id))) return { valid: true };
+    const targetIndex = state.playHistory.findIndex(
+      (entry) => entry.playId === request.targetPlayId,
+    );
+    if (targetIndex < 0) {
+      state.undoRequest = null;
+      return { valid: false, reason: 'The requested play is no longer available' };
+    }
+    this.restorePlay(state, targetIndex);
+    return { valid: true };
+  }
+
+  private cancelUndo(
+    state: BridgeGameState,
+    playerId: string,
+    action: Extract<BridgeAction, { type: 'bridge_cancel_undo' }>,
+  ): DistinctActionResult<BridgeResult> {
+    if (!hasExactActionShape(action, 'bridge_cancel_undo', [])) {
+      return { valid: false, reason: 'Invalid undo cancellation' };
+    }
+    if (!state.undoRequest) return { valid: false, reason: 'No undo request is pending' };
+    if (state.undoRequest.requesterId !== playerId) {
+      return { valid: false, reason: 'Only the requester can cancel the undo' };
+    }
+    state.undoRequest = null;
+    return { valid: true };
+  }
+
+  private canUndoInPhase(state: BridgeGameState): boolean {
+    return state.phase === 'opening_lead'
+      || state.phase === 'playing'
+      || state.phase === 'deal_complete';
+  }
+
+  private findLatestActorPlayIndex(state: BridgeGameState, playerId: string): number {
+    for (let index = state.playHistory.length - 1; index >= 0; index -= 1) {
+      if (state.playHistory[index].actorId === playerId) return index;
+    }
+    return -1;
+  }
+
+  private restorePlay(state: BridgeGameState, targetIndex: number): void {
+    const history = state.playHistory;
+    const snapshot = structuredClone(history[targetIndex].snapshot);
+    Object.assign(state, snapshot);
+    state.playHistory = history.slice(0, targetIndex);
+    state.undoRequest = null;
+  }
+
+  private captureUndoSnapshot(state: BridgeGameState): BridgeGameState['playHistory'][number]['snapshot'] {
+    return structuredClone({
+      hands: state.hands,
+      trick: state.trick,
+      lastTrick: state.lastTrick,
+      trickDisplayUntil: state.trickDisplayUntil,
+      tricksWon: state.tricksWon,
+      currentTurnId: state.currentTurnId,
+      leaderId: state.leaderId,
+      dummyRevealed: state.dummyRevealed,
+      sessionScores: state.sessionScores,
+      rubber: state.rubber,
+      dealHistory: state.dealHistory,
+      pendingHonorBonus: state.pendingHonorBonus,
+      surrenderVotes: state.surrenderVotes,
+      phase: state.phase,
+      winnerId: state.winnerId,
+      winnerTeam: state.winnerTeam,
+      isDraw: state.isDraw,
+      finishReason: state.finishReason,
+    });
   }
 
   private finalizeContract(state: BridgeGameState): void {
@@ -520,7 +710,7 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
   }
 
   private canPlayerAct(state: BridgeGameState, playerId: string, currentActorId: string | null): boolean {
-    if (state.phase === 'finished') return false;
+    if (state.phase === 'finished' || state.undoRequest) return false;
     return currentActorId === playerId;
   }
 

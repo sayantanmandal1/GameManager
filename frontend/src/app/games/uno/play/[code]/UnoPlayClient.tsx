@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuthStore } from '@/stores/authStore';
@@ -40,7 +40,7 @@ import {
 } from '@/lib/sounds';
 
 interface Props {
-  code: string;
+  readonly code: string;
 }
 
 const MODE_LABEL: Record<string, string> = {
@@ -73,12 +73,12 @@ export default function UnoPlayClient({ code }: Props) {
   const chooseRouletteColor = useUnoStore((s) => s.chooseRouletteColor);
   const jumpIn = useUnoStore((s) => s.jumpIn);
   const dismissRoundResult = useUnoStore((s) => s.dismissRoundResult);
+  const rejoin = useUnoStore((s) => s.rejoin);
   const reset = useUnoStore((s) => s.reset);
 
   const [wildCardId, setWildCardId] = useState<string | null>(null);
   const [confirmQuit, setConfirmQuit] = useState(false);
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
-  const [activeCatchIds, setActiveCatchIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (hasHydrated && !isAuthenticated) router.push('/');
@@ -191,19 +191,14 @@ export default function UnoPlayClient({ code }: Props) {
   }, [matchResult]);
 
   useEffect(() => {
-    const windows = view?.catchableRemainingMs ?? {};
-    const ids = Object.entries(windows)
-      .filter(([, remaining]) => remaining > 0)
-      .map(([id]) => id);
-    setActiveCatchIds(ids);
-    const timers = Object.entries(windows)
-      .filter(([, remaining]) => remaining > 0)
-      .map(([id, remaining]) => setTimeout(
-        () => setActiveCatchIds((current) => current.filter((entry) => entry !== id)),
-        remaining + 25,
-      ));
+    const gracePeriods = view?.unoCallRemainingMs ?? {};
+    const timers = Object.values(gracePeriods)
+      .filter((remaining) => remaining > 0)
+      .map((remaining) => setTimeout(() => {
+        void rejoin();
+      }, remaining + 25));
     return () => timers.forEach((timer) => clearTimeout(timer));
-  }, [view?.catchableRemainingMs]);
+  }, [rejoin, view?.unoCallRemainingMs]);
 
   const onSelectCard = (card: UnoCardT) => {
     const kind = view?.side === 'dark' && card.dark ? card.dark.kind : card.kind;
@@ -242,9 +237,17 @@ export default function UnoPlayClient({ code }: Props) {
   const opponents = isSpectator
     ? view.players
     : [...view.players.slice(meIdx + 1), ...view.players.slice(0, meIdx)];
-  const isMyTurn = canAct && view.currentPlayerId === view.youId && view.phase === UnoPhase.PLAYING;
+  const unoGraceOwnerId = Object.keys(view.unoCallRemainingMs)[0] ?? null;
+  const unoGraceActive = unoGraceOwnerId !== null;
+  const isMyTurn = canAct && !unoGraceActive
+    && view.currentPlayerId === view.youId && view.phase === UnoPhase.PLAYING;
   const isDark = view.side === 'dark';
   const swapTargets = view.players.filter((p) => p.id !== view.youId && !p.eliminated);
+  const statusText = unoGraceOwnerId
+    ? `${nameOf(unoGraceOwnerId)} has 3 seconds to call UNO`
+    : isMyTurn
+      ? S.hud.yourTurn
+      : S.hud.waitingFor(nameOf(view.currentPlayerId));
 
   return (
     <main
@@ -290,10 +293,12 @@ export default function UnoPlayClient({ code }: Props) {
                 key={p.id}
                 player={p}
                 side={view.side}
-                isCurrent={view.currentPlayerId === p.id && view.phase === UnoPhase.PLAYING}
+                isCurrent={!unoGraceActive && view.currentPlayerId === p.id && view.phase === UnoPhase.PLAYING}
                 turnEndsAt={view.turnEndsAt}
-                catchable={canAct && activeCatchIds.includes(p.id) && view.catchableIds.includes(p.id)}
+                catchable={canAct && view.catchableIds.includes(p.id)}
+                unoCallGraceMs={view.unoCallRemainingMs[p.id] ?? 0}
                 onCatch={() => catchPlayer(p.id)}
+                expanded={opponents.length === 1}
               />
             ))}
           </div>
@@ -317,8 +322,8 @@ export default function UnoPlayClient({ code }: Props) {
           {me && (
             <div className="flex items-center gap-3 text-sm">
               {isMyTurn && <TurnTimer turnEndsAt={view.turnEndsAt} active size={30} />}
-              <span className={`font-semibold ${isMyTurn ? 'text-white' : 'text-white/50'}`}>
-                {isMyTurn ? S.hud.yourTurn : S.hud.waitingFor(nameOf(view.currentPlayerId))}
+              <span className={`font-semibold ${isMyTurn || unoGraceActive ? 'text-white' : 'text-white/50'}`}>
+                {statusText}
               </span>
               {view.targetScore !== null && (
                 <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-xs text-white/60">

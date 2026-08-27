@@ -1,7 +1,7 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import { Injectable, Inject, Logger, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { CACHE_CLIENT, CacheClient } from '../cache/cache.module';
 import { GameEntity } from './game.entity';
 import { LobbyService } from '../lobby/lobby.service';
@@ -76,7 +76,7 @@ export interface ChessGameOverPayload {
 }
 
 @Injectable()
-export class GameService {
+export class GameService implements OnModuleDestroy {
   private readonly logger = new Logger(GameService.name);
   private gameStates = new Map<string, BingoGameState>();
   private ludoGameStates = new Map<string, LudoGameState>();
@@ -85,6 +85,7 @@ export class GameService {
   private unoGameStates = new Map<string, UnoGameState>();
   private tictactoeGameStates = new Map<string, TicTacToeGameState>();
   private connectfourGameStates = new Map<string, ConnectFourGameState>();
+  private readonly distinctAutoPlayTimers = new Map<string, ReturnType<typeof setTimeout>>();
   /** uno gameId → epoch ms to auto-start the next round (ROUND_OVER interstitial). */
   private unoNextRoundAt = new Map<string, number>();
   /** lobbyCode → gameId lookup */
@@ -172,6 +173,11 @@ export class GameService {
     private readonly lobbyService: LobbyService,
     private readonly distinctGameLifecycle: DistinctGameLifecycle = new DistinctGameLifecycle(),
   ) {}
+
+  onModuleDestroy(): void {
+    for (const timer of this.distinctAutoPlayTimers.values()) clearTimeout(timer);
+    this.distinctAutoPlayTimers.clear();
+  }
 
   async startBingoGame(
     lobbyCode: string,
@@ -578,6 +584,7 @@ export class GameService {
     ) {
       return { ok: false, error: 'Game not found' };
     }
+    this.cancelDistinctAutoPlay(gameId);
     const outcome = this.distinctGameLifecycle.applyAction(gameId, playerId, action);
     if (!outcome.valid) return { ok: false, error: outcome.reason };
 
@@ -588,8 +595,34 @@ export class GameService {
     } else {
       const gameKey = this.distinctGameLifecycle.getGameKey(gameId)!;
       await this.onDistinctGameStateChanged?.(gameId, lobbyCode, gameKey);
+      this.scheduleDistinctAutoPlay(gameId, lobbyCode);
     }
     return { ok: true };
+  }
+
+  private scheduleDistinctAutoPlay(gameId: string, lobbyCode: string): void {
+    this.cancelDistinctAutoPlay(gameId);
+    const automatic = this.distinctGameLifecycle.getAutomaticAction(gameId);
+    if (!automatic) return;
+    const timer = setTimeout(() => {
+      this.distinctAutoPlayTimers.delete(gameId);
+      const current = this.distinctGameLifecycle.getAutomaticAction(gameId);
+      if (!current) return;
+      void this.distinctGameAction(
+        gameId,
+        current.playerId,
+        current.action,
+        lobbyCode,
+      );
+    }, automatic.delayMs);
+    timer.unref?.();
+    this.distinctAutoPlayTimers.set(gameId, timer);
+  }
+
+  private cancelDistinctAutoPlay(gameId: string): void {
+    const timer = this.distinctAutoPlayTimers.get(gameId);
+    if (timer) clearTimeout(timer);
+    this.distinctAutoPlayTimers.delete(gameId);
   }
 
   async distinctGameSurrender(
@@ -618,6 +651,7 @@ export class GameService {
     lobbyCode: string,
     result: DistinctGameResult,
   ): Promise<void> {
+    this.cancelDistinctAutoPlay(gameId);
     await this.gameRepo.update(gameId, {
       winnerId: result.winnerId,
       status: GameStatus.FINISHED,

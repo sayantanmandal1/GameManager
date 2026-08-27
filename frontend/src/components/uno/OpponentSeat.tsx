@@ -7,13 +7,14 @@ import { TurnTimer } from './TurnTimer';
 import { unoStrings as S } from './strings';
 
 interface OpponentSeatProps {
-  player: UnoPlayerPublic;
-  side: UnoSide;
-  isCurrent: boolean;
-  turnEndsAt: number;
-  catchable: boolean;
-  onCatch: () => void;
-  orientation?: 'top' | 'left' | 'right';
+  readonly player: UnoPlayerPublic;
+  readonly side: UnoSide;
+  readonly isCurrent: boolean;
+  readonly turnEndsAt: number;
+  readonly catchable: boolean;
+  readonly unoCallGraceMs?: number;
+  readonly onCatch: () => void;
+  readonly expanded?: boolean;
 }
 
 const MAX_HIDDEN_FANNED = 7;
@@ -23,25 +24,37 @@ export function OpponentSeat({
   isCurrent,
   turnEndsAt,
   catchable,
+  unoCallGraceMs = 0,
   onCatch,
   side,
+  expanded = false,
 }: OpponentSeatProps) {
-  const shown = player.visibleBackFaces.length > 0
+  const showsInactiveFaces = player.visibleBackFaces.length > 0;
+  const shown = showsInactiveFaces
     ? player.visibleBackFaces.length
     : Math.min(player.handCount, MAX_HIDDEN_FANNED);
   const backs = Array.from({ length: shown });
-  const rotationStep = Math.min(6, 30 / Math.max(shown - 1, 1));
+  let cardWidth = expanded ? 42 : 34;
+  let exposedWidth = 17;
+  if (showsInactiveFaces) {
+    cardWidth = expanded ? 50 : 42;
+    exposedWidth = expanded ? 24 : 19;
+  }
+  const overlap = cardWidth - exposedWidth;
+  const rotationStep = Math.min(4, 20 / Math.max(shown - 1, 1));
+  let cardSide: UnoSide = 'light';
+  if (showsInactiveFaces) cardSide = side === 'light' ? 'dark' : 'light';
+  let seatClass = 'rounded-lg border-white/10 bg-black/20';
+  if (player.eliminated) {
+    seatClass = 'rounded-lg border-white/5 bg-black/15 opacity-40 grayscale';
+  } else if (isCurrent) {
+    seatClass = 'rounded-lg border-game-sun/60 bg-game-sun/10 shadow-lg shadow-black/20';
+  }
 
   return (
     <motion.div
       layout
-      className={`min-w-36 border px-3 py-2 transition-colors ${
-        player.eliminated
-          ? 'rounded-lg border-white/5 bg-black/15 opacity-40 grayscale'
-          : isCurrent
-            ? 'rounded-lg border-game-sun/60 bg-game-sun/10 shadow-lg shadow-black/20'
-            : 'rounded-lg border-white/10 bg-black/20'
-      }`}
+      className={`${expanded ? 'w-full max-w-sm' : 'min-w-40 max-w-72'} border px-3 py-2 transition-colors ${seatClass}`}
     >
       {/* Name + status */}
       <div className="flex items-center gap-2">
@@ -67,13 +80,16 @@ export function OpponentSeat({
       </div>
 
       {/* Fanned card backs */}
-      <div className="relative mt-1 h-12 max-w-64 overflow-x-auto overflow-y-hidden [scrollbar-width:thin]">
-        <div className="flex min-w-max items-center justify-center px-2">
+      <div
+        className="relative mt-1 w-full overflow-x-auto overflow-y-hidden [scrollbar-width:thin]"
+        style={{ height: cardWidth * 1.5 + 12 }}
+      >
+        <div className="mx-auto flex w-max min-w-full items-start justify-center px-5 pt-1">
           {backs.map((_, i) => (
             <div
               key={i}
               style={{
-                marginLeft: i === 0 ? 0 : -22,
+                marginLeft: i === 0 ? 0 : -overlap,
                 transform: `rotate(${(i - (shown - 1) / 2) * rotationStep}deg)`,
                 transformOrigin: 'bottom center',
                 zIndex: i,
@@ -81,23 +97,28 @@ export function OpponentSeat({
             >
               <UnoCard
                 face={player.visibleBackFaces[i] ?? null}
-                faceDown={!player.visibleBackFaces[i]}
-                width={30}
-                side={side === 'light' ? 'dark' : 'light'}
+                faceDown={!showsInactiveFaces}
+                width={cardWidth}
+                side={cardSide}
               />
             </div>
           ))}
         </div>
-        <span className="absolute -right-2 -top-1 rounded-full bg-black/70 px-1.5 text-[10px] font-bold text-white ring-1 ring-white/20">
+        <span className="absolute right-1 top-1 rounded-full bg-black/75 px-1.5 text-[10px] font-bold text-white ring-1 ring-white/20">
           {player.handCount}
         </span>
       </div>
 
       {/* UNO badge / catch */}
-      <div className="h-6">
+      <div className="flex min-h-7 items-center justify-center">
         {player.handCount === 1 && player.calledUno && (
           <span className="rounded-full bg-yellow-400 px-2 py-0.5 text-[10px] font-black text-black">
             UNO
+          </span>
+        )}
+        {!player.calledUno && unoCallGraceMs > 0 && (
+          <span className="rounded-full border border-yellow-300/30 bg-yellow-300/10 px-2 py-0.5 text-[10px] font-bold text-yellow-100">
+            UNO call…
           </span>
         )}
         {catchable && (
@@ -106,7 +127,7 @@ export function OpponentSeat({
             animate={{ scale: [1, 1.12, 1] }}
             transition={{ repeat: Infinity, duration: 1 }}
             onClick={onCatch}
-            className="rounded-full bg-red-500 px-3 py-0.5 text-[11px] font-black text-white shadow"
+            className="min-h-9 rounded-full bg-red-500 px-4 py-1 text-xs font-black text-white shadow"
           >
             {S.hud.catch}
           </motion.button>

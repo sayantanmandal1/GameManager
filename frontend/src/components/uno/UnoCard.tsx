@@ -15,22 +15,23 @@ import {
 } from './cardStyle';
 
 interface UnoCardProps {
-  card?: UnoCardT | null;
-  face?: UnoCardFace | null;
-  side?: UnoSide;
-  faceDown?: boolean;
-  width?: number;
-  onClick?: () => void;
-  disabled?: boolean;
-  playable?: boolean;
-  className?: string;
-  style?: React.CSSProperties;
+  readonly card?: UnoCardT | null;
+  readonly face?: UnoCardFace | null;
+  readonly side?: UnoSide;
+  readonly faceDown?: boolean;
+  readonly width?: number;
+  readonly onClick?: () => void;
+  readonly disabled?: boolean;
+  readonly playable?: boolean;
+  readonly className?: string;
+  readonly style?: React.CSSProperties;
 }
 
-function CardBack({ width, dark }: { width: number; dark: boolean }) {
+function CardBack({ width, dark }: Readonly<{ width: number; dark: boolean }>) {
   const height = width * 1.5;
   return (
     <div
+      aria-label={dark ? 'UNO purple card back' : 'UNO red card back'}
       className="relative overflow-hidden rounded-[14%] border-[3px] border-white shadow-md"
       style={{ width, height, background: dark ? '#0a0a0a' : '#141414' }}
     >
@@ -72,7 +73,7 @@ export function UnoCard({
   if (faceDown || (!card && !projectedFace)) {
     const back = <CardBack width={width} dark={dark} />;
     return onClick ? (
-      <button onClick={onClick} disabled={disabled} className={className} style={style}>
+      <button type="button" onClick={onClick} disabled={disabled} className={className} style={style}>
         {back}
       </button>
     ) : (

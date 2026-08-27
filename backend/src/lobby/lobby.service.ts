@@ -383,7 +383,15 @@ export class LobbyService {
     if (team0.length !== 2 || team1.length !== 2) {
       throw new Error('invalid_team_selection');
     }
-    return [team0[0], team1[0], team0[1], team1[1]];
+    const host = lobby.players.find((player) => player.id === lobby.hostId);
+    if (!host || (host.team !== 0 && host.team !== 1)) {
+      throw new Error('invalid_team_selection');
+    }
+    const hostTeam = host.team === 0 ? team0 : team1;
+    const opponentTeam = host.team === 0 ? team1 : team0;
+    const hostPartner = hostTeam.find((player) => player.id !== host.id);
+    if (!hostPartner) throw new Error('invalid_team_selection');
+    return [host, opponentTeam[0], hostPartner, opponentTeam[1]];
   }
 
   async setStatus(code: string, status: LobbyStatus): Promise<void> {

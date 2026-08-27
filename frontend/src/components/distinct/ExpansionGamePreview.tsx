@@ -11,6 +11,17 @@ const EXPANSION_GAME_KEYS = [
   'cee-lo',
   'trivia-quiz-bowl',
   'memory-match',
+  'contract-bridge',
+  'bourre',
+  'bluff',
+  'sevens',
+  'ninety-nine',
+  'euchre',
+  'whist',
+  'oh-hell',
+  'president',
+  'slapjack',
+  'spoons',
 ] as const satisfies readonly DistinctGameKey[];
 
 type ExpansionGameKey = (typeof EXPANSION_GAME_KEYS)[number];
@@ -41,6 +52,28 @@ export function ExpansionGamePreview({ gameKey }: Readonly<{ gameKey: ExpansionG
       return <TriviaPreview />;
     case 'memory-match':
       return <MemoryPreview />;
+    case 'contract-bridge':
+      return <BridgePreview />;
+    case 'bourre':
+      return <CardMechanicPreview title="BOURRÉ" badge="TRUMP · POT 5" cards={['A♥', 'K♥', '10♥', '7♣']} accent="#f0c96a" />;
+    case 'bluff':
+      return <CardMechanicPreview title="BLUFF" badge="THREE 8s · TRUE?" cards={['?', '?', '?', '8♠']} accent="#e68aa6" hidden />;
+    case 'sevens':
+      return <CardMechanicPreview title="SEVENS" badge="BUILD BOTH WAYS" cards={['6♠', '7♠', '8♠', '7♥']} accent="#75c9a3" />;
+    case 'ninety-nine':
+      return <CardMechanicPreview title="NINETY-NINE" badge="TOTAL 87" cards={['9♦', '10♣', 'K♥', '4♠']} accent="#ee8364" />;
+    case 'euchre':
+      return <CardMechanicPreview title="EUCHRE" badge="HEARTS TRUMP" cards={['J♥', 'J♦', 'A♥', '9♣']} accent="#e8c663" />;
+    case 'whist':
+      return <CardMechanicPreview title="WHIST" badge="13 TRICKS" cards={['A♣', 'Q♣', '8♣', 'K♦']} accent="#86c5b2" />;
+    case 'oh-hell':
+      return <CardMechanicPreview title="OH HELL" badge="BID 3 · TOOK 3" cards={['A♠', '9♠', '5♥', '2♦']} accent="#ef8c6d" />;
+    case 'president':
+      return <CardMechanicPreview title="PRESIDENT" badge="PAIR OF KINGS" cards={['K♠', 'K♥', 'Q♣', '2♦']} accent="#efcf69" />;
+    case 'slapjack':
+      return <CardMechanicPreview title="SLAPJACK" badge="SLAP!" cards={['J♥', '?', '?', '?']} accent="#f07b67" hidden />;
+    case 'spoons':
+      return <CardMechanicPreview title="SPOONS" badge="FOUR OF A KIND" cards={['7♠', '7♥', '7♣', '7♦']} accent="#d9e2e0" />;
   }
 }
 
@@ -109,4 +142,57 @@ function MemoryPreview() {
     { key: 'ten', symbol: '?' }, { key: 'eleven', symbol: '?' }, { key: 'twelve', symbol: '?' },
   ];
   return <div className="grid aspect-[4/3] w-full max-w-md grid-cols-4 gap-2 border border-white/15 bg-[#35251f] p-7 shadow-2xl">{tiles.map((tile) => <span key={tile.key} className={`flex aspect-square items-center justify-center border text-xl font-black ${tile.symbol === '?' ? 'border-white/15 bg-[#503127] text-[#f28f62]' : 'border-[#77cfa8] bg-[#f0e4d5] text-[#35251f]'}`}>{tile.symbol}</span>)}</div>;
+}
+
+function BridgePreview() {
+  const hand = ['Q♠', '9♠', 'A♥', 'K♣', '7♦'];
+  return (
+    <div aria-label="Contract Bridge table preview" className="relative aspect-[4/3] w-full max-w-md overflow-hidden rounded-lg border-4 border-[#2b2114] bg-[#17634d] shadow-2xl">
+      <span className="absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-xs font-bold">NORTH · 13</span>
+      <span className="absolute left-2 top-1/2 -translate-y-1/2 -rotate-90 rounded-full bg-black/45 px-3 py-1 text-xs font-bold">WEST · 13</span>
+      <span className="absolute right-2 top-1/2 -translate-y-1/2 rotate-90 rounded-full bg-black/45 px-3 py-1 text-xs font-bold">EAST · 13</span>
+      <div className="absolute left-1/2 top-[38%] flex -translate-x-1/2 gap-1">
+        {['7♠', 'A♠', 'J♠', '4♠'].map((card) => <PreviewCard key={card} card={card} small />)}
+      </div>
+      <div className="absolute inset-x-2 bottom-2 flex items-end justify-center">
+        {hand.map((card, index) => <PreviewCard key={card} card={card} className={index === 0 ? '' : '-ml-3'} />)}
+      </div>
+      <span className="absolute bottom-[5.7rem] left-1/2 -translate-x-1/2 rounded-full bg-[#ead17e] px-3 py-1 text-[10px] font-black text-[#1d2a24]">3NT · NET +120</span>
+    </div>
+  );
+}
+
+function CardMechanicPreview({ title, badge, cards, accent, hidden = false }: Readonly<{
+  title: string;
+  badge: string;
+  cards: string[];
+  accent: string;
+  hidden?: boolean;
+}>) {
+  return (
+    <div aria-label={`${title} game preview`} className="flex aspect-[4/3] w-full max-w-md flex-col items-center justify-center overflow-hidden rounded-lg border border-white/15 bg-[#17352c] p-6 shadow-2xl">
+      <p className="text-xs font-black tracking-[0.18em]" style={{ color: accent }}>{title}</p>
+      <div className="mt-5 flex items-end justify-center">
+        {cards.map((card, index) => (
+          hidden && card === '?'
+            ? <PreviewBack key={`${card}-${index}`} className={index === 0 ? '' : '-ml-3'} />
+            : <PreviewCard key={`${card}-${index}`} card={card} className={index === 0 ? '' : '-ml-3'} />
+        ))}
+      </div>
+      <span className="mt-5 rounded-full border border-white/15 bg-black/25 px-4 py-1 text-xs font-bold">{badge}</span>
+    </div>
+  );
+}
+
+function PreviewCard({ card, small = false, className = '' }: Readonly<{
+  card: string;
+  small?: boolean;
+  className?: string;
+}>) {
+  const red = card.includes('♥') || card.includes('♦');
+  return <span className={`flex ${small ? 'h-16 w-10 text-sm' : 'h-28 w-16 text-xl'} shrink-0 items-start rounded-md border-2 border-[#ddd5c4] bg-[#fffdf7] p-1.5 font-black shadow-lg ${red ? 'text-[#c64243]' : 'text-[#20251f]'} ${className}`}>{card}</span>;
+}
+
+function PreviewBack({ className = '' }: Readonly<{ className?: string }>) {
+  return <span className={`h-28 w-16 shrink-0 rounded-md border-2 border-white bg-[#173d61] p-1 shadow-lg ${className}`}><span className="block h-full rounded-sm border border-[#e7cb72] bg-[repeating-linear-gradient(45deg,#a92736_0,#a92736_4px,#173d61_4px,#173d61_8px)]" /></span>;
 }

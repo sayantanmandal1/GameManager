@@ -36,6 +36,10 @@ export function DistinctGamePreview({ gameKey }: Readonly<{ gameKey: DistinctGam
       </div>
     );
   }
+  return <CompactGamePreview gameKey={gameKey} />;
+}
+
+function CompactGamePreview({ gameKey }: Readonly<{ gameKey: DistinctGameKey }>) {
   if (gameKey === 'dotsandboxes') {
     return (
       <div className="grid aspect-square w-full max-w-md grid-cols-5 place-items-center rounded-lg bg-[#efe9da] p-7 shadow-2xl">
@@ -43,8 +47,11 @@ export function DistinctGamePreview({ gameKey }: Readonly<{ gameKey: DistinctGam
       </div>
     );
   }
+  if (gameKey === 'pig') {
+    return <div aria-label="Pig dice game preview" className="flex aspect-square w-full max-w-sm flex-col items-center justify-center rounded-lg border border-white/15 bg-[#34251e] shadow-2xl"><span className="grid h-32 w-32 place-items-center rounded-2xl bg-[#f5f1e7] text-7xl font-black text-[#34251e] shadow-xl">⚄</span><p className="mt-6 text-sm font-black text-[#f09b57]">TURN 18 · HOLD OR ROLL</p></div>;
+  }
   if (gameKey === 'grid-salvo') {
-    return <div className="grid aspect-square w-full max-w-md grid-cols-10 overflow-hidden border-4 border-[#102832] bg-[#123844] shadow-2xl">{Array.from({ length: 100 }, (_, cell) => <span key={cell} className={`border border-white/10 ${[11, 12, 13, 14, 15, 27, 37, 47, 66, 67, 68].includes(cell) ? 'bg-[#58c7d9]' : cell === 37 ? 'bg-[#ff684d]' : ''}`} />)}</div>;
+    return <div className="grid aspect-square w-full max-w-md grid-cols-10 overflow-hidden border-4 border-[#102832] bg-[#123844] shadow-2xl">{Array.from({ length: 100 }, (_, cell) => <span key={cell} className={`border border-white/10 ${salvoCellClass(cell)}`} />)}</div>;
   }
   if (gameKey === 'peg-codebreaker') {
     const colors = ['#ef5b54', '#5aa9e6', '#67c587', '#f3cf55', '#ef9948', '#b986d7'];
@@ -79,4 +86,9 @@ export function DistinctGamePreview({ gameKey }: Readonly<{ gameKey: DistinctGam
       {'\u2684'}
     </div>
   );
+}
+
+function salvoCellClass(cell: number): string {
+  if (cell === 37) return 'bg-[#ff684d]';
+  return [11, 12, 13, 14, 15, 27, 47, 66, 67, 68].includes(cell) ? 'bg-[#58c7d9]' : '';
 }

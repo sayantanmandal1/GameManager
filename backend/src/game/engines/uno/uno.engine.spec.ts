@@ -95,6 +95,11 @@ function baseState(
   };
 }
 
+function expireUnoCallGrace(state: UnoGameState, playerId?: string): void {
+  const ids = playerId ? [playerId] : Object.keys(state.unoWindows);
+  for (const id of ids) state.unoWindows[id] = Date.now() - 1;
+}
+
 const flipRules = {
   mode: "flip" as const,
   targetScore: 500,
@@ -435,6 +440,7 @@ describe("UnoEngine Draw Two / stacking", () => {
     engine.play(s, "a", d2a.id);
     expect(s.currentIndex).toBe(1); // b faces the +2 with a stackable card
     expect(s.pendingDraw?.count).toBe(2);
+    expireUnoCallGrace(s, "a");
     engine.play(s, "b", d2b.id); // b stacks
     expect(s.pendingDraw).toBeNull(); // c cannot stack → auto-takes
     expect(s.players[2].handCount).toBe(5); // c drew 4
@@ -475,6 +481,7 @@ describe("UnoEngine Wild Draw Four & challenge", () => {
       },
     );
     engine.play(s, "a", w4.id, "blue");
+    expireUnoCallGrace(s, "a");
     const r = engine.challenge(s, "b");
     expect(r.ok).toBe(true);
     expect(s.players[0].handCount).toBe(5); // a drew 4 (had 1, +4)
@@ -497,6 +504,7 @@ describe("UnoEngine Wild Draw Four & challenge", () => {
       },
     );
     engine.play(s, "a", w4.id, "blue");
+    expireUnoCallGrace(s, "a");
     const r = engine.challenge(s, "b");
     expect(r.ok).toBe(true);
     expect(s.players[1].handCount).toBe(7); // b drew 6
@@ -510,6 +518,7 @@ describe("UnoEngine Wild Draw Four & challenge", () => {
       { drawPile: Array.from({ length: 8 }, (_, index) => num("yellow", (index % 9) + 1)) },
     );
     engine.play(s, "a", w4.id, "blue");
+    expireUnoCallGrace(s, "a");
     s.players[0].hand = [];
     s.players[0].handCount = 0;
 
@@ -610,7 +619,9 @@ describe("UnoEngine UNO call & catch", () => {
   let engine: UnoEngine;
   beforeEach(() => (engine = new UnoEngine()));
 
-  it("opens a catch window when a player reaches one card", () => {
+  it("opens a protected three-second UNO declaration grace period", () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-01-01T00:00:00Z"));
     const c = num("red", 5);
     const s = baseState([
       mkPlayer("a", [c, num("blue", 8)]),
@@ -619,9 +630,18 @@ describe("UnoEngine UNO call & catch", () => {
     engine.play(s, "a", c.id);
     expect(s.players[0].unoVulnerable).toBe(true);
     expect(s.unoWindows.a).toBeGreaterThan(Date.now());
+    expect(engine.getPlayerView(s, "b").catchableIds).toEqual([]);
+    expect(engine.getPlayerView(s, "b").unoCallRemainingMs.a).toBe(3_000);
+    expect(engine.draw(s, "b")).toEqual({
+      ok: false,
+      error: "Wait for the UNO call window",
+    });
+    jest.useRealTimers();
   });
 
-  it("catching an un-called player adds a +2 penalty", () => {
+  it("enables Catch after three seconds and applies the +2 penalty", () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-01-01T00:00:00Z"));
     const c = num("red", 5);
     const s = baseState(
       [mkPlayer("a", [c, num("blue", 8)]), mkPlayer("b", [num("green", 1)])],
@@ -630,13 +650,22 @@ describe("UnoEngine UNO call & catch", () => {
       },
     );
     engine.play(s, "a", c.id);
+    expect(engine.catchPlayer(s, "b", "a")).toEqual({
+      ok: false,
+      error: "Nothing to catch",
+    });
+    jest.advanceTimersByTime(3_000);
+    expect(engine.getPlayerView(s, "b").catchableIds).toEqual(["a"]);
     const r = engine.catchPlayer(s, "b", "a");
     expect(r.ok).toBe(true);
     expect(s.players[0].handCount).toBe(3);
     expect(s.unoWindows.a).toBeUndefined();
+    jest.useRealTimers();
   });
 
-  it("calling UNO protects against a catch", () => {
+  it("calling UNO during the grace period protects against a catch", () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-01-01T00:00:00Z"));
     const c = num("red", 5);
     const s = baseState([
       mkPlayer("a", [c, num("blue", 8)]),
@@ -645,49 +674,12 @@ describe("UnoEngine UNO call & catch", () => {
     engine.play(s, "a", c.id);
     expect(engine.callUno(s, "a").ok).toBe(true);
     expect(s.players[0].calledUno).toBe(true);
+    jest.advanceTimersByTime(3_000);
     expect(engine.catchPlayer(s, "b", "a").ok).toBe(false);
-  });
-
-  it("keeps the catch available for three seconds after the next player acts", () => {
-    jest.useFakeTimers();
-    jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));
-    const c = num("red", 5);
-    const s = baseState(
-      [mkPlayer("a", [c, num("blue", 8)]), mkPlayer("b", [num("green", 1)])],
-      {
-        drawPile: [num("yellow", 9)],
-      },
-    );
-    engine.play(s, "a", c.id); // a → 1 card, window open, turn to b
-    engine.draw(s, "b");
-    expect(s.unoWindows.a).toBeGreaterThan(Date.now());
-    expect(engine.getPlayerView(s, "b").catchableIds).toEqual(["a"]);
-    expect(engine.catchPlayer(s, "b", "a").ok).toBe(true);
     jest.useRealTimers();
   });
 
-  it("keeps independent three-second windows when consecutive players reach UNO", () => {
-    jest.useFakeTimers();
-    jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));
-    const first = num("red", 5);
-    const second = num("red", 6);
-    const s = baseState([
-      mkPlayer("a", [first, num("blue", 8)]),
-      mkPlayer("b", [second, num("green", 9)]),
-      mkPlayer("c", [num("yellow", 2)]),
-    ]);
-
-    engine.play(s, "a", first.id);
-    jest.advanceTimersByTime(500);
-    engine.play(s, "b", second.id);
-
-    expect(engine.getPlayerView(s, "c").catchableIds.sort()).toEqual(["a", "b"]);
-    expect(engine.catchPlayer(s, "c", "a").ok).toBe(true);
-    expect(engine.getPlayerView(s, "c").catchableIds).toEqual(["b"]);
-    jest.useRealTimers();
-  });
-
-  it("rejects a catch after the three-second grace period", () => {
+  it("rejects a late UNO declaration after Catch becomes available", () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));
     const c = num("red", 5);
@@ -696,9 +688,52 @@ describe("UnoEngine UNO call & catch", () => {
       mkPlayer("b", [num("green", 1)]),
     ]);
     engine.play(s, "a", c.id);
-    jest.advanceTimersByTime(3_001);
+    jest.advanceTimersByTime(3_000);
 
-    expect(engine.getPlayerView(s, "b").catchableIds).toEqual([]);
+    expect(engine.callUno(s, "a")).toEqual({
+      ok: false,
+      error: "The UNO call window has closed",
+    });
+    expect(engine.getPlayerView(s, "b").catchableIds).toEqual(["a"]);
+    jest.useRealTimers();
+  });
+
+  it("allows only the current next player to Catch", () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+    const card = num("red", 5);
+    const s = baseState([
+      mkPlayer("a", [card, num("blue", 8)]),
+      mkPlayer("b", [num("red", 6)]),
+      mkPlayer("c", [num("yellow", 2)]),
+    ]);
+    engine.play(s, "a", card.id);
+    jest.advanceTimersByTime(3_000);
+
+    expect(engine.getPlayerView(s, "b").catchableIds).toEqual(["a"]);
+    expect(engine.getPlayerView(s, "c").catchableIds).toEqual([]);
+    expect(engine.catchPlayer(s, "c", "a")).toEqual({
+      ok: false,
+      error: "Only the next player can catch",
+    });
+    expect(engine.catchPlayer(s, "b", "a").ok).toBe(true);
+    jest.useRealTimers();
+  });
+
+  it("forfeits Catch when the next player takes a normal action", () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+    const c = num("red", 5);
+    const playable = num("red", 6);
+    const s = baseState([
+      mkPlayer("a", [c, num("blue", 8)]),
+      mkPlayer("b", [playable, num("green", 1)]),
+    ]);
+    engine.play(s, "a", c.id);
+    jest.advanceTimersByTime(3_000);
+
+    expect(engine.getPlayerView(s, "b").catchableIds).toEqual(["a"]);
+    expect(engine.play(s, "b", playable.id).ok).toBe(true);
     expect(engine.catchPlayer(s, "b", "a")).toEqual({
       ok: false,
       error: "Nothing to catch",
@@ -706,7 +741,7 @@ describe("UnoEngine UNO call & catch", () => {
     jest.useRealTimers();
   });
 
-  it("closes exactly at three seconds and accepts only the first simultaneous catcher", () => {
+  it("opens exactly at three seconds and accepts only one catch", () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));
     const c = num("red", 5);
@@ -716,19 +751,13 @@ describe("UnoEngine UNO call & catch", () => {
       mkPlayer("c", [num("yellow", 2)]),
     ]);
     engine.play(s, "a", c.id);
+    expect(engine.catchPlayer(s, "b", "a").ok).toBe(false);
+    jest.advanceTimersByTime(3_000);
     expect(engine.catchPlayer(s, "b", "a").ok).toBe(true);
     expect(engine.catchPlayer(s, "c", "a")).toEqual({
       ok: false,
       error: "Nothing to catch",
     });
-
-    const second = baseState([
-      mkPlayer("a", [num("red", 6), num("blue", 8)]),
-      mkPlayer("b", [num("green", 1)]),
-    ]);
-    engine.play(second, "a", second.players[0].hand[0].id);
-    jest.advanceTimersByTime(3_000);
-    expect(engine.catchPlayer(second, "b", "a").ok).toBe(false);
     jest.useRealTimers();
   });
 
@@ -740,7 +769,7 @@ describe("UnoEngine UNO call & catch", () => {
     ]);
     s.players[0].eliminated = true;
     s.players[1].unoVulnerable = true;
-    s.unoWindows.b = Date.now() + 3_000;
+    s.unoWindows.b = Date.now() - 1;
 
     expect(engine.catchPlayer(s, "a", "b")).toEqual({
       ok: false,
@@ -885,6 +914,7 @@ describe("UnoEngine reshuffle & timeout", () => {
     s.players[1].handCount = 2;
     engine.play(s, "a", d2.id);
     expect(s.pendingDraw?.count).toBe(2);
+    expireUnoCallGrace(s, "a");
     engine.timeout(s); // b times out → auto-take
     expect(s.pendingDraw).toBeNull();
     expect(s.players[1].handCount).toBe(4); // 2 + drew 2
@@ -1050,7 +1080,7 @@ describe("UnoEngine anti-cheat view", () => {
     });
   });
 
-  it("does not project an expired player as UNO-vulnerable", () => {
+  it("projects an expired declaration as catchable to the next player", () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));
     const card = num("red", 5);
@@ -1062,8 +1092,9 @@ describe("UnoEngine anti-cheat view", () => {
     jest.advanceTimersByTime(3_000);
 
     const player = engine.getPlayerView(s, "b").players.find(({ id }) => id === "a")!;
-    expect(player.unoVulnerable).toBe(false);
-    expect(engine.getPlayerView(s, "b").catchableIds).toEqual([]);
+    expect(player.unoVulnerable).toBe(true);
+    expect(engine.getPlayerView(s, "b").catchableIds).toEqual(["a"]);
+    expect(engine.getPlayerView(s, "b").unoCallRemainingMs).toEqual({});
     jest.useRealTimers();
   });
 });
@@ -1404,6 +1435,7 @@ describe("UnoEngine No Mercy", () => {
     );
     engine.play(s, "a", d6.id, "red");
     expect(s.pendingDraw?.count).toBe(6);
+    expireUnoCallGrace(s, "a");
     expect(engine.play(s, "b", d2.id)).toEqual({ ok: false, error: "You must take the cards" });
     expect(engine.play(s, "b", d10.id, "blue").ok).toBe(true);
     expect(s.players[2].handCount).toBe(17);
@@ -1517,6 +1549,7 @@ describe("UnoEngine No Mercy", () => {
     );
     expect(engine.play(s, "a", roulette.id).ok).toBe(true);
     expect(s.activeColor).toBe("red");
+    expireUnoCallGrace(s, "a");
     expect(engine.getPlayerView(s, "b").canChooseRouletteColor).toBe(true);
     expect(engine.chooseRouletteColor(s, "b", "red").ok).toBe(true);
     expect(s.players[1].handCount).toBe(4);
@@ -1753,6 +1786,7 @@ describe("UnoEngine Flip", () => {
       { mode: "flip", drawPile: [num("yellow", 1), num("yellow", 2)] },
     );
     engine.play(s, "a", wildDrawTwo.id, "blue");
+    expireUnoCallGrace(s, "a");
     expect(engine.challenge(s, "b").ok).toBe(true);
     expect(s.players[0].handCount).toBe(3);
     expect(s.currentIndex).toBe(1);

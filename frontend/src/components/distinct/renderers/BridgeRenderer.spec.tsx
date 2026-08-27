@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { BridgePlayerView, StandardCard } from '@/shared';
 import { BridgeRenderer } from './BridgeRenderer';
 
@@ -38,6 +38,7 @@ function view(overrides: Partial<BridgePlayerView> = {}): BridgePlayerView {
     dummyRevealed: false,
     yourHand: [],
     dummyHand: [],
+    partnerHand: [],
     sessionScores: [0, 0],
     rubber: { belowLine: [0, 0], gamesWon: [0, 0], vulnerable: [false, false] },
     dealHistory: [],
@@ -51,6 +52,11 @@ function view(overrides: Partial<BridgePlayerView> = {}): BridgePlayerView {
     actingHand: null,
     surrenderVotes: [[], []],
     canVoteSurrender: false,
+    undoRequest: null,
+    canRequestUndo: false,
+    undoIsImmediate: false,
+    canRespondUndo: false,
+    canCancelUndo: false,
     winnerId: null,
     winnerTeam: null,
     isDraw: false,
@@ -114,7 +120,7 @@ describe('BridgeRenderer', () => {
       .toEqual(['A of spades', 'A of hearts', 'A of clubs', 'A of diamonds']);
   });
 
-  it('keeps dummy hidden before the lead and lets declarer play only legal dummy cards', () => {
+  it('keeps dummy hidden before the lead and identifies a forced dummy play', () => {
     const onAction = jest.fn();
     const bridgeContract = {
       level: 2,
@@ -150,10 +156,45 @@ describe('BridgeRenderer', () => {
       actingHand: 'dummy',
       legalCardIds: [aceHearts.id],
     })} disabled={false} onAction={onAction} />);
-    expect(screen.getByRole('button', { name: 'A of hearts' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: '2 of clubs' })).toBeDisabled();
+    expect(screen.getByText('Only legal card · playing automatically')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'A of hearts' })).not.toBeInTheDocument();
+    expect(onAction).not.toHaveBeenCalled();
+  });
+
+  it('selects a card without playing it until explicit confirmation', () => {
+    const onAction = jest.fn();
+    const bridgeContract = {
+      level: 2,
+      strain: 'hearts' as const,
+      doubling: 'undoubled' as const,
+      declarerId: 'a',
+      dummyId: 'c',
+      openingLeaderId: 'b',
+      declaringTeam: 0 as const,
+    };
+    render(<BridgeRenderer view={view({
+      mode: 'duplicate',
+      phase: 'playing',
+      dealNumber: 1,
+      contract: bridgeContract,
+      legalModes: [],
+      dummyRevealed: true,
+      dummyHand: [aceHearts, twoClubs],
+      currentTurnId: 'c',
+      currentActorId: 'a',
+      canAct: true,
+      actingHand: 'dummy',
+      legalCardIds: [aceHearts.id, twoClubs.id],
+    })} disabled={false} onAction={onAction} />);
+
     fireEvent.click(screen.getByRole('button', { name: 'A of hearts' }));
-    expect(onAction).toHaveBeenCalledWith({ type: 'play_bridge_card', cardId: aceHearts.id });
+    expect(onAction).not.toHaveBeenCalled();
+    expect(screen.getByText('A of hearts')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Play selected' }));
+    expect(onAction).toHaveBeenCalledWith({
+      type: 'play_bridge_card',
+      cardId: aceHearts.id,
+    });
   });
 
   it('shows persistent deal score and lets only the acting host request the next deal', () => {
@@ -314,5 +355,107 @@ describe('BridgeRenderer', () => {
     })} disabled={false} onAction={onAction} />);
     fireEvent.click(screen.getByRole('button', { name: 'Withdraw surrender' }));
     expect(onAction).toHaveBeenLastCalledWith({ type: 'bridge_surrender_vote', confirmed: false });
+  });
+
+  it('lets the dummy inspect the declarer partner hand after the opening lead', () => {
+    const bridgeContract = {
+      level: 2,
+      strain: 'hearts' as const,
+      doubling: 'undoubled' as const,
+      declarerId: 'a',
+      dummyId: 'c',
+      openingLeaderId: 'b',
+      declaringTeam: 0 as const,
+    };
+    render(<BridgeRenderer view={view({
+      youId: 'c',
+      mode: 'duplicate',
+      phase: 'playing',
+      dealNumber: 1,
+      contract: bridgeContract,
+      legalModes: [],
+      dummyRevealed: true,
+      yourHand: [twoClubs],
+      dummyHand: [twoClubs],
+      partnerHand: [aceSpades, aceHearts],
+      currentTurnId: 'b',
+      currentActorId: 'b',
+      canAct: false,
+    })} disabled={false} onAction={jest.fn()} />);
+
+    expect(screen.getByLabelText('2 revealed cards')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Partner (2)' }));
+    const partnerHand = screen.getByLabelText('Partner cards');
+    expect(within(partnerHand).getByLabelText('A of spades')).toBeInTheDocument();
+    expect(within(partnerHand).getByLabelText('A of hearts')).toBeInTheDocument();
+    expect(within(partnerHand).queryByRole('button', { name: 'Play selected' }))
+      .not.toBeInTheDocument();
+  });
+
+  it('offers immediate undo and exposes approval controls for a later rollback', () => {
+    const onAction = jest.fn();
+    const bridgeContract = {
+      level: 1,
+      strain: 'clubs' as const,
+      doubling: 'undoubled' as const,
+      declarerId: 'a',
+      dummyId: 'c',
+      openingLeaderId: 'b',
+      declaringTeam: 0 as const,
+    };
+    const { rerender } = render(<BridgeRenderer view={view({
+      mode: 'duplicate',
+      phase: 'playing',
+      dealNumber: 1,
+      contract: bridgeContract,
+      legalModes: [],
+      canRequestUndo: true,
+      undoIsImmediate: true,
+    })} disabled={false} onAction={onAction} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo last play' }));
+    expect(onAction).toHaveBeenLastCalledWith({ type: 'bridge_request_undo' });
+
+    rerender(<BridgeRenderer view={view({
+      mode: 'duplicate',
+      phase: 'playing',
+      dealNumber: 1,
+      contract: bridgeContract,
+      legalModes: [],
+      canAct: false,
+      undoRequest: { requesterId: 'b', approvals: ['c'] },
+      canRespondUndo: true,
+    })} disabled={false} onAction={onAction} />);
+    expect(screen.getByRole('status')).toHaveTextContent('East requested undo · 1/3 approved');
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'bridge_respond_undo',
+      approved: true,
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'bridge_respond_undo',
+      approved: false,
+    });
+  });
+
+  it('shows one net score from the lobby host team perspective', () => {
+    render(<BridgeRenderer view={view({
+      hostId: 'b',
+      mode: 'home',
+      phase: 'auction',
+      dealNumber: 2,
+      legalModes: [],
+      currentTurnId: 'c',
+      currentActorId: 'c',
+      canAct: false,
+      sessionScores: [80, 230],
+      tricksWon: [2, 5],
+    })} disabled={false} onAction={jest.fn()} />);
+
+    const net = screen.getByLabelText('Host team net score');
+    expect(net).toHaveTextContent('East team net');
+    expect(net).toHaveTextContent('+150');
+    expect(net).toHaveTextContent('tricks 5–2');
   });
 });

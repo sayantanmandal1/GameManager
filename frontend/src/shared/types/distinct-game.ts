@@ -520,6 +520,9 @@ export type BridgeAction =
   | { type: 'select_bridge_mode'; mode: BridgeMode }
   | { type: 'bridge_call'; call: BridgeCall }
   | { type: 'play_bridge_card'; cardId: string }
+  | { type: 'bridge_request_undo' }
+  | { type: 'bridge_respond_undo'; approved: boolean }
+  | { type: 'bridge_cancel_undo' }
   | { type: 'bridge_surrender_vote'; confirmed: boolean }
   | { type: 'next_bridge_deal' };
 export interface BridgeAuctionEntry { playerId: string; call: BridgeCall }
@@ -556,11 +559,18 @@ export interface BridgePlayerView {
   lastTrick: BridgeCompletedTrick | null; trickDisplayUntil: number | null;
   tricksWon: [number, number]; currentTurnId: string | null; currentActorId: string | null;
   leaderId: string | null; dummyRevealed: boolean; yourHand: StandardCard[]; dummyHand: StandardCard[];
+  partnerHand: StandardCard[];
   sessionScores: [number, number]; rubber: BridgeRubberState; dealHistory: BridgeDealSummary[];
   canAct: boolean; legalModes: BridgeMode[]; legalBids: BridgeBid[]; canPass: boolean;
   canDouble: boolean; canRedouble: boolean; legalCardIds: string[];
   actingHand: 'own' | 'dummy' | null; surrenderVotes: [string[], string[]];
-  canVoteSurrender: boolean; winnerId: string | null; winnerTeam: BridgeTeam | null; isDraw: boolean;
+  canVoteSurrender: boolean;
+  undoRequest: { requesterId: string; approvals: string[] } | null;
+  canRequestUndo: boolean;
+  undoIsImmediate: boolean;
+  canRespondUndo: boolean;
+  canCancelUndo: boolean;
+  winnerId: string | null; winnerTeam: BridgeTeam | null; isDraw: boolean;
 }
 
 export type BourreAction =

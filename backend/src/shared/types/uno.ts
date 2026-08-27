@@ -111,7 +111,7 @@ export interface UnoPlayerPublic {
   isConnected: boolean;
   /** On exactly one card AND has legally called "UNO". */
   calledUno: boolean;
-  /** On exactly one card, catch window still open (hasn't called → catchable). */
+  /** On exactly one card without a completed UNO declaration. */
   unoVulnerable: boolean;
   score: number;
   /** Out of the game (surrendered, or No Mercy 25-card knockout). */
@@ -192,7 +192,7 @@ export interface UnoGameState {
   pendingWinnerId: string | null;
   /** If the current player has drawn and may now play THAT card or pass. */
   drawnCardId: string | null;
-  /** Server deadlines for independent three-second catch windows by player. */
+  /** Server deadlines for independent three-second UNO declaration grace periods. */
   unoWindows: Record<string, number>;
   turnStartedAt: number;
   turnEndsAt: number;
@@ -273,8 +273,8 @@ export interface UnoPlayerView {
   jumpInIds: string[];
   /** Opponents you may currently catch for not calling UNO. */
   catchableIds: string[];
-  /** Server-computed time remaining by catchable player; avoids clock skew. */
-  catchableRemainingMs: Record<string, number>;
+  /** Time remaining before each missed declaration becomes catchable. */
+  unoCallRemainingMs: Record<string, number>;
 }
 
 /** Per-hand scoring (official): numbers face value, actions 20, wilds 50. */
@@ -319,8 +319,8 @@ export const UNO_CONSTANTS = {
   WILD_CARD_POINTS: 50,
   /** No Mercy: reaching this many cards eliminates you. */
   MERCY_LIMIT: 25,
-  /** Platform catch grace period after a player reaches one card. */
-  UNO_CATCH_WINDOW_MS: 3_000,
+  /** Protected declaration period after a player reaches one card. */
+  UNO_CALL_GRACE_MS: 3_000,
   MODE_MAX_PLAYERS: {
     classic: 10,
     custom: 10,

@@ -201,6 +201,23 @@ describe('GameService', () => {
       maxPlayers: 2,
     };
 
+    it('cancels pending automatic actions during shutdown', () => {
+      jest.useFakeTimers();
+      const callback = jest.fn();
+      const timer = setTimeout(callback, 1_500) as unknown as ReturnType<typeof setTimeout>;
+      const timers = (service as unknown as {
+        distinctAutoPlayTimers: Map<string, ReturnType<typeof setTimeout>>;
+      }).distinctAutoPlayTimers;
+      timers.set('game1', timer);
+
+      service.onModuleDestroy();
+      jest.advanceTimersByTime(1_500);
+
+      expect(callback).not.toHaveBeenCalled();
+      expect(timers).toHaveProperty('size', 0);
+      jest.useRealTimers();
+    });
+
     it('binds the persisted key and routes actions through its adapter', async () => {
       mockLobbyService.getLobby!.mockResolvedValue(distinctLobby);
       const { gameId, gameKey } = await service.startDistinctGame('123456');
