@@ -79,6 +79,7 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
       playHistory: [],
       nextPlayId: 1,
       undoRequest: null,
+      lastCallUndo: null,
       phase: 'setup',
       winnerId: null,
       winnerTeam: null,
@@ -101,6 +102,9 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
     }
     if (action.type === 'bridge_cancel_undo') {
       return this.cancelUndo(state, playerId, action);
+    }
+    if (action.type === 'bridge_undo_call') {
+      return this.undoLastCall(state, playerId, action);
     }
     if (state.undoRequest) return { valid: false, reason: 'Resolve the undo request first' };
     if (state.phase === 'setup') return this.selectMode(state, playerId, action);
@@ -179,6 +183,9 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
       canPass: canAct && state.phase === 'auction',
       canDouble: canAct && state.phase === 'auction' && this.canDouble(state, playerId),
       canRedouble: canAct && state.phase === 'auction' && this.canRedouble(state, playerId),
+      canUndoCall: !undoRequest
+        && state.playHistory.length === 0
+        && state.lastCallUndo?.playerId === playerId,
       legalCardIds: legalCards.map((card) => card.id),
       actingHand: canAct && (state.phase === 'opening_lead' || state.phase === 'playing')
         ? (actingAsDummy ? 'dummy' : 'own')
@@ -284,6 +291,10 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
       return { valid: false, reason: 'Redouble is not legal' };
     }
 
+    state.lastCallUndo = {
+      playerId,
+      snapshot: this.captureCallUndoSnapshot(state),
+    };
     state.auction.push({ playerId, call: { ...call } });
     if (call.type === 'pass') {
       state.consecutivePasses += 1;
@@ -335,6 +346,7 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
       return { valid: false, reason: 'Must follow suit' };
     }
 
+    state.lastCallUndo = null;
     state.playHistory.push({
       playId: state.nextPlayId,
       actorId: playerId,
@@ -385,6 +397,7 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
       || typeof action.confirmed !== 'boolean') {
       return { valid: false, reason: 'Invalid surrender vote' };
     }
+    state.lastCallUndo = null;
     const team = this.playerTeam(state, playerId);
     const votes = new Set(state.surrenderVotes[team]);
     if (action.confirmed) votes.add(playerId);
@@ -445,7 +458,42 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
     state.surrenderVotes = [[], []];
     state.playHistory = [];
     state.undoRequest = null;
+    state.lastCallUndo = null;
     state.phase = 'auction';
+  }
+
+  private undoLastCall(
+    state: BridgeGameState,
+    playerId: string,
+    action: Extract<BridgeAction, { type: 'bridge_undo_call' }>,
+  ): DistinctActionResult<BridgeResult> {
+    if (!hasExactActionShape(action, 'bridge_undo_call', [])) {
+      return { valid: false, reason: 'Invalid call undo' };
+    }
+    const callUndo = state.lastCallUndo;
+    if (callUndo?.playerId !== playerId || state.playHistory.length > 0) {
+      return { valid: false, reason: 'The latest call can no longer be undone' };
+    }
+    Object.assign(state, structuredClone(callUndo.snapshot));
+    state.lastCallUndo = null;
+    return { valid: true };
+  }
+
+  private captureCallUndoSnapshot(
+    state: BridgeGameState,
+  ): NonNullable<BridgeGameState['lastCallUndo']>['snapshot'] {
+    return structuredClone({
+      auction: state.auction,
+      highestBid: state.highestBid,
+      doubling: state.doubling,
+      consecutivePasses: state.consecutivePasses,
+      contract: state.contract,
+      currentTurnId: state.currentTurnId,
+      leaderId: state.leaderId,
+      pendingHonorBonus: state.pendingHonorBonus,
+      dealHistory: state.dealHistory,
+      phase: state.phase,
+    });
   }
 
   private requestUndo(

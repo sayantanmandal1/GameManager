@@ -22,6 +22,7 @@ const EXPANSION_GAME_KEYS = [
   'president',
   'slapjack',
   'spoons',
+  'monopoly',
 ] as const satisfies readonly DistinctGameKey[];
 
 type ExpansionGameKey = (typeof EXPANSION_GAME_KEYS)[number];
@@ -74,6 +75,8 @@ export function ExpansionGamePreview({ gameKey }: Readonly<{ gameKey: ExpansionG
       return <CardMechanicPreview title="SLAPJACK" badge="SLAP!" cards={['J♥', '?', '?', '?']} accent="#f07b67" hidden />;
     case 'spoons':
       return <CardMechanicPreview title="SPOONS" badge="FOUR OF A KIND" cards={['7♠', '7♥', '7♣', '7♦']} accent="#d9e2e0" />;
+    case 'monopoly':
+      return <MonopolyPreview />;
   }
 }
 
@@ -160,6 +163,67 @@ function BridgePreview() {
       <span className="absolute bottom-[5.7rem] left-1/2 -translate-x-1/2 rounded-full bg-[#ead17e] px-3 py-1 text-[10px] font-black text-[#1d2a24]">3NT · NET +120</span>
     </div>
   );
+}
+
+function MonopolyPreview() {
+  const boardCells = Array.from({ length: 40 }, (_, index) => {
+    if (index === 0) return { index, label: 'GO', kind: 'go' as const };
+    if (index === 10) return { index, label: 'JAIL', kind: 'jail' as const };
+    if (index === 20) return { index, label: 'PARK', kind: 'free' as const };
+    if (index === 30) return { index, label: 'G2J', kind: 'goto' as const };
+    if ([7, 22, 36].includes(index)) return { index, label: 'CH?', kind: 'chance' as const };
+    if ([2, 17, 33].includes(index)) return { index, label: 'CC', kind: 'chest' as const };
+    if ([5, 15, 25, 35].includes(index)) return { index, label: 'RR', kind: 'rail' as const };
+    if ([12, 28].includes(index)) return { index, label: 'UT', kind: 'utility' as const };
+    if ([4, 38].includes(index)) return { index, label: 'TAX', kind: 'tax' as const };
+    return { index, label: `${index}`, kind: 'street' as const };
+  });
+
+  return (
+    <div aria-label="Monopoly board preview" className="w-full max-w-md border-4 border-[#3a2d20] bg-[#efe4d0] p-3 shadow-2xl">
+      <div className="relative grid aspect-square grid-cols-11 grid-rows-11 border-2 border-[#302317] bg-[#f7f0e2]">
+        {boardCells.map((cell) => {
+          const coordinate = previewCoordinate(cell.index);
+          return (
+            <span
+              key={cell.index}
+              className={`flex items-center justify-center border border-[#4b3a2a] text-[8px] font-black text-[#2b2015] ${previewCellTone(cell.kind)}`}
+              style={{ gridColumnStart: coordinate.col + 1, gridRowStart: coordinate.row + 1 }}
+            >
+              {cell.label}
+            </span>
+          );
+        })}
+        <div className="absolute inset-[19%] border border-[#5a4835] bg-[#e7dac3] text-center">
+          <p className="mt-5 text-xs font-black tracking-[0.14em] text-[#3d3022]">PROPERTY TRADE TABLE</p>
+          <p className="mt-3 text-[11px] font-semibold text-[#4d3d2d]">40-SPACE PERIMETER BOARD</p>
+          <div className="mx-auto mt-4 flex w-[72%] justify-between text-[10px] font-bold text-[#4d3d2d]">
+            <span>HOUSES 28</span>
+            <span>HOTELS 10</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function previewCoordinate(index: number): { row: number; col: number } {
+  if (index === 0) return { row: 10, col: 10 };
+  if (index >= 1 && index <= 9) return { row: 10, col: 10 - index };
+  if (index === 10) return { row: 10, col: 0 };
+  if (index >= 11 && index <= 19) return { row: 10 - (index - 10), col: 0 };
+  if (index === 20) return { row: 0, col: 0 };
+  if (index >= 21 && index <= 29) return { row: 0, col: index - 20 };
+  if (index === 30) return { row: 0, col: 10 };
+  return { row: index - 30, col: 10 };
+}
+
+function previewCellTone(kind: 'street' | 'go' | 'jail' | 'free' | 'goto' | 'chance' | 'chest' | 'rail' | 'utility' | 'tax'): string {
+  if (kind === 'street') return 'bg-[#f9f3e8]';
+  if (kind === 'go' || kind === 'jail' || kind === 'free' || kind === 'goto') return 'bg-[#dcc8a6]';
+  if (kind === 'chance' || kind === 'chest') return 'bg-[#d9e2d2]';
+  if (kind === 'tax') return 'bg-[#ead1c2]';
+  return 'bg-[#e8ddcd]';
 }
 
 function CardMechanicPreview({ title, badge, cards, accent, hidden = false }: Readonly<{

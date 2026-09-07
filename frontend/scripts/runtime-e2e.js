@@ -59,7 +59,7 @@ async function main() {
     await verifyVoiceRelay(alphaSocket, betaSocket);
 
     console.log(
-      'Runtime E2E passed: 44-game catalog, rematch, lobby, reconnect, eight existing games, thirty-six distinct games, voice.',
+      'Runtime E2E passed: 45-game catalog, rematch, lobby, reconnect, eight existing games, thirty-seven distinct games, voice.',
     );
   } finally {
     alphaSocket.disconnect();
@@ -320,7 +320,7 @@ async function verifyCatalog() {
   const response = await fetch(`${API_URL}/games/catalog`);
   assert.equal(response.status, 200);
   const catalog = await response.json();
-  assert.equal(catalog.total, 44);
+  assert.equal(catalog.total, 45);
   assert.deepEqual(
     catalog.games.map((game) => game.key),
     [
@@ -368,6 +368,7 @@ async function verifyCatalog() {
       'president',
       'slapjack',
       'spoons',
+      'monopoly',
     ],
   );
 }
@@ -1600,6 +1601,31 @@ async function verifyDistinctGames(
         assert.equal(view.players.find((player) => player.id === beta.user.id).handCount, 5);
       },
     },
+    {
+      gameKey: 'monopoly',
+      playerCount: 4,
+      expectedMaxPlayers: 4,
+      action: { type: 'monopoly_roll' },
+      assertInitial: (alphaView, _betaView, views) => {
+        assert.equal(alphaView.board.length, 40);
+        assert.deepEqual(alphaView.board.map((space) => space.index), Array.from({ length: 40 }, (_, index) => index));
+        assert(views.every((view) => view.players.length === 4));
+        assert(views.every((view) => view.players.every((player) => player.cash === 1500 && player.position === 0)));
+        assert.equal(new Set(alphaView.players.map((player) => player.originalToken)).size, 4);
+        assert.equal(new Set(alphaView.players.map((player) => player.originalColor)).size, 4);
+        assert.equal(Object.hasOwn(alphaView, 'chanceDeck'), false);
+        assert.equal(Object.hasOwn(alphaView, 'chestDeck'), false);
+        assert.equal(Object.hasOwn(alphaView, 'heldJailCards'), false);
+      },
+      assertTransition: (view) => {
+        assert.equal(Array.isArray(view.turn.lastRoll), true);
+        assert.equal(view.turn.lastRoll.length, 2);
+        assert(view.turn.lastRoll.every((die) => Number.isInteger(die) && die >= 1 && die <= 6));
+        const host = view.players.find((player) => player.id === alpha.user.id);
+        assert(Number.isInteger(host.position) && host.position >= 0 && host.position < 40);
+        assert(['buying', 'post_roll', 'debt', 'jail'].includes(view.phase));
+      },
+    },
   ];
 
   for (const scenario of scenarios) {
@@ -1817,6 +1843,32 @@ async function verifyContractBridge(clients) {
     },
     'Double is not legal',
   );
+
+  const firstCall = await emitDistinctActionAndWait(
+    host.socket,
+    clients[1].socket,
+    {
+      gameId,
+      lobbyCode: lobby.code,
+      action: { type: 'bridge_call', call: { type: 'bid', level: 1, strain: 'hearts' } },
+    },
+    (payload) => payload.gameId === gameId && payload.view?.auction?.length === 1,
+  );
+  assert.equal(firstCall.view.currentTurnId, clients[1].user.id);
+  const hostAfterCall = await requestGameState(host.socket, lobby.code, 'distinct:state');
+  assert.equal(hostAfterCall.view.canUndoCall, true);
+  const undoneCall = await emitDistinctActionAndWait(
+    host.socket,
+    clients[1].socket,
+    {
+      gameId,
+      lobbyCode: lobby.code,
+      action: { type: 'bridge_undo_call' },
+    },
+    (payload) => payload.gameId === gameId && payload.view?.auction?.length === 0,
+  );
+  assert.equal(undoneCall.view.phase, 'auction');
+  assert.equal(undoneCall.view.currentTurnId, host.user.id);
 
   const auction = [
     { client: clients[0], call: { type: 'bid', level: 1, strain: 'hearts' } },

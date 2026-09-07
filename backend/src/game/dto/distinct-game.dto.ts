@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayUnique,
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
@@ -120,7 +121,7 @@ export class DistinctActionPayloadDto {
     'draw_from_player', 'place_hex', 'place_stone', 'move_stone',
     'remove_stone', 'roll_ceelo', 'answer_trivia', 'next_question',
     'reveal_tile', 'acknowledge_mismatch',
-    'select_bridge_mode', 'bridge_call', 'play_bridge_card',
+    'select_bridge_mode', 'bridge_call', 'bridge_undo_call', 'play_bridge_card',
     'bridge_request_undo', 'bridge_respond_undo', 'bridge_cancel_undo',
     'bridge_surrender_vote', 'next_bridge_deal',
     'bourre_decide', 'play_bourre_card', 'next_bourre_hand',
@@ -133,6 +134,11 @@ export class DistinctActionPayloadDto {
     'play_president_cards', 'pass_president', 'return_president_card', 'next_president_round',
     'flip_slapjack', 'slap_jack', 'continue_slapjack',
     'pass_spoon_card', 'grab_spoon', 'next_spoons_round',
+    'monopoly_roll', 'monopoly_buy', 'monopoly_decline', 'monopoly_bid', 'monopoly_pass_auction',
+    'monopoly_end_turn', 'monopoly_pay_jail', 'monopoly_use_jail_card', 'monopoly_attempt_doubles',
+    'monopoly_build', 'monopoly_sell_building', 'monopoly_mortgage', 'monopoly_unmortgage',
+    'monopoly_propose_trade', 'monopoly_respond_trade', 'monopoly_cancel_trade',
+    'monopoly_pay_debt', 'monopoly_declare_bankruptcy',
   ])
   type?: string;
 
@@ -325,6 +331,60 @@ export class DistinctActionPayloadDto {
   @IsOptional()
   @IsBoolean()
   flip?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(10000)
+  amount?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(39)
+  spaceIndex?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(20000)
+  offeredCash?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(20000)
+  requestedCash?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(28)
+  @ArrayUnique()
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  @Max(39, { each: true })
+  offeredPropertyIndices?: number[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(28)
+  @ArrayUnique()
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  @Max(39, { each: true })
+  requestedPropertyIndices?: number[];
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(4)
+  offeredJailCards?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(4)
+  requestedJailCards?: number;
 }
 
 export class DistinctGameActionDto {

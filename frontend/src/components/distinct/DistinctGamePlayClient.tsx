@@ -35,7 +35,9 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
   const reset = useDistinctGameStore((state) => state.reset);
   const [confirmSurrender, setConfirmSurrender] = useState(false);
   const isBridge = gameKey === 'contract-bridge';
-  const hasIntegratedCardTable = isPartnershipGameKey(gameKey) || gameKey === 'hearts';
+  const isMonopoly = gameKey === 'monopoly';
+  const hasIntegratedCardTable = isPartnershipGameKey(gameKey) || gameKey === 'hearts' || isMonopoly;
+  const hasIntegratedWideSurface = isBridge || isMonopoly;
 
   useEffect(() => {
     if (!hasHydrated) return;
@@ -71,6 +73,9 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
     statusText = isDraw ? 'Draw game' : `${winner?.name ?? 'Player'} wins`;
     statusClass = 'text-lg font-bold';
   }
+  let gameLayoutClass = 'max-w-7xl lg:grid-cols-[minmax(0,1fr)_20rem]';
+  if (hasIntegratedWideSurface) gameLayoutClass = 'max-w-[100rem]';
+  if (isBridge) gameLayoutClass = 'max-w-[100rem] lg:h-full';
 
   const leaveTable = () => {
     const socket = getSocket();
@@ -87,10 +92,10 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
   };
 
   return (
-    <main className="min-h-screen px-4 py-4 text-white sm:px-6" style={{ backgroundColor: ui.surface }}>
-      <div className={`mx-auto grid max-w-7xl gap-5 ${isBridge ? '' : 'lg:grid-cols-[minmax(0,1fr)_20rem]'}`}>
-        <section className="flex min-w-0 flex-col items-center">
-          <div className="mb-4 flex w-full max-w-[52rem] items-center justify-between gap-3 border-b border-white/10 pb-4">
+    <main className={`min-h-screen px-4 py-4 text-white sm:px-6 ${isBridge ? 'lg:h-dvh lg:overflow-hidden lg:py-2' : ''}`} style={{ backgroundColor: ui.surface }}>
+      <div className={`mx-auto grid gap-5 ${gameLayoutClass}`}>
+        <section className={`flex min-w-0 flex-col items-center ${isBridge ? 'lg:h-full lg:min-h-0' : ''}`}>
+          <div className={`flex w-full max-w-[52rem] items-center justify-between gap-3 border-b border-white/10 ${isBridge ? 'mb-2 pb-2' : 'mb-4 pb-4'}`}>
             <button type="button" onClick={leaveTable} className="text-sm font-semibold text-game-muted hover:text-white">{finished ? 'Lobby' : 'Exit table'}</button>
             <div className="text-center"><p className="text-xs font-bold" style={{ color: ui.accent }}>{ui.name.toUpperCase()}</p><p className="text-sm text-game-muted">Room {code}</p></div>
             {!isBridge && <Button variant="ghost" size="sm" onClick={() => setConfirmSurrender(true)}>Resign</Button>}
@@ -104,15 +109,17 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
             ))}
           </div>}
 
-          <DistinctGameRenderer gameKey={gameKey} view={view} disabled={finished} onAction={act} />
+          <div className={isBridge ? 'flex min-h-0 w-full flex-1 justify-center' : 'contents'}>
+            <DistinctGameRenderer gameKey={gameKey} view={view} disabled={finished} onAction={act} />
+          </div>
 
-          <div className="mt-5 min-h-16 text-center">
+          <div className={isBridge ? 'mt-1 min-h-6 text-center' : 'mt-5 min-h-16 text-center'}>
             <p className={statusClass}>{statusText}</p>
             {error && <p role="alert" className="mt-1 text-sm text-red-300">{error}</p>}
             {finished && <RematchButton lobbyCode={code} className="mt-4" />}
           </div>
         </section>
-        {!isBridge && <aside className="space-y-4"><VoiceChat roomId={code} /><GameChat lobbyCode={code} /></aside>}
+        {!hasIntegratedWideSurface && <aside className="space-y-4"><VoiceChat roomId={code} /><GameChat lobbyCode={code} /></aside>}
       </div>
 
       {confirmSurrender && !isBridge && (

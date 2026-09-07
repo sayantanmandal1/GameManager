@@ -123,13 +123,14 @@ export function BridgeRenderer({ view, disabled, onAction }: Props) {
   const selectedCard = selectedHand.cards.find((card) => card.id === selectedCardId) ?? null;
 
   return (
-    <div className="w-full max-w-[72rem]">
+    <div className="w-full max-w-[96rem] lg:h-full">
       <CardTable
         players={tablePlayers}
         youId={view.youId}
         currentTurnId={activeSeatId}
         revealedHands={revealedHands}
         expandedHandRail
+        wideCenter={view.phase === 'auction'}
         topRail={(
           <NetScore
             hostName={host.name}
@@ -178,6 +179,16 @@ export function BridgeRenderer({ view, disabled, onAction }: Props) {
               <span>Dealer {playerName(view.dealerId)}</span>
               <span className="text-[#f1d174]">Table channels locked</span>
             </div>
+            {view.canUndoCall && (
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onAction({ type: 'bridge_undo_call' })}
+                className="min-h-8 rounded-md border border-[#e5c66d]/35 px-3 text-[10px] font-bold text-[#f6df9c] disabled:opacity-40"
+              >
+                Undo last call
+              </button>
+            )}
             <UndoControls view={view} disabled={disabled} onAction={onAction} playerName={playerName} />
             {view.canVoteSurrender && (
               <div className="flex items-center justify-center gap-2 text-[10px] text-white/55">
@@ -351,8 +362,8 @@ function Auction({ view, disabled, onAction, playerName }: Readonly<{
     ? view.legalBids.filter((bid) => bid.strain === selectedStrain).map((bid) => bid.level)
     : [];
   return (
-    <section className="w-full max-w-lg rounded-xl border border-white/10 bg-[#0d2c24]/90 p-2 shadow-xl" aria-label="Bridge auction">
-      <div className="flex max-h-12 min-h-7 flex-wrap justify-center gap-1 overflow-y-auto">
+    <section className="w-full max-w-4xl rounded-xl border border-white/10 bg-[#0d2c24]/95 p-3 shadow-xl" aria-label="Bridge auction">
+      <div className="flex max-h-14 min-h-7 flex-wrap justify-center gap-1 overflow-y-auto">
         {view.auction.map((entry, index) => (
           <span key={`${entry.playerId}-${index}`} className="rounded-full border border-white/12 bg-black/20 px-2 py-0.5 text-[10px]">
             <strong>{playerName(entry.playerId)}</strong> {formatCall(entry.call)}
@@ -366,14 +377,14 @@ function Auction({ view, disabled, onAction, playerName }: Readonly<{
           {!selectedStrain && (
             <div>
               <p className="mb-2 text-center text-[10px] font-bold uppercase text-white/50">Choose a strain</p>
-              <div className="mx-auto grid max-w-md grid-cols-1 gap-1 sm:grid-cols-5" aria-label="Contract strains">
+              <div className="mx-auto grid max-w-2xl grid-cols-5 gap-1" aria-label="Contract strains">
                 {BRIDGE_STRAINS.map((strain) => (
                   <button
                     key={strain}
                     type="button"
                     disabled={disabled || !legalStrains.has(strain)}
                     onClick={() => setSelectedStrain(strain)}
-                    className={`min-h-10 rounded border px-1 text-sm font-black disabled:cursor-not-allowed disabled:opacity-15 ${strain === 'hearts' || strain === 'diamonds' ? 'border-red-300/25 text-red-200' : 'border-white/15 text-white'}`}
+                    className={`min-h-11 rounded border px-1 text-base font-black disabled:cursor-not-allowed disabled:opacity-15 ${strain === 'hearts' || strain === 'diamonds' ? 'border-red-300/25 text-red-200' : 'border-white/15 text-white'}`}
                     aria-label={`Choose ${STRAIN_NAMES[strain]}`}
                   >
                     {STRAIN_LABELS[strain]}
@@ -394,14 +405,14 @@ function Auction({ view, disabled, onAction, playerName }: Readonly<{
                 </button>
                 <p className="text-xs font-bold">{STRAIN_LABELS[selectedStrain]} {STRAIN_NAMES[selectedStrain]} · choose level</p>
               </div>
-              <div className="mx-auto grid max-w-sm grid-cols-2 gap-1 sm:grid-cols-7" aria-label="Contract levels">
+              <div className="mx-auto grid max-w-2xl grid-cols-7 gap-1" aria-label="Contract levels">
                 {Array.from({ length: 7 }, (_, index) => index + 1).map((level) => (
                   <button
                     key={level}
                     type="button"
                     disabled={disabled || !isLegalBid(level, selectedStrain)}
                     onClick={() => onAction({ type: 'bridge_call', call: { type: 'bid', level, strain: selectedStrain } })}
-                    className={`min-h-9 rounded border px-1 text-xs font-black disabled:cursor-not-allowed disabled:opacity-15 ${selectedStrain === 'hearts' || selectedStrain === 'diamonds' ? 'border-red-300/25 text-red-200' : 'border-white/15 text-white'}`}
+                    className={`min-h-10 rounded border px-1 text-sm font-black disabled:cursor-not-allowed disabled:opacity-15 ${selectedStrain === 'hearts' || selectedStrain === 'diamonds' ? 'border-red-300/25 text-red-200' : 'border-white/15 text-white'}`}
                     aria-label={`${level}${STRAIN_LABELS[selectedStrain]}`}
                   >
                     {level}

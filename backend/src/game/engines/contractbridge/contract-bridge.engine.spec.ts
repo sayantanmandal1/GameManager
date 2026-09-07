@@ -1,4 +1,5 @@
 import type {
+  BridgeAction,
   BridgeCall,
   BridgeContract,
   BridgeGameState,
@@ -159,6 +160,75 @@ describe('ContractBridgeEngine', () => {
     call(engine, state, 'c', { type: 'bid', level: 1, strain: 'diamonds' });
     expect(state.doubling).toBe('undoubled');
     expect(engine.getPlayerView(state, 'd').canDouble).toBe(true);
+  });
+
+  it('lets only the latest caller undo before the next call', () => {
+    const { engine, state } = game();
+    call(engine, state, 'a', { type: 'bid', level: 1, strain: 'clubs' });
+    expect(engine.getPlayerView(state, 'a').canUndoCall).toBe(true);
+    expect(engine.getPlayerView(state, 'b').canUndoCall).toBe(false);
+    expect(engine.applyAction(state, 'a', { type: 'bridge_undo_call' })).toEqual({ valid: true });
+    expect(state).toMatchObject({ auction: [], highestBid: null, currentTurnId: 'a', phase: 'auction' });
+
+    call(engine, state, 'a', { type: 'bid', level: 1, strain: 'clubs' });
+    call(engine, state, 'b', { type: 'pass' });
+    expect(engine.applyAction(state, 'a', { type: 'bridge_undo_call' })).toEqual({
+      valid: false,
+      reason: 'The latest call can no longer be undone',
+    });
+    expect(engine.applyAction(state, 'b', { type: 'bridge_undo_call' })).toEqual({ valid: true });
+    expect(state.auction).toEqual([{ playerId: 'a', call: { type: 'bid', level: 1, strain: 'clubs' } }]);
+    expect(state).toMatchObject({ currentTurnId: 'b', consecutivePasses: 0, phase: 'auction' });
+  });
+
+  it('reopens an auction when its final pass is undone', () => {
+    const { engine, state } = game();
+    call(engine, state, 'a', { type: 'bid', level: 1, strain: 'spades' });
+    call(engine, state, 'b', { type: 'pass' });
+    call(engine, state, 'c', { type: 'pass' });
+    call(engine, state, 'd', { type: 'pass' });
+    expect(state).toMatchObject({ phase: 'opening_lead', currentTurnId: 'b' });
+    expect(engine.getPlayerView(state, 'd').canUndoCall).toBe(true);
+
+    expect(engine.applyAction(state, 'd', { type: 'bridge_undo_call' })).toEqual({ valid: true });
+    expect(state).toMatchObject({
+      phase: 'auction',
+      currentTurnId: 'd',
+      contract: null,
+      consecutivePasses: 2,
+    });
+    expect(state.auction).toHaveLength(3);
+  });
+
+  it('removes a passed-out summary when the fourth pass is undone', () => {
+    const { engine, state } = game();
+    players.forEach((playerId) => call(engine, state, playerId, { type: 'pass' }));
+    expect(state).toMatchObject({ phase: 'deal_complete', currentTurnId: null });
+    expect(state.dealHistory).toHaveLength(1);
+
+    expect(engine.applyAction(state, 'd', { type: 'bridge_undo_call' })).toEqual({ valid: true });
+    expect(state).toMatchObject({ phase: 'auction', currentTurnId: 'd', consecutivePasses: 3 });
+    expect(state.auction).toHaveLength(3);
+    expect(state.dealHistory).toEqual([]);
+  });
+
+  it('clears call undo when the opening lead is played and rejects forged shapes', () => {
+    const { engine, state } = game();
+    call(engine, state, 'a', { type: 'bid', level: 1, strain: 'spades' });
+    call(engine, state, 'b', { type: 'pass' });
+    call(engine, state, 'c', { type: 'pass' });
+    call(engine, state, 'd', { type: 'pass' });
+    expect(engine.applyAction(state, 'd', {
+      type: 'bridge_undo_call',
+      leaked: true,
+    } as unknown as BridgeAction)).toEqual({ valid: false, reason: 'Invalid call undo' });
+    const leadCardId = engine.getPlayerView(state, 'b').legalCardIds[0];
+    expect(engine.applyAction(state, 'b', { type: 'play_bridge_card', cardId: leadCardId })).toEqual({ valid: true });
+    expect(engine.getPlayerView(state, 'd').canUndoCall).toBe(false);
+    expect(engine.applyAction(state, 'd', { type: 'bridge_undo_call' })).toEqual({
+      valid: false,
+      reason: 'The latest call can no longer be undone',
+    });
   });
 
   it('passes out after four opening passes and rotates dealer and vulnerability', () => {
@@ -636,6 +706,25 @@ describe('ContractBridgeEngine', () => {
       score: [-350, 350],
     });
     expect(state.players.every((player) => state.hands[player.id].length === 0)).toBe(true);
+  });
+
+  it('closes the call-undo window when a surrender vote begins after the auction', () => {
+    const { engine, state } = game();
+    call(engine, state, 'a', { type: 'bid', level: 1, strain: 'spades' });
+    call(engine, state, 'b', { type: 'pass' });
+    call(engine, state, 'c', { type: 'pass' });
+    call(engine, state, 'd', { type: 'pass' });
+    expect(engine.getPlayerView(state, 'd').canUndoCall).toBe(true);
+
+    expect(engine.applyAction(state, 'a', {
+      type: 'bridge_surrender_vote',
+      confirmed: true,
+    })).toEqual({ valid: true });
+    expect(engine.getPlayerView(state, 'd').canUndoCall).toBe(false);
+    expect(engine.applyAction(state, 'd', { type: 'bridge_undo_call' })).toEqual({
+      valid: false,
+      reason: 'The latest call can no longer be undone',
+    });
   });
 
   it('rejects one-click generic surrender and voting before a contract exists', () => {

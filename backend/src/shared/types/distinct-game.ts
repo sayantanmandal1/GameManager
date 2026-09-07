@@ -35,6 +35,7 @@ export const DISTINCT_GAME_KEYS = [
   'president',
   'slapjack',
   'spoons',
+  'monopoly',
 ] as const;
 
 export type DistinctGameKey = (typeof DISTINCT_GAME_KEYS)[number];
@@ -1159,6 +1160,7 @@ export type BridgeCall =
 export type BridgeAction =
   | { type: 'select_bridge_mode'; mode: BridgeMode }
   | { type: 'bridge_call'; call: BridgeCall }
+  | { type: 'bridge_undo_call' }
   | { type: 'play_bridge_card'; cardId: string }
   | { type: 'bridge_request_undo' }
   | { type: 'bridge_respond_undo'; approved: boolean }
@@ -1218,6 +1220,22 @@ export interface BridgeUndoRequest {
   approvals: string[];
   requestedAt: number;
 }
+export interface BridgeCallUndoSnapshot {
+  auction: BridgeAuctionEntry[];
+  highestBid: (BridgeBid & { bidderId: string; bidderTeam: BridgeTeam }) | null;
+  doubling: BridgeDoubling;
+  consecutivePasses: number;
+  contract: BridgeContract | null;
+  currentTurnId: string | null;
+  leaderId: string | null;
+  pendingHonorBonus: { team: BridgeTeam; points: number } | null;
+  dealHistory: BridgeDealSummary[];
+  phase: BridgeGameState['phase'];
+}
+export interface BridgeCallUndoState {
+  playerId: string;
+  snapshot: BridgeCallUndoSnapshot;
+}
 export interface BridgeRubberState {
   belowLine: [number, number];
   gamesWon: [number, number];
@@ -1261,6 +1279,7 @@ export interface BridgeGameState {
   playHistory: BridgePlayHistoryEntry[];
   nextPlayId: number;
   undoRequest: BridgeUndoRequest | null;
+  lastCallUndo: BridgeCallUndoState | null;
   phase: 'setup' | 'auction' | 'opening_lead' | 'playing' | 'deal_complete' | 'finished';
   winnerId: string | null;
   winnerTeam: BridgeTeam | null;
@@ -1308,6 +1327,7 @@ export interface BridgePlayerView {
   canPass: boolean;
   canDouble: boolean;
   canRedouble: boolean;
+  canUndoCall: boolean;
   legalCardIds: string[];
   actingHand: 'own' | 'dummy' | null;
   surrenderVotes: [string[], string[]];
@@ -1561,6 +1581,256 @@ export interface SpoonsPlayerView {
   canAct: boolean;
 }
 
+export type MonopolySpaceKind =
+  | 'go'
+  | 'street'
+  | 'railroad'
+  | 'utility'
+  | 'tax'
+  | 'chance'
+  | 'chest'
+  | 'jail'
+  | 'free_parking'
+  | 'go_to_jail';
+
+export interface MonopolyBaseSpace {
+  index: number;
+  name: string;
+  kind: MonopolySpaceKind;
+}
+
+export interface MonopolyGoSpace extends MonopolyBaseSpace {
+  kind: 'go';
+}
+
+export interface MonopolyChanceSpace extends MonopolyBaseSpace {
+  kind: 'chance';
+}
+
+export interface MonopolyChestSpace extends MonopolyBaseSpace {
+  kind: 'chest';
+}
+
+export interface MonopolyJailSpace extends MonopolyBaseSpace {
+  kind: 'jail';
+}
+
+export interface MonopolyFreeParkingSpace extends MonopolyBaseSpace {
+  kind: 'free_parking';
+}
+
+export interface MonopolyGoToJailSpace extends MonopolyBaseSpace {
+  kind: 'go_to_jail';
+}
+
+export interface MonopolyStreetSpace extends MonopolyBaseSpace {
+  kind: 'street';
+  group: string;
+  price: number;
+  rents: [number, number, number, number, number, number];
+  houseCost: number;
+  mortgage: number;
+}
+
+export interface MonopolyRailroadSpace extends MonopolyBaseSpace {
+  kind: 'railroad';
+  price: number;
+  mortgage: number;
+}
+
+export interface MonopolyUtilitySpace extends MonopolyBaseSpace {
+  kind: 'utility';
+  price: number;
+  mortgage: number;
+}
+
+export interface MonopolyTaxSpace extends MonopolyBaseSpace {
+  kind: 'tax';
+  amount: number;
+}
+
+export type MonopolyBoardSpace =
+  | MonopolyGoSpace
+  | MonopolyChanceSpace
+  | MonopolyChestSpace
+  | MonopolyJailSpace
+  | MonopolyFreeParkingSpace
+  | MonopolyGoToJailSpace
+  | MonopolyStreetSpace
+  | MonopolyRailroadSpace
+  | MonopolyUtilitySpace
+  | MonopolyTaxSpace;
+
+export interface MonopolyPlayer {
+  id: string;
+  name: string;
+  originalToken: string;
+  originalColor: string;
+  position: number;
+  cash: number;
+  inJail: boolean;
+  jailTurns: number;
+  jailCards: number;
+  bankrupt: boolean;
+  bankruptOrder: number | null;
+  properties: number[];
+}
+
+export interface MonopolyTurnState {
+  hasRolled: boolean;
+  doublesCount: number;
+  lastRoll: [number, number] | null;
+  mustEndTurn: boolean;
+  releasedFromJailByDoubles: boolean;
+}
+
+export interface MonopolyPurchaseState {
+  playerId: string;
+  spaceIndex: number;
+  price: number;
+}
+
+export interface MonopolyAuctionState {
+  spaceIndex: number;
+  eligiblePlayerIds: string[];
+  activeBidderIds: string[];
+  currentBidderId: string;
+  highestBid: number;
+  highestBidderId: string | null;
+  bids: Record<string, number>;
+}
+
+export interface MonopolyDebtState {
+  debtorId: string;
+  creditorId: string | null;
+  amount: number;
+  reason: 'rent' | 'tax' | 'card' | 'jail_fee' | 'unmortgage_interest' | 'trade_interest';
+}
+
+export interface MonopolyDebtContext {
+  originTurnId: string;
+  turnSnapshot: MonopolyTurnState;
+}
+
+export type MonopolyPhase = 'rolling' | 'buying' | 'auction' | 'post_roll' | 'jail' | 'debt' | 'finished';
+
+export interface MonopolyTradeOffer {
+  targetPlayerId: string;
+  offeredCash: number;
+  requestedCash: number;
+  offeredPropertyIndices: number[];
+  requestedPropertyIndices: number[];
+  offeredJailCards: number;
+  requestedJailCards: number;
+}
+
+export interface MonopolyTradeState extends MonopolyTradeOffer {
+  proposerId: string;
+}
+
+export interface MonopolyGameState {
+  gameKey: 'monopoly';
+  players: MonopolyPlayer[];
+  board: MonopolyBoardSpace[];
+  ownership: Record<number, string | null>;
+  buildings: Record<number, number>;
+  mortgaged: number[];
+  currentTurnId: string;
+  activePlayerIds: string[];
+  turn: MonopolyTurnState;
+  pendingPurchase: MonopolyPurchaseState | null;
+  pendingAuction: MonopolyAuctionState | null;
+  pendingDebt: MonopolyDebtState | null;
+  debtQueue: MonopolyDebtState[];
+  debtContext: MonopolyDebtContext | null;
+  pendingTrade: MonopolyTradeState | null;
+  pendingBankruptcyAuctions: number[];
+  // Server-only authoritative card identity by source deck.
+  heldJailCards: Record<string, Array<'chance' | 'chest'>>;
+  chanceDeck: string[];
+  chanceDiscard: string[];
+  chestDeck: string[];
+  chestDiscard: string[];
+  housesRemaining: number;
+  hotelsRemaining: number;
+  phase: MonopolyPhase;
+  winnerId: string | null;
+  isDraw: false;
+  finishReason: 'last_player' | 'surrender' | null;
+  lastCard: { deck: 'chance' | 'chest'; cardId: string; playerId: string; text: string } | null;
+  lastEvent: string;
+}
+
+export type MonopolyAction =
+  | { type: 'monopoly_roll' }
+  | { type: 'monopoly_buy' }
+  | { type: 'monopoly_decline' }
+  | { type: 'monopoly_bid'; amount: number }
+  | { type: 'monopoly_pass_auction' }
+  | { type: 'monopoly_end_turn' }
+  | { type: 'monopoly_pay_jail' }
+  | { type: 'monopoly_use_jail_card' }
+  | { type: 'monopoly_attempt_doubles' }
+  | { type: 'monopoly_build'; spaceIndex: number }
+  | { type: 'monopoly_sell_building'; spaceIndex: number }
+  | { type: 'monopoly_mortgage'; spaceIndex: number }
+  | { type: 'monopoly_unmortgage'; spaceIndex: number }
+  | ({ type: 'monopoly_propose_trade' } & MonopolyTradeOffer)
+  | { type: 'monopoly_respond_trade'; approved: boolean }
+  | { type: 'monopoly_cancel_trade' }
+  | { type: 'monopoly_pay_debt' }
+  | { type: 'monopoly_declare_bankruptcy' };
+
+export interface MonopolyBoardSpaceView {
+  index: number;
+  name: string;
+  kind: MonopolySpaceKind;
+  group?: string;
+  price?: number;
+  rents?: [number, number, number, number, number, number];
+  houseCost?: number;
+  mortgage?: number;
+  amount?: number;
+  ownerId: string | null;
+  mortgaged: boolean;
+  buildingCount: number;
+}
+
+export interface MonopolyPlayerView {
+  gameKey: 'monopoly';
+  players: MonopolyPlayer[];
+  board: MonopolyBoardSpaceView[];
+  youId: string;
+  currentTurnId: string;
+  activePlayerIds: string[];
+  turn: MonopolyTurnState;
+  pendingPurchase: MonopolyPurchaseState | null;
+  pendingAuction: MonopolyAuctionState | null;
+  pendingDebt: MonopolyDebtState | null;
+  pendingTrade: MonopolyTradeState | null;
+  housesRemaining: number;
+  hotelsRemaining: number;
+  chanceRemaining: number;
+  chestRemaining: number;
+  chanceDiscardCount: number;
+  chestDiscardCount: number;
+  phase: MonopolyGameState['phase'];
+  winnerId: string | null;
+  isDraw: false;
+  canAct: boolean;
+  legalActions: string[];
+  lastCard: MonopolyGameState['lastCard'];
+  lastEvent: string;
+}
+
+export interface MonopolyResult {
+  gameKey: 'monopoly';
+  winnerId: string;
+  isDraw: false;
+  reason: 'last_player' | 'surrender';
+  bankruptOrder: string[];
+}
+
 export type DurakAction =
   | { type: 'durak_attack'; cardId: string }
   | { type: 'durak_defend'; pairIndex: number; cardId: string }
@@ -1670,6 +1940,7 @@ export interface DistinctGameContractMap {
   president: { action: PresidentAction; view: PresidentPlayerView; result: PresidentResult };
   slapjack: { action: SlapjackAction; view: SlapjackPlayerView; result: SlapjackResult };
   spoons: { action: SpoonsAction; view: SpoonsPlayerView; result: SpoonsResult };
+  monopoly: { action: MonopolyAction; view: MonopolyPlayerView; result: MonopolyResult };
   durak: { action: DurakAction; view: DurakPlayerView; result: DurakResult };
   'six-card-golf': { action: GolfAction; view: GolfPlayerView; result: GolfResult };
   'color-match': { action: ColorMatchAction; view: ColorMatchPlayerView; result: ColorMatchResult };

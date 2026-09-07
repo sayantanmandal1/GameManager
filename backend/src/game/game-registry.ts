@@ -43,6 +43,7 @@ import { OhHellEngine } from './engines/ohhell/oh-hell.engine';
 import { PresidentEngine } from './engines/president/president.engine';
 import { SlapjackEngine } from './engines/slapjack/slapjack.engine';
 import { SpoonsEngine } from './engines/spoons/spoons.engine';
+import { MonopolyEngine } from './engines/monopoly/monopoly.engine';
 import {
   asRuntimeDistinctGameAdapter,
   RuntimeDistinctGameAdapter,
@@ -109,6 +110,7 @@ export class GameRegistry {
       asRuntimeDistinctGameAdapter(new PresidentEngine()),
       asRuntimeDistinctGameAdapter(new SlapjackEngine()),
       asRuntimeDistinctGameAdapter(new SpoonsEngine()),
+      asRuntimeDistinctGameAdapter(new MonopolyEngine()),
     ].forEach((adapter) => {
       if (this.distinctGames.has(adapter.key)) {
         throw new Error(`Duplicate distinct game key: ${adapter.key}`);

@@ -35,6 +35,7 @@ export const DISTINCT_GAME_KEYS = [
   'president',
   'slapjack',
   'spoons',
+  'monopoly',
 ] as const;
 
 export type DistinctGameKey = (typeof DISTINCT_GAME_KEYS)[number];
@@ -519,6 +520,7 @@ export type BridgeCall =
 export type BridgeAction =
   | { type: 'select_bridge_mode'; mode: BridgeMode }
   | { type: 'bridge_call'; call: BridgeCall }
+  | { type: 'bridge_undo_call' }
   | { type: 'play_bridge_card'; cardId: string }
   | { type: 'bridge_request_undo' }
   | { type: 'bridge_respond_undo'; approved: boolean }
@@ -562,7 +564,7 @@ export interface BridgePlayerView {
   partnerHand: StandardCard[];
   sessionScores: [number, number]; rubber: BridgeRubberState; dealHistory: BridgeDealSummary[];
   canAct: boolean; legalModes: BridgeMode[]; legalBids: BridgeBid[]; canPass: boolean;
-  canDouble: boolean; canRedouble: boolean; legalCardIds: string[];
+  canDouble: boolean; canRedouble: boolean; canUndoCall: boolean; legalCardIds: string[];
   actingHand: 'own' | 'dummy' | null; surrenderVotes: [string[], string[]];
   canVoteSurrender: boolean;
   undoRequest: { requesterId: string; approvals: string[] } | null;
@@ -729,6 +731,150 @@ export interface SpoonsPlayerView {
   canAct: boolean; canPass: boolean; canGrab: boolean; canStartNext: boolean;
 }
 
+export type MonopolySpaceKind =
+  | 'go'
+  | 'street'
+  | 'railroad'
+  | 'utility'
+  | 'tax'
+  | 'chance'
+  | 'chest'
+  | 'jail'
+  | 'free_parking'
+  | 'go_to_jail';
+
+export interface MonopolyPlayer {
+  id: string;
+  name: string;
+  originalToken: string;
+  originalColor: string;
+  position: number;
+  cash: number;
+  inJail: boolean;
+  jailTurns: number;
+  jailCards: number;
+  bankrupt: boolean;
+  bankruptOrder: number | null;
+  properties: number[];
+}
+
+export interface MonopolyTurnState {
+  hasRolled: boolean;
+  doublesCount: number;
+  lastRoll: [number, number] | null;
+  mustEndTurn: boolean;
+  releasedFromJailByDoubles: boolean;
+}
+
+export interface MonopolyPurchaseState {
+  playerId: string;
+  spaceIndex: number;
+  price: number;
+}
+
+export interface MonopolyAuctionState {
+  spaceIndex: number;
+  eligiblePlayerIds: string[];
+  activeBidderIds: string[];
+  currentBidderId: string;
+  highestBid: number;
+  highestBidderId: string | null;
+  bids: Record<string, number>;
+}
+
+export interface MonopolyDebtState {
+  debtorId: string;
+  creditorId: string | null;
+  amount: number;
+  reason: 'rent' | 'tax' | 'card' | 'jail_fee' | 'unmortgage_interest' | 'trade_interest';
+}
+
+export interface MonopolyTradeOffer {
+  targetPlayerId: string;
+  offeredCash: number;
+  requestedCash: number;
+  offeredPropertyIndices: number[];
+  requestedPropertyIndices: number[];
+  offeredJailCards: number;
+  requestedJailCards: number;
+}
+
+export interface MonopolyTradeState extends MonopolyTradeOffer {
+  proposerId: string;
+}
+
+export type MonopolyPhase = 'rolling' | 'buying' | 'auction' | 'post_roll' | 'jail' | 'debt' | 'finished';
+
+export type MonopolyAction =
+  | { type: 'monopoly_roll' }
+  | { type: 'monopoly_buy' }
+  | { type: 'monopoly_decline' }
+  | { type: 'monopoly_bid'; amount: number }
+  | { type: 'monopoly_pass_auction' }
+  | { type: 'monopoly_end_turn' }
+  | { type: 'monopoly_pay_jail' }
+  | { type: 'monopoly_use_jail_card' }
+  | { type: 'monopoly_attempt_doubles' }
+  | { type: 'monopoly_build'; spaceIndex: number }
+  | { type: 'monopoly_sell_building'; spaceIndex: number }
+  | { type: 'monopoly_mortgage'; spaceIndex: number }
+  | { type: 'monopoly_unmortgage'; spaceIndex: number }
+  | ({ type: 'monopoly_propose_trade' } & MonopolyTradeOffer)
+  | { type: 'monopoly_respond_trade'; approved: boolean }
+  | { type: 'monopoly_cancel_trade' }
+  | { type: 'monopoly_pay_debt' }
+  | { type: 'monopoly_declare_bankruptcy' };
+
+export interface MonopolyBoardSpaceView {
+  index: number;
+  name: string;
+  kind: MonopolySpaceKind;
+  group?: string;
+  price?: number;
+  rents?: [number, number, number, number, number, number];
+  houseCost?: number;
+  mortgage?: number;
+  amount?: number;
+  ownerId: string | null;
+  mortgaged: boolean;
+  buildingCount: number;
+}
+
+export interface MonopolyPlayerView {
+  gameKey: 'monopoly';
+  players: MonopolyPlayer[];
+  board: MonopolyBoardSpaceView[];
+  youId: string;
+  currentTurnId: string;
+  activePlayerIds: string[];
+  turn: MonopolyTurnState;
+  pendingPurchase: MonopolyPurchaseState | null;
+  pendingAuction: MonopolyAuctionState | null;
+  pendingDebt: MonopolyDebtState | null;
+  pendingTrade: MonopolyTradeState | null;
+  housesRemaining: number;
+  hotelsRemaining: number;
+  chanceRemaining: number;
+  chestRemaining: number;
+  chanceDiscardCount: number;
+  chestDiscardCount: number;
+  phase: MonopolyPhase;
+  winnerId: string | null;
+  isDraw: false;
+  canAct: boolean;
+  legalActions: string[];
+  lastCard: { deck: 'chance' | 'chest'; cardId: string; playerId: string; text: string } | null;
+  lastEvent: string;
+}
+
+export interface MonopolyResult {
+  gameKey: 'monopoly';
+  winnerId: string;
+  isDraw: false;
+  reason: 'last_player' | 'surrender';
+  bankruptOrder: string[];
+}
+
 export interface DistinctGameContractMap {
   reversi: { action: ReversiAction; view: ReversiPlayerView; result: ReversiResult };
   checkers: { action: CheckersAction; view: CheckersPlayerView; result: CheckersResult };
@@ -766,6 +912,7 @@ export interface DistinctGameContractMap {
   president: { action: PresidentAction; view: PresidentPlayerView; result: PresidentResult };
   slapjack: { action: SlapjackAction; view: SlapjackPlayerView; result: SlapjackResult };
   spoons: { action: SpoonsAction; view: SpoonsPlayerView; result: SpoonsResult };
+  monopoly: { action: MonopolyAction; view: MonopolyPlayerView; result: MonopolyResult };
 }
 export type DistinctGameAction = DistinctGameContractMap[DistinctGameKey]['action'];
 export type DistinctGamePlayerView = DistinctGameContractMap[DistinctGameKey]['view'];

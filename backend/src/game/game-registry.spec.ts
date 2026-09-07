@@ -29,14 +29,14 @@ describe('GameRegistry', () => {
     expect(() => registry.getEngine('unknown' as any)).toThrow('No engine for game type');
   });
 
-  it('registers exactly thirty-six production games with unique distinct adapters and rulesets', () => {
+  it('registers exactly thirty-seven production games with unique distinct adapters and rulesets', () => {
     const registrations = registry.getDistinctGames();
 
     expect(registrations.map((adapter) => adapter.key)).toEqual(DISTINCT_GAME_KEYS);
-    expect(registrations).toHaveLength(36);
-    expect(new Set(registrations.map((adapter) => adapter.key)).size).toBe(36);
-    expect(new Set(registrations).size).toBe(36);
-    expect(new Set(registrations.map((adapter) => adapter.rulesetId)).size).toBe(36);
+    expect(registrations).toHaveLength(37);
+    expect(new Set(registrations.map((adapter) => adapter.key)).size).toBe(37);
+    expect(new Set(registrations).size).toBe(37);
+    expect(new Set(registrations.map((adapter) => adapter.rulesetId)).size).toBe(37);
     for (const gameKey of DISTINCT_GAME_KEYS) {
       expect(registry.getDistinctGame(gameKey).key).toBe(gameKey);
     }

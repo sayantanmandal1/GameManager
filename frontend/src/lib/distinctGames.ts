@@ -335,4 +335,13 @@ export const DISTINCT_GAME_UI: Record<DistinctGameKey, DistinctGameUiDefinition>
     surface: '#27302f',
     prompt: 'Pass a card or grab a spoon',
   },
+  monopoly: {
+    name: 'Monopoly',
+    eyebrow: 'PROPERTY TRADING · 40 SPACES',
+    headline: 'Roll, negotiate, and manage the block.',
+    description: 'Circle a 40-space board, build street sets, auction disputed lots, and settle debts through trades or liquidation.',
+    accent: '#d4b47a',
+    surface: '#2a241c',
+    prompt: 'Use legal controls for roll, buy, trade, and settlement',
+  },
 };

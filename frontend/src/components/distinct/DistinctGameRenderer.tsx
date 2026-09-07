@@ -22,6 +22,7 @@ import type {
   LiarsDicePlayerView,
   MancalaPlayerView,
   MemoryMatchPlayerView,
+  MonopolyPlayerView,
   MorrisPlayerView,
   NinetyNinePlayerView,
   OldMaidPlayerView,
@@ -59,6 +60,7 @@ import { HexRenderer } from './renderers/HexRenderer';
 import { LiarsDiceRenderer } from './renderers/LiarsDiceRenderer';
 import { MancalaRenderer } from './renderers/MancalaRenderer';
 import { MemoryMatchRenderer } from './renderers/MemoryMatchRenderer';
+import { MonopolyRenderer } from './renderers/MonopolyRenderer';
 import { MorrisRenderer } from './renderers/MorrisRenderer';
 import { NinetyNineRenderer } from './renderers/NinetyNineRenderer';
 import { OldMaidRenderer } from './renderers/OldMaidRenderer';
@@ -138,6 +140,8 @@ export function DistinctGameRenderer({ gameKey, view, disabled, onAction }: Read
       return <TriviaRenderer view={view as TriviaPlayerView} disabled={disabled} onAction={onAction} />;
     case 'memory-match':
       return <MemoryMatchRenderer view={view as MemoryMatchPlayerView} disabled={disabled} onAction={onAction} />;
+    case 'monopoly':
+      return <MonopolyRenderer view={view as MonopolyPlayerView} disabled={disabled} onAction={onAction} />;
   }
 }
 

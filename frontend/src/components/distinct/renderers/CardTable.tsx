@@ -26,6 +26,7 @@ interface Props {
   readonly topRail?: ReactNode;
   readonly bottomRail?: ReactNode;
   readonly expandedHandRail?: boolean;
+  readonly wideCenter?: boolean;
 }
 
 export function CardTable({
@@ -39,6 +40,7 @@ export function CardTable({
   topRail,
   bottomRail,
   expandedHandRail = false,
+  wideCenter = false,
 }: Props) {
   const ordered = rotatePlayers(players, youId);
   const you = ordered[0];
@@ -47,12 +49,15 @@ export function CardTable({
   const right = ordered[3];
   const topHandRevealed = !!top && !!revealedHands[top.id];
   const tableHeight = expandedHandRail
-    ? 'min-h-[55rem]'
+    ? 'min-h-[55rem] lg:h-full lg:min-h-0'
     : 'min-h-[43rem] sm:min-h-[47rem]';
   let centerTop = 'top-[9rem] max-sm:top-[8.5rem]';
   if (expandedHandRail) {
     centerTop = topHandRevealed ? 'top-[20rem]' : 'top-[13.5rem]';
   }
+  const centerPosition = wideCenter
+    ? 'inset-x-3 top-[12rem] sm:inset-x-16 lg:inset-x-28'
+    : `inset-x-[5.25rem] max-sm:inset-x-[7.15rem] ${centerTop}`;
 
   return (
     <section
@@ -93,7 +98,7 @@ export function CardTable({
         />
       )}
 
-      <div className={`absolute inset-x-[5.25rem] z-10 flex items-center justify-center max-sm:inset-x-[7.15rem] ${centerTop} ${expandedHandRail ? 'bottom-[17rem] max-sm:bottom-[18rem]' : 'bottom-[12.5rem] max-sm:bottom-[12rem]'}`}>
+      <div className={`absolute z-10 flex items-center justify-center ${centerPosition} ${expandedHandRail ? 'bottom-[17rem] max-sm:bottom-[18rem]' : 'bottom-[12.5rem] max-sm:bottom-[12rem]'}`}>
         {center}
       </div>
 

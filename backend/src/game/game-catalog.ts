@@ -381,6 +381,13 @@ const DISTINCT_PRESENTATION = {
     accent: '#d9e2e0',
     surface: '#27302f',
   },
+  monopoly: {
+    name: 'Monopoly',
+    mark: 'M',
+    description: 'Roll, trade, build, and auction across a full forty-space street economy.',
+    accent: '#f0b55d',
+    surface: '#2f2419',
+  },
   durak: {
     name: 'Durak',
     mark: 'D',

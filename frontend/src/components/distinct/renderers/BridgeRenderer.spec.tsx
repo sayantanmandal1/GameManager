@@ -48,6 +48,7 @@ function view(overrides: Partial<BridgePlayerView> = {}): BridgePlayerView {
     canPass: false,
     canDouble: false,
     canRedouble: false,
+    canUndoCall: false,
     legalCardIds: [],
     actingHand: null,
     surrenderVotes: [[], []],
@@ -102,6 +103,25 @@ describe('BridgeRenderer', () => {
       call: { type: 'bid', level: 1, strain: 'clubs' },
     });
     expect(onAction).toHaveBeenNthCalledWith(2, { type: 'bridge_call', call: { type: 'pass' } });
+  });
+
+  it('lets the latest caller undo before another call is made', () => {
+    const onAction = jest.fn();
+    render(<BridgeRenderer view={view({
+      mode: 'duplicate',
+      phase: 'auction',
+      dealNumber: 1,
+      legalModes: [],
+      canAct: false,
+      currentActorId: 'b',
+      currentTurnId: 'b',
+      canUndoCall: true,
+      auction: [{ playerId: 'a', call: { type: 'bid', level: 1, strain: 'clubs' } }],
+      yourHand: [aceHearts],
+    })} disabled={false} onAction={onAction} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo last call' }));
+    expect(onAction).toHaveBeenCalledWith({ type: 'bridge_undo_call' });
   });
 
   it('arranges the private hand black, red, black, red by suit', () => {
