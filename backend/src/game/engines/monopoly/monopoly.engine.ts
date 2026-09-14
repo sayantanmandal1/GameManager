@@ -6,6 +6,7 @@ import type {
   MonopolyBoardSpaceView,
   MonopolyDebtState,
   MonopolyGameState,
+  MonopolyMovementKind,
   MonopolyPlayer,
   MonopolyPlayerView,
   MonopolyResult,
@@ -190,6 +191,10 @@ export class MonopolyEngine implements DistinctGameAdapter<MonopolyGameState, Mo
       currentTurnId: players[0].id,
       activePlayerIds: players.map((player) => player.id),
       turn: freshTurnState(),
+      rollSequence: 0,
+      lastDiceRoll: null,
+      movementSequence: 0,
+      lastMovement: null,
       pendingPurchase: null,
       pendingAuction: null,
       pendingDebt: null,
@@ -340,6 +345,17 @@ export class MonopolyEngine implements DistinctGameAdapter<MonopolyGameState, Mo
       currentTurnId: state.currentTurnId,
       activePlayerIds: [...state.activePlayerIds],
       turn: { ...state.turn, lastRoll: state.turn.lastRoll ? [...state.turn.lastRoll] as [number, number] : null },
+      rollSequence: state.rollSequence,
+      lastDiceRoll: state.lastDiceRoll ? [...state.lastDiceRoll] as [number, number] : null,
+      lastMovement: state.lastMovement
+        ? {
+            ...state.lastMovement,
+            segments: state.lastMovement.segments.map((segment) => ({
+              ...segment,
+              path: [...segment.path],
+            })),
+          }
+        : null,
       pendingPurchase: state.pendingPurchase ? { ...state.pendingPurchase } : null,
       pendingAuction: state.pendingAuction ? this.cloneAuction(state.pendingAuction) : null,
       pendingDebt: state.pendingDebt ? { ...state.pendingDebt } : null,
@@ -414,7 +430,10 @@ export class MonopolyEngine implements DistinctGameAdapter<MonopolyGameState, Mo
     if (player.inJail) return { valid: false, reason: 'Use jail actions while in jail' };
     if (state.pendingPurchase || state.pendingDebt || state.pendingTrade) return { valid: false, reason: 'Resolve pending state first' };
     if (state.turn.mustEndTurn) return { valid: false, reason: 'End turn required' };
+    state.lastMovement = null;
     const [left, right] = this.rollDicePair();
+    state.rollSequence += 1;
+    state.lastDiceRoll = [left, right];
     const total = left + right;
     const isDoubles = left === right;
     state.turn.hasRolled = true;
@@ -423,7 +442,7 @@ export class MonopolyEngine implements DistinctGameAdapter<MonopolyGameState, Mo
     state.turn.doublesCount = isDoubles ? state.turn.doublesCount + 1 : 0;
 
     if (state.turn.doublesCount >= 3) {
-      this.sendToJail(state, player);
+      this.sendToJail(state, player, false);
       state.turn.mustEndTurn = true;
       state.lastEvent = `${player.name} rolled three doubles and was sent to jail`;
       return { valid: true };
@@ -470,7 +489,10 @@ export class MonopolyEngine implements DistinctGameAdapter<MonopolyGameState, Mo
     const player = this.getPlayer(state, playerId)!;
     if (!player.inJail) return { valid: false, reason: 'Player is not in jail' };
     if (state.turn.hasRolled) return { valid: false, reason: 'Roll already used this turn' };
+    state.lastMovement = null;
     const [left, right] = this.rollDicePair();
+    state.rollSequence += 1;
+    state.lastDiceRoll = [left, right];
     const total = left + right;
     const isDoubles = left === right;
     state.turn.hasRolled = true;
@@ -862,7 +884,7 @@ export class MonopolyEngine implements DistinctGameAdapter<MonopolyGameState, Mo
       return;
     }
     if (space.kind === 'go_to_jail') {
-      this.sendToJail(state, player);
+      this.sendToJail(state, player, true);
       state.lastEvent = `${player.name} was sent to jail`;
       return;
     }
@@ -982,7 +1004,7 @@ export class MonopolyEngine implements DistinctGameAdapter<MonopolyGameState, Mo
   }
 
   private applyCardGoToJail(state: MonopolyGameState, player: MonopolyPlayer): void {
-    this.sendToJail(state, player);
+    this.sendToJail(state, player, true);
     state.lastEvent = `${player.name} drew a go-to-jail card`;
   }
 
@@ -992,7 +1014,7 @@ export class MonopolyEngine implements DistinctGameAdapter<MonopolyGameState, Mo
     moveBy: number,
     triggeringRollTotal: number,
   ): void {
-    this.moveBy(state, player, moveBy);
+    this.moveBy(state, player, moveBy, 'card_backward', true);
     this.resolveLanding(state, player, triggeringRollTotal, null);
   }
 
@@ -1018,6 +1040,8 @@ export class MonopolyEngine implements DistinctGameAdapter<MonopolyGameState, Mo
     const ownerId = state.ownership[destination];
     if (ownerId && ownerId !== player.id && !state.mortgaged.includes(destination)) {
       const [left, right] = this.rollDicePair();
+      state.rollSequence += 1;
+      state.lastDiceRoll = [left, right];
       this.resolveLanding(state, player, left + right, { utilityMultiplier: 10 });
       return;
     }
@@ -1162,24 +1186,67 @@ export class MonopolyEngine implements DistinctGameAdapter<MonopolyGameState, Mo
     state.chestDiscard.push('chest_jail_free');
   }
 
-  private moveBy(state: MonopolyGameState, player: MonopolyPlayer, steps: number): void {
+  private moveBy(
+    state: MonopolyGameState,
+    player: MonopolyPlayer,
+    steps: number,
+    kind: MonopolyMovementKind = 'roll',
+    append = false,
+  ): void {
     const size = state.board.length;
     const from = player.position;
     const to = ((from + steps) % size + size) % size;
     if (steps > 0 && from + steps >= size) player.cash += GO_COLLECT;
     player.position = to;
+    const direction = steps < 0 ? -1 : 1;
+    const path = Array.from(
+      { length: Math.abs(steps) },
+      (_, index) => ((from + direction * (index + 1)) % size + size) % size,
+    );
+    this.recordMovement(state, player.id, kind, from, path, append);
   }
 
   private moveTo(state: MonopolyGameState, player: MonopolyPlayer, destination: number, awardGoOnPass: boolean): void {
-    if (awardGoOnPass && destination < player.position) player.cash += GO_COLLECT;
+    const from = player.position;
+    if (awardGoOnPass && destination < from) player.cash += GO_COLLECT;
     player.position = destination;
+    const path: number[] = [];
+    for (let position = (from + 1) % state.board.length; position !== destination; position = (position + 1) % state.board.length) {
+      path.push(position);
+    }
+    if (destination !== from) path.push(destination);
+    this.recordMovement(state, player.id, 'card_forward', from, path, true);
   }
 
-  private sendToJail(state: MonopolyGameState, player: MonopolyPlayer): void {
+  private sendToJail(state: MonopolyGameState, player: MonopolyPlayer, append: boolean): void {
+    const from = player.position;
     player.position = 10;
     player.inJail = true;
     player.jailTurns = 0;
     state.turn.doublesCount = 0;
+    this.recordMovement(state, player.id, 'jail', from, [10], append);
+  }
+
+  private recordMovement(
+    state: MonopolyGameState,
+    playerId: string,
+    kind: MonopolyMovementKind,
+    from: number,
+    path: number[],
+    append: boolean,
+  ): void {
+    if (path.length === 0) return;
+    const segment = { kind, from, path };
+    if (append && state.lastMovement?.playerId === playerId) {
+      state.lastMovement.segments.push(segment);
+      return;
+    }
+    state.movementSequence += 1;
+    state.lastMovement = {
+      sequence: state.movementSequence,
+      playerId,
+      segments: [segment],
+    };
   }
 
   private canTakeExtraRoll(state: MonopolyGameState, player: MonopolyPlayer): boolean {

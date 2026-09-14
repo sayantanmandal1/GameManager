@@ -2,8 +2,9 @@
 
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import Image from 'next/image';
-import { useMemo } from 'react';
-import type { MonopolyBoardSpaceView, MonopolyPlayer } from '@/shared';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { MonopolyBoardSpaceView, MonopolyMovement, MonopolyPlayer } from '@/shared';
+import { MonopolyDiceScene } from './MonopolyDiceScene';
 
 interface MonopolyBoardProps {
   readonly board: MonopolyBoardSpaceView[];
@@ -14,21 +15,16 @@ interface MonopolyBoardProps {
   readonly interactive?: boolean;
   readonly mode?: 'live' | 'preview';
   readonly lastRoll?: readonly [number, number] | null;
+  readonly rollSequence?: number;
+  readonly diceRolling?: boolean;
+  readonly lastMovement?: MonopolyMovement | null;
+  readonly onMovementAnimationChange?: (moving: boolean) => void;
   readonly lastCardText?: string | null;
   readonly showAttribution?: boolean;
 }
 
 const BOARD_ART_URL = '/monopoly-classic-us-board.jpg';
 const PREVIEW_ROLL = [5, 3] as const;
-const DIE_PIPS: Record<number, readonly number[]> = {
-  1: [4],
-  2: [0, 8],
-  3: [0, 4, 8],
-  4: [0, 2, 6, 8],
-  5: [0, 2, 4, 6, 8],
-  6: [0, 2, 3, 5, 6, 8],
-};
-
 export function MonopolyBoard({
   board,
   players = [],
@@ -38,27 +34,116 @@ export function MonopolyBoard({
   interactive = false,
   mode = 'live',
   lastRoll = null,
+  rollSequence = 0,
+  diceRolling = false,
+  lastMovement = null,
+  onMovementAnimationChange,
   lastCardText = null,
   showAttribution = true,
 }: MonopolyBoardProps) {
   const reduceMotion = useReducedMotion();
   const isPreview = mode === 'preview';
   const visualRoll = lastRoll ?? (isPreview ? PREVIEW_ROLL : null);
+  const [displayedPositions, setDisplayedPositions] = useState<Record<string, number>>(
+    () => Object.fromEntries(players.map((player) => [player.id, player.position])),
+  );
+  const [movementAnnouncement, setMovementAnnouncement] = useState('');
+  const processedMovementRef = useRef(lastMovement?.sequence ?? 0);
+  const animatingPlayerRef = useRef<string | null>(null);
+  const movementRef = useRef(lastMovement);
+  const playersRef = useRef(players);
+  const boardRef = useRef(board);
+  const movementCallbackRef = useRef(onMovementAnimationChange);
+
+  useEffect(() => {
+    movementRef.current = lastMovement;
+    playersRef.current = players;
+    boardRef.current = board;
+    movementCallbackRef.current = onMovementAnimationChange;
+  }, [board, lastMovement, onMovementAnimationChange, players]);
+
+  useEffect(() => {
+    setDisplayedPositions((current) => {
+      const next = { ...current };
+      for (const player of players) {
+        if (animatingPlayerRef.current !== player.id) next[player.id] = player.position;
+      }
+      return next;
+    });
+  }, [players]);
+
+  useEffect(() => {
+    const movement = movementRef.current;
+    if (
+      isPreview
+      || !movement
+      || movement.sequence <= processedMovementRef.current
+    ) {
+      return;
+    }
+    processedMovementRef.current = movement.sequence;
+    const mover = playersRef.current.find((player) => player.id === movement.playerId);
+    const route = movement.segments.flatMap((segment) => segment.path);
+    if (!mover || route.length === 0 || reduceMotion) {
+      setDisplayedPositions((current) => ({ ...current, [movement.playerId]: mover?.position ?? route.at(-1) ?? 0 }));
+      movementCallbackRef.current?.(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timers: Array<ReturnType<typeof globalThis.setTimeout>> = [];
+    const start = movement.segments[0].from;
+    const stepMs = Math.max(48, Math.min(135, Math.floor(1_350 / route.length)));
+    const startDelayMs = movement.segments[0].kind === 'roll' ? 900 : 180;
+    animatingPlayerRef.current = movement.playerId;
+    setDisplayedPositions((current) => ({ ...current, [movement.playerId]: start }));
+    movementCallbackRef.current?.(true);
+
+    route.forEach((position, index) => {
+      const timer = globalThis.setTimeout(() => {
+        if (cancelled) return;
+        setDisplayedPositions((current) => ({ ...current, [movement.playerId]: position }));
+        if (index === route.length - 1) {
+          animatingPlayerRef.current = null;
+          setMovementAnnouncement(`${mover.name} moved to ${boardRef.current[position]?.name ?? `space ${position}`}`);
+          movementCallbackRef.current?.(false);
+        }
+      }, startDelayMs + stepMs * (index + 1));
+      timers.push(timer);
+    });
+
+    return () => {
+      cancelled = true;
+      for (const timer of timers) globalThis.clearTimeout(timer);
+      const finalPosition = route.at(-1);
+      if (finalPosition !== undefined) {
+        setDisplayedPositions((current) => ({ ...current, [movement.playerId]: finalPosition }));
+      }
+      animatingPlayerRef.current = null;
+      movementCallbackRef.current?.(false);
+    };
+  }, [isPreview, lastMovement?.sequence, reduceMotion]);
+
   const tokensBySpace = useMemo(() => {
     const map = new Map<number, MonopolyPlayer[]>();
     for (const player of players) {
-      const list = map.get(player.position) ?? [];
+      const displayedPosition = displayedPositions[player.id] ?? player.position;
+      const list = map.get(displayedPosition) ?? [];
       list.push(player);
-      map.set(player.position, list);
+      map.set(displayedPosition, list);
     }
     return map;
-  }, [players]);
+  }, [displayedPositions, players]);
 
   return (
     <div
       data-monopoly-board-shell
       data-monopoly-board-mode={mode}
-      className={`monopoly-board-shell relative mx-auto text-[#15110e] ${isPreview ? 'w-full max-w-[42rem]' : 'w-[clamp(46rem,64vw,64rem)] min-w-[46rem]'}`}
+      className={`monopoly-board-shell relative mx-auto text-[#15110e] ${isPreview ? 'w-full max-w-[42rem]' : ''}`}
+      style={isPreview ? undefined : {
+        width: 'clamp(34rem, min(60vw, calc(100dvh - 20.5rem)), 58rem)',
+        minWidth: '34rem',
+      }}
     >
       <div
         className="relative bg-[#2c1b12] p-[clamp(5px,0.8vw,12px)]"
@@ -87,6 +172,7 @@ export function MonopolyBoard({
           <span className="sr-only">MONOPOLY</span>
           <span className="sr-only">GO</span>
           <span className="sr-only">JUST VISITING</span>
+          <span className="sr-only" role="status" aria-live="polite">{movementAnnouncement}</span>
           <span data-deck-zone="chest" aria-hidden="true" className="pointer-events-none absolute left-[16%] top-[15%] z-10 h-[24%] w-[24%]" />
           <span data-deck-zone="chance" aria-hidden="true" className="pointer-events-none absolute bottom-[14%] right-[15%] z-10 h-[24%] w-[24%]" />
 
@@ -151,15 +237,15 @@ export function MonopolyBoard({
           <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-1/2 z-10 h-px -translate-y-1/2 bg-black/10" />
           <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-1/2 z-10 w-px -translate-x-1/2 bg-black/10" />
 
-          {visualRoll && (
-            <DiceTray
+          <div data-last-roll className="pointer-events-none absolute bottom-[15%] left-1/2 z-50 -translate-x-1/2">
+            <MonopolyDiceScene
               roll={visualRoll}
-              rollKey={lastRoll ? `${lastRoll[0]}-${lastRoll[1]}` : 'preview'}
-              reduceMotion={!!reduceMotion}
+              rollSequence={rollSequence}
+              rolling={diceRolling}
               compact={isPreview}
-              decorative={!lastRoll}
+              reduceMotion={!!reduceMotion}
             />
-          )}
+          </div>
 
           <AnimatePresence initial={false}>
             {lastCardText && (
@@ -246,43 +332,6 @@ function PlayerToken({ player, reduceMotion, compact }: Readonly<{ player: Monop
         style={{ backgroundColor: player.originalColor }}
       />
     </motion.span>
-  );
-}
-
-function DiceTray({ roll, rollKey, reduceMotion, compact, decorative }: Readonly<{
-  roll: readonly [number, number];
-  rollKey: string;
-  reduceMotion: boolean;
-  compact: boolean;
-  decorative: boolean;
-}>) {
-  return (
-    <motion.div
-      key={rollKey}
-      data-last-roll
-      aria-label={decorative ? `Decorative dice showing ${roll[0]} and ${roll[1]}` : `Last roll ${roll[0]} and ${roll[1]}`}
-      initial={reduceMotion ? false : { scale: 0.72, rotate: -14, y: -12 }}
-      animate={reduceMotion ? undefined : { scale: [0.92, 1.12, 1], rotate: [-12, 9, -3], y: [0, -7, 0] }}
-      transition={{ duration: 0.52, ease: 'easeOut' }}
-      className="pointer-events-none absolute bottom-[18%] left-[45%] z-50 flex -rotate-3 gap-1.5"
-    >
-      <DieFace value={roll[0]} compact={compact} />
-      <DieFace value={roll[1]} compact={compact} />
-    </motion.div>
-  );
-}
-
-function DieFace({ value, compact }: Readonly<{ value: number; compact: boolean }>) {
-  const pips = new Set(DIE_PIPS[value] ?? []);
-  return (
-    <span
-      aria-hidden="true"
-      className={`grid grid-cols-3 grid-rows-3 place-items-center rounded-md border-2 border-[#24211d] bg-[#fffdf5] p-[12%] shadow-[2px_3px_0_rgba(0,0,0,0.42)] ${compact ? 'h-7 w-7' : 'h-10 w-10'}`}
-    >
-      {Array.from({ length: 9 }, (_, index) => (
-        <span key={index} className={`aspect-square w-[56%] rounded-full bg-[#171411] ${pips.has(index) ? 'opacity-100' : 'opacity-0'}`} />
-      ))}
-    </span>
   );
 }
 

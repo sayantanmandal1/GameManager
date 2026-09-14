@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import type { MonopolyBoardSpaceView, MonopolyPlayerView } from '@/shared';
 import { buildMonopolyCanonicalPreviewBoard } from './monopolyBoardData';
 import { MonopolyRenderer } from './MonopolyRenderer';
@@ -74,6 +74,9 @@ function makeView(overrides: Partial<MonopolyPlayerView> = {}): MonopolyPlayerVi
       mustEndTurn: false,
       releasedFromJailByDoubles: false,
     },
+    rollSequence: 1,
+    lastDiceRoll: [3, 4],
+    lastMovement: null,
     pendingPurchase: null,
     pendingAuction: null,
     pendingDebt: null,
@@ -141,9 +144,21 @@ describe('MonopolyRenderer', () => {
 
   it('dispatches roll, buy/decline, end turn, jail, and debt actions exactly', () => {
     const onAction = jest.fn();
-    const { rerender } = render(<MonopolyRenderer view={makeView({ legalActions: ['monopoly_roll', 'monopoly_end_turn'] })} disabled={false} onAction={onAction} />);
+    const { rerender } = render(<MonopolyRenderer view={makeView({ legalActions: ['monopoly_roll'] })} disabled={false} onAction={onAction} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Roll' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Roll dice' }));
+
+    rerender(<MonopolyRenderer view={makeView({
+      rollSequence: 2,
+      legalActions: ['monopoly_end_turn'],
+      turn: {
+        hasRolled: true,
+        doublesCount: 0,
+        lastRoll: [3, 4],
+        mustEndTurn: true,
+        releasedFromJailByDoubles: false,
+      },
+    })} disabled={false} onAction={onAction} />);
     fireEvent.click(screen.getByRole('button', { name: 'End turn' }));
 
     rerender(<MonopolyRenderer view={makeView({
@@ -161,6 +176,7 @@ describe('MonopolyRenderer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Try doubles' }));
 
     rerender(<MonopolyRenderer view={makeView({
+      rollSequence: 3,
       pendingDebt: { debtorId: 'p1', creditorId: 'p2', amount: 125, reason: 'rent' },
       legalActions: ['monopoly_pay_debt', 'monopoly_declare_bankruptcy'],
     })} disabled={false} onAction={onAction} />);
@@ -212,9 +228,9 @@ describe('MonopolyRenderer', () => {
     fireEvent.click(container.querySelector('[data-space-index="1"]') as HTMLElement);
 
     expect(screen.getByText('Title Deed')).toBeInTheDocument();
-    expect(screen.getByText('With 1 House: $10')).toBeInTheDocument();
-    expect(screen.getByText('With Hotel: $250')).toBeInTheDocument();
-    expect(screen.getByText('Mortgage value: $30')).toBeInTheDocument();
+    expect(screen.getByLabelText('With 1 House: $10')).toBeInTheDocument();
+    expect(screen.getByLabelText('With Hotel: $250')).toBeInTheDocument();
+    expect(screen.getByLabelText('Mortgage value: $30')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Build' }));
     fireEvent.click(screen.getByRole('button', { name: 'Sell' }));
@@ -231,6 +247,7 @@ describe('MonopolyRenderer', () => {
     const onAction = jest.fn();
     const { rerender } = render(<MonopolyRenderer view={makeView()} disabled={false} onAction={onAction} />);
 
+    fireEvent.click(screen.getByRole('tab', { name: 'Trade' }));
     fireEvent.change(screen.getByLabelText('Target player'), { target: { value: 'p2' } });
     fireEvent.change(screen.getByLabelText('Offered cash'), { target: { value: '120' } });
     fireEvent.change(screen.getByLabelText('Requested cash'), { target: { value: '80' } });
@@ -293,9 +310,67 @@ describe('MonopolyRenderer', () => {
     render(<MonopolyRenderer view={makeView()} disabled={false} onAction={jest.fn()} />);
 
     expect(screen.getByText(/Last chance:/i)).toBeInTheDocument();
-    expect(screen.getByText('Houses: 28')).toBeInTheDocument();
-    expect(screen.getByText('Hotels: 10')).toBeInTheDocument();
-    expect(screen.getByText('Chance deck: 12')).toBeInTheDocument();
-    expect(screen.getByText('Chest deck: 11')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Assets' }));
+    expect(screen.getByLabelText('Houses: 28')).toBeInTheDocument();
+    expect(screen.getByLabelText('Hotels: 10')).toBeInTheDocument();
+    expect(screen.getByLabelText('Chance: 12')).toBeInTheDocument();
+    expect(screen.getByLabelText('Chest: 11')).toBeInTheDocument();
+  });
+
+  it('renders premium wallet, dice, dock, and server-authored movement surfaces', () => {
+    const { container, rerender } = render(<MonopolyRenderer view={makeView()} disabled={false} onAction={jest.fn()} />);
+
+    expect(container.querySelector('[data-monopoly-live-table]')).toBeInTheDocument();
+    expect(screen.getByLabelText('Monopoly player wallets')).toBeInTheDocument();
+    expect(screen.getByLabelText('Ada wallet, $900, 2 properties')).toBeInTheDocument();
+    expect(screen.getByLabelText('Dice show 3 and 4')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Roll dice' })).toBeInTheDocument();
+
+    rerender(<MonopolyRenderer view={makeView({
+      rollSequence: 2,
+      lastMovement: {
+        sequence: 1,
+        playerId: 'p1',
+        segments: [{ kind: 'roll', from: 1, path: [2, 3, 4] }],
+      },
+      players: makeView().players.map((player) => player.id === 'p1' ? { ...player, position: 4 } : player),
+    })} disabled={false} onAction={jest.fn()} />);
+
+    expect(container.querySelector('[data-monopoly-dice-scene]')).toBeInTheDocument();
+    expect(container.querySelector('[data-last-roll]')).toBeInTheDocument();
+  });
+
+  it('moves a pawn through each authoritative square once per movement sequence', () => {
+    jest.useFakeTimers();
+    const initial = makeView({
+      rollSequence: 1,
+      lastMovement: null,
+      players: makeView().players.map((player) => player.id === 'p1' ? { ...player, position: 1 } : player),
+    });
+    const moved = makeView({
+      rollSequence: 2,
+      lastMovement: {
+        sequence: 1,
+        playerId: 'p1',
+        segments: [{ kind: 'roll', from: 1, path: [2, 3, 4] }],
+      },
+      players: makeView().players.map((player) => player.id === 'p1' ? { ...player, position: 4 } : player),
+    });
+    const { container, rerender } = render(<MonopolyRenderer view={initial} disabled={false} onAction={jest.fn()} />);
+
+    rerender(<MonopolyRenderer view={moved} disabled={false} onAction={jest.fn()} />);
+    expect(container.querySelector('[data-space-index="1"] [aria-label="Ada token top hat"]')).toBeInTheDocument();
+
+    act(() => jest.advanceTimersByTime(1_035));
+    expect(container.querySelector('[data-space-index="2"] [aria-label="Ada token top hat"]')).toBeInTheDocument();
+    act(() => jest.advanceTimersByTime(135));
+    expect(container.querySelector('[data-space-index="3"] [aria-label="Ada token top hat"]')).toBeInTheDocument();
+    act(() => jest.advanceTimersByTime(135));
+    expect(container.querySelector('[data-space-index="4"] [aria-label="Ada token top hat"]')).toBeInTheDocument();
+
+    rerender(<MonopolyRenderer view={{ ...moved, lastEvent: 'Duplicate state delivery' }} disabled={false} onAction={jest.fn()} />);
+    act(() => jest.advanceTimersByTime(2_000));
+    expect(container.querySelector('[data-space-index="4"] [aria-label="Ada token top hat"]')).toBeInTheDocument();
+    jest.useRealTimers();
   });
 });

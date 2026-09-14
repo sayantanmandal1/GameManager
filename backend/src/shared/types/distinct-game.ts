@@ -1686,6 +1686,24 @@ export interface MonopolyTurnState {
   releasedFromJailByDoubles: boolean;
 }
 
+export type MonopolyMovementKind =
+  | 'roll'
+  | 'card_forward'
+  | 'card_backward'
+  | 'jail';
+
+export interface MonopolyMovementSegment {
+  kind: MonopolyMovementKind;
+  from: number;
+  path: number[];
+}
+
+export interface MonopolyMovement {
+  sequence: number;
+  playerId: string;
+  segments: MonopolyMovementSegment[];
+}
+
 export interface MonopolyPurchaseState {
   playerId: string;
   spaceIndex: number;
@@ -1740,6 +1758,10 @@ export interface MonopolyGameState {
   currentTurnId: string;
   activePlayerIds: string[];
   turn: MonopolyTurnState;
+  rollSequence: number;
+  lastDiceRoll: [number, number] | null;
+  movementSequence: number;
+  lastMovement: MonopolyMovement | null;
   pendingPurchase: MonopolyPurchaseState | null;
   pendingAuction: MonopolyAuctionState | null;
   pendingDebt: MonopolyDebtState | null;
@@ -1806,6 +1828,9 @@ export interface MonopolyPlayerView {
   currentTurnId: string;
   activePlayerIds: string[];
   turn: MonopolyTurnState;
+  rollSequence: number;
+  lastDiceRoll: [number, number] | null;
+  lastMovement: MonopolyMovement | null;
   pendingPurchase: MonopolyPurchaseState | null;
   pendingAuction: MonopolyAuctionState | null;
   pendingDebt: MonopolyDebtState | null;

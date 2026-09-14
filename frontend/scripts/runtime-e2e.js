@@ -1709,13 +1709,22 @@ async function verifyDistinctGames(
         assert.equal(Object.hasOwn(alphaView, 'chanceDeck'), false);
         assert.equal(Object.hasOwn(alphaView, 'chestDeck'), false);
         assert.equal(Object.hasOwn(alphaView, 'heldJailCards'), false);
+        assert.equal(alphaView.rollSequence, 0);
+        assert.equal(alphaView.lastDiceRoll, null);
+        assert.equal(alphaView.lastMovement, null);
       },
       assertTransition: (view) => {
         assert.equal(Array.isArray(view.turn.lastRoll), true);
         assert.equal(view.turn.lastRoll.length, 2);
         assert(view.turn.lastRoll.every((die) => Number.isInteger(die) && die >= 1 && die <= 6));
+        assert.equal(Array.isArray(view.lastDiceRoll), true);
+        assert(view.rollSequence >= 1);
         const host = view.players.find((player) => player.id === alpha.user.id);
         assert(Number.isInteger(host.position) && host.position >= 0 && host.position < 40);
+        assert.equal(view.lastMovement.playerId, alpha.user.id);
+        assert(view.lastMovement.sequence >= 1);
+        assert(view.lastMovement.segments.length >= 1);
+        assert.equal(view.lastMovement.segments.at(-1).path.at(-1), host.position);
         assert(['buying', 'post_roll', 'debt', 'jail'].includes(view.phase));
       },
     },

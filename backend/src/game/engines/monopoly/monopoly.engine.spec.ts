@@ -74,6 +74,58 @@ describe('MonopolyEngine', () => {
     expect(engine.applyAction(state, 'a', { type: 'monopoly_roll' })).toEqual({ valid: true });
     expect(state.players[0].position).toBe(1);
     expect(state.players[0].cash).toBe(before + 200);
+    expect(state.rollSequence).toBe(1);
+    expect(state.lastMovement).toEqual({
+      sequence: 1,
+      playerId: 'a',
+      segments: [{ kind: 'roll', from: 39, path: [0, 1] }],
+    });
+  });
+
+  it('projects chained roll and card travel as one authoritative movement sequence', () => {
+    const { engine, state } = make([1, 1], ['chance_collect_bonus']);
+    state.players[0].position = 5;
+
+    expect(engine.applyAction(state, 'a', { type: 'monopoly_roll' })).toEqual({ valid: true });
+
+    expect(state.players[0].position).toBe(39);
+    expect(state.lastMovement).toEqual({
+      sequence: 1,
+      playerId: 'a',
+      segments: [
+        { kind: 'roll', from: 5, path: [6, 7] },
+        { kind: 'card_forward', from: 7, path: Array.from({ length: 32 }, (_, index) => index + 8) },
+      ],
+    });
+    const view = engine.getPlayerView(state, 'b');
+    view.lastMovement!.segments[0].path[0] = 99;
+    expect(state.lastMovement?.segments[0].path[0]).toBe(6);
+  });
+
+  it('records backward card steps and direct jail transfer distinctly', () => {
+    const backward = make([1, 1], ['chance_go_back_three'], ['chest_collect_error']);
+    backward.state.players[0].position = 34;
+    expect(backward.engine.applyAction(backward.state, 'a', { type: 'monopoly_roll' })).toEqual({ valid: true });
+    expect(backward.state.lastMovement?.segments).toEqual([
+      { kind: 'roll', from: 34, path: [35, 36] },
+      { kind: 'card_backward', from: 36, path: [35, 34, 33] },
+    ]);
+
+    const jail = make([1, 1]);
+    jail.state.players[0].position = 28;
+    expect(jail.engine.applyAction(jail.state, 'a', { type: 'monopoly_roll' })).toEqual({ valid: true });
+    expect(jail.state.lastMovement?.segments).toEqual([
+      { kind: 'roll', from: 28, path: [29, 30] },
+      { kind: 'jail', from: 30, path: [10] },
+    ]);
+  });
+
+  it('increments the roll sequence when consecutive rolls show identical dice', () => {
+    const { engine, state } = make([1, 1, 1, 1], undefined, ['chest_collect_error']);
+    expect(engine.applyAction(state, 'a', { type: 'monopoly_roll' })).toEqual({ valid: true });
+    expect(state.rollSequence).toBe(1);
+    expect(engine.applyAction(state, 'a', { type: 'monopoly_roll' })).toEqual({ valid: true });
+    expect(state.rollSequence).toBe(2);
   });
 
   it('sends a player to jail on a third consecutive doubles roll', () => {
@@ -225,6 +277,8 @@ describe('MonopolyEngine', () => {
     expect(state.players[0].position).toBe(12);
     expect(state.pendingDebt).toMatchObject({ debtorId: 'a', creditorId: 'b', amount: 50 });
     expect(state.turn.lastRoll).toEqual([1, 1]);
+    expect(state.lastDiceRoll).toEqual([2, 3]);
+    expect(state.rollSequence).toBe(2);
 
     expect(engine.applyAction(state, 'a', { type: 'monopoly_pay_debt' })).toEqual({ valid: true });
     expect(state.turn.mustEndTurn).toBe(false);
