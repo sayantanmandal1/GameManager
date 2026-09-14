@@ -38,6 +38,7 @@ import type {
   SpoonsPlayerView,
   TriviaPlayerView,
   WhistPlayerView,
+  WrongwayPlayerView,
   YachtPlayerView,
 } from '@/shared';
 import { CardWarRenderer } from './renderers/CardWarRenderer';
@@ -76,6 +77,7 @@ import { SlapjackRenderer } from './renderers/SlapjackRenderer';
 import { SpoonsRenderer } from './renderers/SpoonsRenderer';
 import { TriviaRenderer } from './renderers/TriviaRenderer';
 import { WhistRenderer } from './renderers/WhistRenderer';
+import { WrongwayRenderer } from './renderers/WrongwayRenderer';
 import { YachtRenderer } from './renderers/YachtRenderer';
 
 interface DistinctGameRendererProps {
@@ -142,6 +144,8 @@ export function DistinctGameRenderer({ gameKey, view, disabled, onAction }: Read
       return <MemoryMatchRenderer view={view as MemoryMatchPlayerView} disabled={disabled} onAction={onAction} />;
     case 'monopoly':
       return <MonopolyRenderer view={view as MonopolyPlayerView} disabled={disabled} onAction={onAction} />;
+    case 'wrongway':
+      return <WrongwayRenderer view={view as WrongwayPlayerView} disabled={disabled} onAction={onAction} />;
   }
 }
 

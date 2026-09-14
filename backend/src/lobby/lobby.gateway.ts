@@ -259,6 +259,28 @@ export class LobbyGateway
     }
   }
 
+  @SubscribeMessage(LOBBY_EVENTS.ADD_BOT)
+  async handleAddBot(@ConnectedSocket() client: Socket): Promise<void> {
+    const user = getSocketUser(client, this.jwtService);
+    if (!user) return;
+    const code = this.socketLobbyMap.get(client.id);
+    if (!code) return;
+
+    try {
+      const lobby = await this.lobbyService.addBot(code, user.sub);
+      this.server.to(`lobby:${code}`).emit(LOBBY_EVENTS.STATE, { lobby });
+    } catch (err: unknown) {
+      const raw = err instanceof Error ? err.message : '';
+      let message = 'Unable to add a bot';
+      if (raw === 'only_host') message = 'Only the host can add bots';
+      else if (raw === 'invalid_lobby_state') message = 'Bots can be added only while waiting';
+      else if (raw === 'bots_not_supported') message = 'Bots are only available for Monopoly distinct lobbies';
+      else if (raw === 'lobby_full') message = 'Lobby is full';
+      else if (raw === 'lobby_not_found') message = 'Lobby not found';
+      client.emit(LOBBY_EVENTS.ERROR, { message, code: 'ADD_BOT_FAILED' });
+    }
+  }
+
   @SubscribeMessage(LOBBY_EVENTS.PLAYER_READY)
   async handleReady(
     @ConnectedSocket() client: Socket,
@@ -474,7 +496,12 @@ export class LobbyGateway
     }
 
     const lobby = await this.lobbyService.getLobby(code);
-    if (!lobby || !lobby.players.some((player) => player.id === user.sub)) {
+    if (!lobby?.players.some((player) => player.id === user.sub)) {
+      client.emit(LOBBY_EVENTS.ERROR, { message: 'Lobby not found', code: 'NOT_FOUND' });
+      return;
+    }
+    const humanPlayers = lobby.players.filter((player) => !player.isBot);
+    if (!humanPlayers.some((player) => player.id === user.sub)) {
       client.emit(LOBBY_EVENTS.ERROR, { message: 'Lobby not found', code: 'NOT_FOUND' });
       return;
     }
@@ -500,10 +527,10 @@ export class LobbyGateway
     this.rematchVotes.set(code, votes);
     this.server.to(`lobby:${code}`).emit(LOBBY_EVENTS.REMATCH_STATE, {
       requestedBy: [...votes],
-      required: lobby.players.length,
+      required: humanPlayers.length,
     });
 
-    if (votes.size !== lobby.players.length) return;
+    if (votes.size !== humanPlayers.length) return;
     const sockets = await this.server.in(`lobby:${code}`).fetchSockets();
     const hostSocket = sockets.find((socket) => socket.data?.user?.sub === lobby.hostId);
     if (!hostSocket) {
@@ -514,7 +541,7 @@ export class LobbyGateway
       return;
     }
 
-    for (const player of lobby.players) {
+    for (const player of humanPlayers) {
       if (!player.isHost && !player.isReady) {
         await this.lobbyService.setReady(code, player.id, true);
       }
@@ -523,7 +550,7 @@ export class LobbyGateway
     this.rematchVotes.delete(code);
     this.server.to(`lobby:${code}`).emit(LOBBY_EVENTS.REMATCH_STATE, {
       requestedBy: [],
-      required: lobby.players.length,
+      required: humanPlayers.length,
       starting: true,
     });
     await this.handleStartGame(hostSocket as unknown as Socket);

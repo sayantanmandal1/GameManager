@@ -49,6 +49,24 @@ describe('MonopolyEngine', () => {
     expect(() => engine.initGame(['a', 'a'], { a: 'A' })).toThrow('two to four');
   });
 
+  it('uses the complete classic board names and deed economics', () => {
+    const { state } = make();
+    expect(state.board.map((space) => space.name)).toEqual([
+      'GO', 'Mediterranean Avenue', 'Community Chest', 'Baltic Avenue', 'Income Tax',
+      'Reading Railroad', 'Oriental Avenue', 'Chance', 'Vermont Avenue', 'Connecticut Avenue',
+      'In Jail / Just Visiting', 'St. Charles Place', 'Electric Company', 'States Avenue',
+      'Virginia Avenue', 'Pennsylvania Railroad', 'St. James Place', 'Community Chest',
+      'Tennessee Avenue', 'New York Avenue', 'Free Parking', 'Kentucky Avenue', 'Chance',
+      'Indiana Avenue', 'Illinois Avenue', 'B. & O. Railroad', 'Atlantic Avenue',
+      'Ventnor Avenue', 'Water Works', 'Marvin Gardens', 'Go To Jail', 'Pacific Avenue',
+      'North Carolina Avenue', 'Community Chest', 'Pennsylvania Avenue', 'Short Line',
+      'Chance', 'Park Place', 'Luxury Tax', 'Boardwalk',
+    ]);
+    expect(state.board[1]).toMatchObject({ price: 60, rents: [2, 10, 30, 90, 160, 250], houseCost: 50, mortgage: 30 });
+    expect(state.board[24]).toMatchObject({ price: 240, rents: [20, 100, 300, 750, 925, 1100], houseCost: 150, mortgage: 120 });
+    expect(state.board[39]).toMatchObject({ price: 400, rents: [50, 200, 600, 1400, 1700, 2000], houseCost: 200, mortgage: 200 });
+  });
+
   it('moves around the board and collects $200 when passing Start', () => {
     const { engine, state } = make([1, 1]);
     state.players[0].position = 39;
@@ -345,17 +363,17 @@ describe('MonopolyEngine', () => {
   });
 
   it('queues collect-from-each-player debts and allows out-of-turn debtor liquidation actions', () => {
-    const { engine, state } = make([1, 1], ['chance_collect_each'], undefined, ['a', 'b', 'c']);
+    const { engine, state } = make([1, 1], undefined, ['chest_collect_each'], ['a', 'b', 'c']);
     setOwner(state, 5, 'b');
     state.players.find((player) => player.id === 'b')!.cash = 0;
     state.players.find((player) => player.id === 'c')!.cash = 100;
-    state.players[0].position = 5;
+    state.players[0].position = 15;
     expect(engine.applyAction(state, 'a', { type: 'monopoly_roll' })).toEqual({ valid: true });
-    expect(state.pendingDebt).toMatchObject({ debtorId: 'b', creditorId: 'a', amount: 50 });
+    expect(state.pendingDebt).toMatchObject({ debtorId: 'b', creditorId: 'a', amount: 10 });
     expect(state.debtQueue).toHaveLength(1);
     expect(engine.applyAction(state, 'b', { type: 'monopoly_mortgage', spaceIndex: 5 })).toEqual({ valid: true });
     expect(engine.applyAction(state, 'b', { type: 'monopoly_pay_debt' })).toEqual({ valid: true });
-    expect(state.pendingDebt).toMatchObject({ debtorId: 'c', creditorId: 'a', amount: 50 });
+    expect(state.pendingDebt).toMatchObject({ debtorId: 'c', creditorId: 'a', amount: 10 });
     expect(engine.applyAction(state, 'c', { type: 'monopoly_pay_debt' })).toEqual({ valid: true });
     expect(state.pendingDebt).toBeNull();
     expect(state.debtQueue).toEqual([]);
@@ -364,10 +382,19 @@ describe('MonopolyEngine', () => {
     expect(state.turn.mustEndTurn).toBe(false);
   });
 
-  it('queues pay-each-player debts as separate obligations', () => {
-    const { engine, state } = make([1, 1], undefined, ['chest_pay_each'], ['a', 'b', 'c']);
+  it('collects the Community Chest life-insurance payment', () => {
+    const { engine, state } = make([1, 1], undefined, ['chest_collect_life'], ['a', 'b', 'c']);
     state.players[0].position = 15;
     state.players[0].cash = 60;
+    expect(engine.applyAction(state, 'a', { type: 'monopoly_roll' })).toEqual({ valid: true });
+    expect(state.players[0].cash).toBe(160);
+    expect(state.pendingDebt).toBeNull();
+    expect(state.debtQueue).toEqual([]);
+  });
+
+  it('uses the Chance chairman card as a pay-each-player obligation', () => {
+    const { engine, state } = make([1, 1], ['chance_collect_each'], undefined, ['a', 'b', 'c']);
+    state.players[0].position = 5;
     expect(engine.applyAction(state, 'a', { type: 'monopoly_roll' })).toEqual({ valid: true });
     expect(state.pendingDebt).toMatchObject({ debtorId: 'a', creditorId: 'b', amount: 50 });
     expect(state.debtQueue).toEqual([{ debtorId: 'a', creditorId: 'c', amount: 50, reason: 'card' }]);
@@ -524,7 +551,7 @@ describe('MonopolyEngine', () => {
   it('uses explicit phase transitions and deterministic token-color assignment', () => {
     const { engine, state } = make([1, 2], undefined, undefined, ['a', 'b', 'c', 'd']);
     expect(state.phase).toBe('rolling');
-    expect(state.players.map((player) => player.originalToken)).toEqual(['compass', 'lantern', 'rocket', 'kite']);
+    expect(state.players.map((player) => player.originalToken)).toEqual(['top_hat', 'racecar', 'battleship', 'dog']);
     expect(state.players.map((player) => player.originalColor)).toEqual(['red', 'blue', 'green', 'yellow']);
 
     expect(engine.applyAction(state, 'a', { type: 'monopoly_roll' })).toEqual({ valid: true });
@@ -548,9 +575,134 @@ describe('MonopolyEngine', () => {
     state.players[0].position = 5;
     expect(engine.applyAction(state, 'a', { type: 'monopoly_roll' })).toEqual({ valid: true });
     const view = engine.getPlayerView(state, 'a');
-    expect(view.lastCard?.text).toBe('Receive a 100 neighborhood bonus');
+    expect(view.lastCard?.text).toBe('Advance to Boardwalk');
+    expect(state.players[0].position).toBe(39);
     expect((view as unknown as Record<string, unknown>).chanceDeck).toBeUndefined();
     expect((view as unknown as Record<string, unknown>).chestDeck).toBeUndefined();
+  });
+
+  it('marks bot players by id prefix and emits no automatic action for human actors', () => {
+    const { engine, state } = make([], undefined, undefined, ['human', 'bot-1']);
+    expect(state.players.find((player) => player.id === 'human')?.isBot).toBe(false);
+    expect(state.players.find((player) => player.id === 'bot-1')?.isBot).toBe(true);
+    state.currentTurnId = 'human';
+    expect(engine.getAutomaticAction(state)).toBeNull();
+  });
+
+  it('chooses bot purchase decisions using affordability and reserve policy', () => {
+    const { engine, state } = make([], undefined, undefined, ['human', 'bot-1']);
+    const bot = state.players.find((player) => player.id === 'bot-1')!;
+    state.currentTurnId = 'bot-1';
+    state.pendingPurchase = { playerId: 'bot-1', spaceIndex: 1, price: 60 };
+    bot.cash = 100;
+    expect(engine.getAutomaticAction(state)?.action).toEqual({ type: 'monopoly_buy' });
+
+    state.pendingPurchase = { playerId: 'bot-1', spaceIndex: 39, price: 300 };
+    bot.cash = 350;
+    expect(engine.getAutomaticAction(state)?.action).toEqual({ type: 'monopoly_decline' });
+  });
+
+  it('chooses auction bids conservatively and passes when above cash/value cap', () => {
+    const { engine, state } = make([], undefined, undefined, ['human', 'bot-1']);
+    const bot = state.players.find((player) => player.id === 'bot-1')!;
+    state.pendingAuction = {
+      spaceIndex: 39,
+      eligiblePlayerIds: ['human', 'bot-1'],
+      activeBidderIds: ['human', 'bot-1'],
+      currentBidderId: 'bot-1',
+      highestBid: 10,
+      highestBidderId: 'human',
+      bids: { human: 10 },
+    };
+    bot.cash = 500;
+    expect(engine.getAutomaticAction(state)?.action).toEqual({ type: 'monopoly_bid', amount: 11 });
+
+    state.pendingAuction.highestBid = 500;
+    bot.cash = 120;
+    expect(engine.getAutomaticAction(state)?.action).toEqual({ type: 'monopoly_pass_auction' });
+  });
+
+  it('makes debt progress via pay, legal liquidation checks, then bankruptcy', () => {
+    const { engine, state } = make([], undefined, undefined, ['human', 'bot-1']);
+    const bot = state.players.find((player) => player.id === 'bot-1')!;
+    setOwner(state, 5, 'bot-1');
+
+    state.pendingDebt = { debtorId: 'bot-1', creditorId: null, amount: 50, reason: 'tax' };
+    bot.cash = 100;
+    expect(engine.getAutomaticAction(state)?.action).toEqual({ type: 'monopoly_pay_debt' });
+
+    state.pendingDebt = { debtorId: 'bot-1', creditorId: null, amount: 120, reason: 'tax' };
+    bot.cash = 0;
+    expect(engine.getAutomaticAction(state)?.action).toEqual({ type: 'monopoly_mortgage', spaceIndex: 5 });
+
+    state.pendingDebt = { debtorId: 'bot-1', creditorId: null, amount: 9_999, reason: 'tax' };
+    bot.cash = 0;
+    state.ownership[5] = null;
+    bot.properties = [];
+    expect(engine.getAutomaticAction(state)?.action).toEqual({ type: 'monopoly_declare_bankruptcy' });
+  });
+
+  it('handles bot jail and post-roll turns with deterministic progress', () => {
+    const { engine, state } = make([], undefined, undefined, ['human', 'bot-1']);
+    const bot = state.players.find((player) => player.id === 'bot-1')!;
+    state.currentTurnId = 'bot-1';
+    bot.inJail = true;
+    state.turn.hasRolled = false;
+
+    giveJailCard(state, 'bot-1', 'chance');
+    expect(engine.getAutomaticAction(state)?.action).toEqual({ type: 'monopoly_use_jail_card' });
+
+    state.heldJailCards['bot-1'] = [];
+    bot.jailCards = 0;
+    bot.cash = 500;
+    expect(engine.getAutomaticAction(state)?.action).toEqual({ type: 'monopoly_pay_jail' });
+
+    bot.cash = 20;
+    expect(engine.getAutomaticAction(state)?.action).toEqual({ type: 'monopoly_attempt_doubles' });
+
+    bot.inJail = false;
+    state.turn = {
+      hasRolled: true,
+      doublesCount: 0,
+      lastRoll: [2, 3],
+      mustEndTurn: true,
+      releasedFromJailByDoubles: false,
+    };
+    setOwner(state, 1, 'bot-1');
+    setOwner(state, 3, 'bot-1');
+    bot.cash = 500;
+    expect(engine.getAutomaticAction(state)?.action).toEqual({ type: 'monopoly_build', spaceIndex: 1 });
+  });
+
+  it('prioritizes pending-trade bot actors and applies trade accept/cancel policy', () => {
+    const { engine, state } = make([], undefined, undefined, ['human', 'bot-1', 'bot-2']);
+    state.pendingTrade = {
+      proposerId: 'bot-1',
+      targetPlayerId: 'human',
+      offeredCash: 0,
+      requestedCash: 0,
+      offeredPropertyIndices: [],
+      requestedPropertyIndices: [],
+      offeredJailCards: 1,
+      requestedJailCards: 0,
+    };
+    expect(engine.getAutomaticAction(state)?.action).toEqual({ type: 'monopoly_cancel_trade' });
+
+    state.pendingTrade = {
+      proposerId: 'human',
+      targetPlayerId: 'bot-2',
+      offeredCash: 100,
+      requestedCash: 10,
+      offeredPropertyIndices: [],
+      requestedPropertyIndices: [],
+      offeredJailCards: 0,
+      requestedJailCards: 0,
+    };
+    expect(engine.getAutomaticAction(state)?.action).toEqual({ type: 'monopoly_respond_trade', approved: true });
+
+    state.pendingTrade.offeredCash = 5;
+    state.pendingTrade.requestedCash = 100;
+    expect(engine.getAutomaticAction(state)?.action).toEqual({ type: 'monopoly_respond_trade', approved: false });
   });
 
   it('chooses deterministic surrender winner and returns a terminal result', () => {

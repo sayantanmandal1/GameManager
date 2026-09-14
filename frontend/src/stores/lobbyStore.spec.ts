@@ -104,6 +104,13 @@ describe('LobbyStore', () => {
     });
   });
 
+  describe('addBot', () => {
+    it('emits lobby:add_bot so the host can fill Monopoly seats', () => {
+      useLobbyStore.getState().addBot();
+      expect(mockSocket.emit).toHaveBeenCalledWith('lobby:add_bot');
+    });
+  });
+
   describe('startGame', () => {
     it('should emit lobby:start_game', () => {
       useLobbyStore.getState().startGame();

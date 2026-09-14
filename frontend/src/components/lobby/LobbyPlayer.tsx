@@ -39,6 +39,11 @@ export function LobbyPlayerCard({
               Host
             </span>
           )}
+          {player.isBot && (
+            <span className="rounded-full bg-[#8bcaf0]/15 px-2 py-0.5 text-xs text-[#8bcaf0]">
+              Bot
+            </span>
+          )}
           {player.team !== null && player.team !== undefined && (
             <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${player.team === 0 ? 'bg-[#e5c66d]/15 text-[#f1d77f]' : 'bg-[#74b7df]/15 text-[#8bcaf0]'}`}>
               Team {player.team + 1}

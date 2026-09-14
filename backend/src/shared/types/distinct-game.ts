@@ -36,6 +36,7 @@ export const DISTINCT_GAME_KEYS = [
   'slapjack',
   'spoons',
   'monopoly',
+  'wrongway',
 ] as const;
 
 export type DistinctGameKey = (typeof DISTINCT_GAME_KEYS)[number];
@@ -1664,6 +1665,7 @@ export type MonopolyBoardSpace =
 export interface MonopolyPlayer {
   id: string;
   name: string;
+  isBot: boolean;
   originalToken: string;
   originalColor: string;
   position: number;
@@ -1831,6 +1833,70 @@ export interface MonopolyResult {
   bankruptOrder: string[];
 }
 
+export type WrongwayColor = 'red' | 'blue';
+export type WrongwayWallOrientation = 'horizontal' | 'vertical';
+
+export interface WrongwayCell {
+  row: number;
+  column: number;
+}
+
+export interface WrongwayPlayer {
+  id: string;
+  name: string;
+  color: WrongwayColor;
+  position: WrongwayCell;
+  goalRow: number;
+  wallsRemaining: number;
+}
+
+export interface WrongwayWall {
+  row: number;
+  column: number;
+  orientation: WrongwayWallOrientation;
+  ownerId?: string;
+  color?: WrongwayColor;
+}
+
+export type WrongwayAction =
+  | { type: 'wrongway_move'; cell: number }
+  | {
+      type: 'wrongway_place_wall';
+      row: number;
+      column: number;
+      orientation: WrongwayWallOrientation;
+    };
+
+export interface WrongwayGameState {
+  gameKey: 'wrongway';
+  players: [WrongwayPlayer, WrongwayPlayer];
+  walls: WrongwayWall[];
+  currentTurnId: string;
+  phase: 'playing' | 'finished';
+  winnerId: string | null;
+  isDraw: false;
+  finishReason: 'goal' | 'surrender' | null;
+}
+
+export interface WrongwayPlayerView {
+  gameKey: 'wrongway';
+  players: [WrongwayPlayer, WrongwayPlayer];
+  walls: WrongwayWall[];
+  currentTurnId: string;
+  phase: WrongwayGameState['phase'];
+  winnerId: string | null;
+  canAct: boolean;
+  legalMoves: number[];
+  legalWallPlacements: WrongwayWall[];
+}
+
+export interface WrongwayResult {
+  gameKey: 'wrongway';
+  winnerId: string;
+  isDraw: false;
+  reason: 'goal' | 'surrender';
+}
+
 export type DurakAction =
   | { type: 'durak_attack'; cardId: string }
   | { type: 'durak_defend'; pairIndex: number; cardId: string }
@@ -1941,6 +2007,7 @@ export interface DistinctGameContractMap {
   slapjack: { action: SlapjackAction; view: SlapjackPlayerView; result: SlapjackResult };
   spoons: { action: SpoonsAction; view: SpoonsPlayerView; result: SpoonsResult };
   monopoly: { action: MonopolyAction; view: MonopolyPlayerView; result: MonopolyResult };
+  wrongway: { action: WrongwayAction; view: WrongwayPlayerView; result: WrongwayResult };
   durak: { action: DurakAction; view: DurakPlayerView; result: DurakResult };
   'six-card-golf': { action: GolfAction; view: GolfPlayerView; result: GolfResult };
   'color-match': { action: ColorMatchAction; view: ColorMatchPlayerView; result: ColorMatchResult };

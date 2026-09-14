@@ -56,6 +56,11 @@ describe('LobbyPlayerCard Component', () => {
     expect(screen.queryByText('Host')).not.toBeInTheDocument();
   });
 
+  it('shows the Bot badge for bot seats', () => {
+    render(<LobbyPlayerCard player={{ ...basePlayer, isBot: true }} isCurrentUser={false} />);
+    expect(screen.getByText('Bot')).toBeInTheDocument();
+  });
+
   it('shows the server-selected partnership team', () => {
     render(<LobbyPlayerCard player={{ ...basePlayer, team: 1 }} isCurrentUser />);
     expect(screen.getByText('Team 2')).toBeInTheDocument();

@@ -557,6 +557,7 @@ export class GameService implements OnModuleDestroy {
     this.lobbyGameTypeMap.set(lobbyCode, GameType.DISTINCT);
     await this.redis.set(`game:${saved.id}`, JSON.stringify(state), 'EX', 3600);
     await this.lobbyService.setStatus(lobbyCode, LobbyStatus.IN_PROGRESS);
+    this.scheduleDistinctAutoPlay(saved.id, lobbyCode);
     return { gameId: saved.id, gameKey: adapter.key, state };
   }
 
@@ -653,7 +654,7 @@ export class GameService implements OnModuleDestroy {
   ): Promise<void> {
     this.cancelDistinctAutoPlay(gameId);
     await this.gameRepo.update(gameId, {
-      winnerId: result.winnerId,
+      winnerId: result.winnerId?.startsWith('bot-') ? null : result.winnerId,
       status: GameStatus.FINISHED,
       finishedAt: new Date(),
     });

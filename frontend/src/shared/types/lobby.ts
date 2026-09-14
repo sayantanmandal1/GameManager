@@ -22,6 +22,7 @@ export interface LobbyPlayer {
   id: string;
   username: string;
   avatar: string;
+  isBot?: boolean;
   isReady: boolean;
   isHost: boolean;
   team?: LobbyTeam | null;

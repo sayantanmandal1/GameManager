@@ -1,58 +1,16 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { MonopolyBoardSpaceView, MonopolyPlayerView } from '@/shared';
+import { buildMonopolyCanonicalPreviewBoard } from './monopolyBoardData';
 import { MonopolyRenderer } from './MonopolyRenderer';
 
 function buildBoard(): MonopolyBoardSpaceView[] {
-  return Array.from({ length: 40 }, (_, index) => {
-    if (index === 0) return { index, name: 'Start', kind: 'go', ownerId: null, mortgaged: false, buildingCount: 0 };
-    if (index === 10) return { index, name: 'Jail / Visiting', kind: 'jail', ownerId: null, mortgaged: false, buildingCount: 0 };
-    if (index === 20) return { index, name: 'Free Parking', kind: 'free_parking', ownerId: null, mortgaged: false, buildingCount: 0 };
-    if (index === 30) return { index, name: 'Go To Jail', kind: 'go_to_jail', ownerId: null, mortgaged: false, buildingCount: 0 };
-    if ([7, 22, 36].includes(index)) return { index, name: `Chance ${index}`, kind: 'chance', ownerId: null, mortgaged: false, buildingCount: 0 };
-    if ([2, 17, 33].includes(index)) return { index, name: `Chest ${index}`, kind: 'chest', ownerId: null, mortgaged: false, buildingCount: 0 };
-    if ([5, 15, 25, 35].includes(index)) {
-      return { index, name: `Rail ${index}`, kind: 'railroad', price: 200, mortgage: 100, ownerId: null, mortgaged: false, buildingCount: 0 };
-    }
-    if ([12, 28].includes(index)) {
-      return { index, name: `Utility ${index}`, kind: 'utility', price: 150, mortgage: 75, ownerId: null, mortgaged: false, buildingCount: 0 };
-    }
-    if ([4, 38].includes(index)) {
-      return { index, name: `Tax ${index}`, kind: 'tax', amount: index === 4 ? 200 : 100, ownerId: null, mortgaged: false, buildingCount: 0 };
-    }
-    const group = index <= 3
-      ? 'brown'
-      : index <= 9
-        ? 'light_blue'
-        : index <= 14
-          ? 'pink'
-          : index <= 19
-            ? 'orange'
-            : index <= 24
-              ? 'red'
-              : index <= 29
-                ? 'yellow'
-                : index <= 34
-                  ? 'green'
-                  : 'dark_blue';
-    return {
-      index,
-      name: `Street ${index}`,
-      kind: 'street',
-      group,
-      price: 100 + index,
-      rents: [10, 20, 30, 40, 50, 60],
-      houseCost: 50,
-      mortgage: 50,
-      ownerId: null,
-      mortgaged: false,
-      buildingCount: 0,
-    };
-  });
+  return buildMonopolyCanonicalPreviewBoard();
 }
 
 function makeView(overrides: Partial<MonopolyPlayerView> = {}): MonopolyPlayerView {
   const board = buildBoard();
   board[1].ownerId = 'p1';
+  board[1].buildingCount = 2;
   board[3].ownerId = 'p1';
   board[6].ownerId = 'p2';
 
@@ -62,7 +20,8 @@ function makeView(overrides: Partial<MonopolyPlayerView> = {}): MonopolyPlayerVi
       {
         id: 'p1',
         name: 'Ada',
-        originalToken: 'compass',
+        isBot: false,
+        originalToken: 'top_hat',
         originalColor: 'red',
         position: 1,
         cash: 900,
@@ -76,7 +35,8 @@ function makeView(overrides: Partial<MonopolyPlayerView> = {}): MonopolyPlayerVi
       {
         id: 'p2',
         name: 'Ben',
-        originalToken: 'lantern',
+        isBot: false,
+        originalToken: 'racecar',
         originalColor: 'blue',
         position: 1,
         cash: 800,
@@ -90,7 +50,8 @@ function makeView(overrides: Partial<MonopolyPlayerView> = {}): MonopolyPlayerVi
       {
         id: 'p3',
         name: 'Cam',
-        originalToken: 'rocket',
+        isBot: false,
+        originalToken: 'battleship',
         originalColor: 'green',
         position: 10,
         cash: 750,
@@ -128,35 +89,54 @@ function makeView(overrides: Partial<MonopolyPlayerView> = {}): MonopolyPlayerVi
     isDraw: false,
     canAct: true,
     legalActions: ['monopoly_roll', 'monopoly_build', 'monopoly_sell_building', 'monopoly_mortgage', 'monopoly_unmortgage', 'monopoly_propose_trade'],
-    lastCard: { deck: 'chance', cardId: 'c1', playerId: 'p2', text: 'Advance to Start' },
-    lastEvent: 'Ada moved to Street 1',
+    lastCard: { deck: 'chance', cardId: 'c1', playerId: 'p2', text: 'Advance to GO' },
+    lastEvent: 'Ada moved to Mediterranean Avenue',
     ...overrides,
   };
 }
 
 describe('MonopolyRenderer', () => {
-  it('renders all 40 spaces with expected perimeter coordinates and stable board wrapper', () => {
+  it('renders all spaces with canonical cyclic side placement and shared board wrapper', () => {
     const { container } = render(<MonopolyRenderer view={makeView()} disabled={false} onAction={jest.fn()} />);
 
     expect(container.querySelector('[data-monopoly-board-viewport]')).toHaveClass('monopoly-board-viewport');
-    expect(container.querySelector('[data-monopoly-board]')).toHaveClass('aspect-square');
+    expect(container.querySelector('[data-monopoly-board][data-monopoly-board-shared="true"]')).toBeInTheDocument();
     expect(container.querySelectorAll('[data-space-index]')).toHaveLength(40);
 
-    expect(container.querySelector('[data-space-index="0"]')?.getAttribute('data-board-row')).toBe('10');
-    expect(container.querySelector('[data-space-index="0"]')?.getAttribute('data-board-col')).toBe('10');
-    expect(container.querySelector('[data-space-index="10"]')?.getAttribute('data-board-row')).toBe('10');
-    expect(container.querySelector('[data-space-index="10"]')?.getAttribute('data-board-col')).toBe('0');
-    expect(container.querySelector('[data-space-index="20"]')?.getAttribute('data-board-row')).toBe('0');
-    expect(container.querySelector('[data-space-index="20"]')?.getAttribute('data-board-col')).toBe('0');
-    expect(container.querySelector('[data-space-index="30"]')?.getAttribute('data-board-row')).toBe('0');
-    expect(container.querySelector('[data-space-index="30"]')?.getAttribute('data-board-col')).toBe('10');
+    expect(container.querySelector('[data-space-index="0"]')?.getAttribute('data-side')).toBe('corner');
+    expect(container.querySelector('[data-space-index="1"]')?.getAttribute('data-side')).toBe('bottom');
+    expect(container.querySelector('[data-space-index="10"]')?.getAttribute('data-side')).toBe('corner');
+    expect(container.querySelector('[data-space-index="11"]')?.getAttribute('data-side')).toBe('left');
+    expect(container.querySelector('[data-space-index="20"]')?.getAttribute('data-side')).toBe('corner');
+    expect(container.querySelector('[data-space-index="21"]')?.getAttribute('data-side')).toBe('top');
+    expect(container.querySelector('[data-space-index="30"]')?.getAttribute('data-side')).toBe('corner');
+    expect(container.querySelector('[data-space-index="31"]')?.getAttribute('data-side')).toBe('right');
   });
 
-  it('renders multiple tokens on a shared space', () => {
+  it('shows canonical board names, center wordmark/decks, and visible attribution', () => {
+    const { container } = render(<MonopolyRenderer view={makeView()} disabled={false} onAction={jest.fn()} />);
+
+    expect(screen.getByText('Mediterranean Avenue')).toBeInTheDocument();
+    expect(screen.getByText('Connecticut Avenue')).toBeInTheDocument();
+    expect(screen.getByText('St. Charles Place')).toBeInTheDocument();
+    expect(screen.getByText('New York Avenue')).toBeInTheDocument();
+    expect(screen.getByText('Kentucky Avenue')).toBeInTheDocument();
+    expect(screen.getByText('Marvin Gardens')).toBeInTheDocument();
+    expect(screen.getByText('Pacific Avenue')).toBeInTheDocument();
+    expect(screen.getByText('Boardwalk')).toBeInTheDocument();
+    expect(screen.getByText('MONOPOLY')).toBeInTheDocument();
+    expect(container.querySelector('[data-deck-zone="chest"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-deck-zone="chance"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-monopoly-attribution]')).toBeInTheDocument();
+    expect(container.querySelector('[data-monopoly-attribution-detail]')).toBeInTheDocument();
+  });
+
+  it('renders multiple tokens on a shared space with token movement wrapper', () => {
     const { container } = render(<MonopolyRenderer view={makeView()} disabled={false} onAction={jest.fn()} />);
 
     const sharedSpace = container.querySelector('[data-space-index="1"]');
-    expect(sharedSpace?.querySelectorAll('[aria-label$="token"]').length).toBe(2);
+    expect(sharedSpace?.querySelectorAll('[aria-label*="token"]').length).toBe(2);
+    expect(sharedSpace?.querySelector('[data-token-track]')).toBeInTheDocument();
   });
 
   it('dispatches roll, buy/decline, end turn, jail, and debt actions exactly', () => {
@@ -167,7 +147,7 @@ describe('MonopolyRenderer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'End turn' }));
 
     rerender(<MonopolyRenderer view={makeView({
-      pendingPurchase: { playerId: 'p1', spaceIndex: 6, price: 106 },
+      pendingPurchase: { playerId: 'p1', spaceIndex: 6, price: 100 },
       legalActions: ['monopoly_buy', 'monopoly_decline'],
     })} disabled={false} onAction={onAction} />);
     fireEvent.click(screen.getByRole('button', { name: 'Buy' }));
@@ -225,11 +205,16 @@ describe('MonopolyRenderer', () => {
     expect(onAction).toHaveBeenCalledWith({ type: 'monopoly_pass_auction' });
   });
 
-  it('selects owned property and dispatches build/sell/mortgage/unmortgage', () => {
+  it('selects owned property, shows deed schedule, and dispatches build/sell/mortgage/unmortgage', () => {
     const onAction = jest.fn();
     const { container } = render(<MonopolyRenderer view={makeView()} disabled={false} onAction={onAction} />);
 
     fireEvent.click(container.querySelector('[data-space-index="1"]') as HTMLElement);
+
+    expect(screen.getByText('Title Deed')).toBeInTheDocument();
+    expect(screen.getByText('With 1 House: $10')).toBeInTheDocument();
+    expect(screen.getByText('With Hotel: $250')).toBeInTheDocument();
+    expect(screen.getByText('Mortgage value: $30')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Build' }));
     fireEvent.click(screen.getByRole('button', { name: 'Sell' }));
@@ -251,8 +236,8 @@ describe('MonopolyRenderer', () => {
     fireEvent.change(screen.getByLabelText('Requested cash'), { target: { value: '80' } });
     fireEvent.change(screen.getByLabelText('Offered jail cards'), { target: { value: '1' } });
     fireEvent.change(screen.getByLabelText('Requested jail cards'), { target: { value: '1' } });
-    fireEvent.click(screen.getByLabelText('1 Street 1'));
-    fireEvent.click(screen.getByLabelText('6 Street 6'));
+    fireEvent.click(screen.getByLabelText('1 Mediterranean Avenue'));
+    fireEvent.click(screen.getByLabelText('6 Oriental Avenue'));
     fireEvent.click(screen.getByRole('button', { name: 'Propose trade' }));
 
     expect(onAction).toHaveBeenCalledWith({
@@ -307,7 +292,7 @@ describe('MonopolyRenderer', () => {
   it('shows last card text and bank inventory details', () => {
     render(<MonopolyRenderer view={makeView()} disabled={false} onAction={jest.fn()} />);
 
-    expect(screen.getByText('Last chance card: Advance to Start')).toBeInTheDocument();
+    expect(screen.getByText(/Last chance:/i)).toBeInTheDocument();
     expect(screen.getByText('Houses: 28')).toBeInTheDocument();
     expect(screen.getByText('Hotels: 10')).toBeInTheDocument();
     expect(screen.getByText('Chance deck: 12')).toBeInTheDocument();

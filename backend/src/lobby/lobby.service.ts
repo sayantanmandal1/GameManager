@@ -27,6 +27,7 @@ import { GameRegistry } from '../game/game-registry';
 @Injectable()
 export class LobbyService {
   private readonly lobbyTtl: number;
+  private readonly lobbyMutationTails = new Map<string, Promise<void>>();
 
   constructor(
     @InjectRepository(LobbyEntity)
@@ -221,70 +222,75 @@ export class LobbyService {
   }
 
   async joinLobby(code: string, userId: string): Promise<Lobby> {
-    const lobby = await this.getLobby(code);
-    if (!lobby) throw new Error('Lobby not found');
+    return this.withLobbyMutation(code, async () => {
+      const lobby = await this.getLobby(code);
+      if (!lobby) throw new Error('Lobby not found');
 
-    // If player is already in the lobby, return current state (handles reconnect/rejoin)
-    if (lobby.players.some((p) => p.id === userId)) return lobby;
+      // If player is already in the lobby, return current state (handles reconnect/rejoin)
+      if (lobby.players.some((p) => p.id === userId)) return lobby;
 
-    if (lobby.status !== LobbyStatus.WAITING)
-      throw new Error('Game already in progress');
-    if (lobby.players.length >= lobby.maxPlayers)
-      throw new Error('Lobby is full');
+      if (lobby.status !== LobbyStatus.WAITING)
+        throw new Error('Game already in progress');
+      if (lobby.players.length >= lobby.maxPlayers)
+        throw new Error('Lobby is full');
 
-    const user = await this.userService.findById(userId);
-    if (!user) throw new Error('User not found');
+      const user = await this.userService.findById(userId);
+      if (!user) throw new Error('User not found');
 
-    const player: LobbyPlayer = {
-      id: user.id,
-      username: user.username,
-      avatar: user.avatar,
-      isReady: false,
-      isHost: false,
-      team: null,
-      joinedAt: new Date(),
-    };
+      const player: LobbyPlayer = {
+        id: user.id,
+        username: user.username,
+        avatar: user.avatar,
+        isReady: false,
+        isHost: false,
+        team: null,
+        joinedAt: new Date(),
+      };
 
-    lobby.players.push(player);
-    await this.saveLobby(lobby);
+      lobby.players.push(player);
+      await this.saveLobby(lobby);
 
-    // Update DB
-    await this.lobbyRepo.update(
-      { code },
-      { playerIds: lobby.players.map((p) => p.id) },
-    );
+      // Update DB
+      await this.lobbyRepo.update(
+        { code },
+        { playerIds: lobby.players.map((p) => p.id) },
+      );
 
-    return lobby;
+      return lobby;
+    });
   }
 
   async leaveLobby(code: string, userId: string): Promise<Lobby | null> {
-    const lobby = await this.getLobby(code);
-    if (!lobby) return null;
+    return this.withLobbyMutation(code, async () => {
+      const lobby = await this.getLobby(code);
+      if (!lobby) return null;
 
-    lobby.players = lobby.players.filter((p) => p.id !== userId);
+      lobby.players = lobby.players.filter((p) => p.id !== userId);
 
-    if (lobby.players.length === 0) {
-      await this.redis.del(`lobby:${code}`);
-      await this.lobbyRepo.update({ code }, { status: LobbyStatus.FINISHED });
-      return null;
-    }
+      if (lobby.players.length === 0 || lobby.players.every((player) => player.isBot)) {
+        await this.redis.del(`lobby:${code}`);
+        await this.lobbyRepo.update({ code }, { status: LobbyStatus.FINISHED });
+        return null;
+      }
 
-    // Transfer host if the host left
-    if (lobby.hostId === userId) {
-      lobby.hostId = lobby.players[0].id;
-      lobby.players[0].isHost = true;
-    }
+      // Transfer host if the host left
+      if (lobby.hostId === userId) {
+        const nextHost = lobby.players.find((player) => !player.isBot)!;
+        lobby.hostId = nextHost.id;
+        nextHost.isHost = true;
+      }
 
-    await this.saveLobby(lobby);
-    await this.lobbyRepo.update(
-      { code },
-      {
-        playerIds: lobby.players.map((p) => p.id),
-        hostId: lobby.hostId,
-      },
-    );
+      await this.saveLobby(lobby);
+      await this.lobbyRepo.update(
+        { code },
+        {
+          playerIds: lobby.players.map((p) => p.id),
+          hostId: lobby.hostId,
+        },
+      );
 
-    return lobby;
+      return lobby;
+    });
   }
 
   async removePlayer(
@@ -292,24 +298,59 @@ export class LobbyService {
     hostId: string,
     targetUserId: string,
   ): Promise<Lobby> {
-    const lobby = await this.getLobby(code);
-    if (!lobby) throw new Error('Lobby not found');
-    if (lobby.hostId !== hostId) throw new Error('Only the host can remove players');
-    if (lobby.status !== LobbyStatus.WAITING) {
-      throw new Error('Players cannot be removed after the game starts');
-    }
-    if (targetUserId === hostId) throw new Error('The host cannot remove themselves');
-    if (!lobby.players.some((player) => player.id === targetUserId)) {
-      throw new Error('Player not found');
-    }
+    return this.withLobbyMutation(code, async () => {
+      const lobby = await this.getLobby(code);
+      if (!lobby) throw new Error('Lobby not found');
+      if (lobby.hostId !== hostId) throw new Error('Only the host can remove players');
+      if (lobby.status !== LobbyStatus.WAITING) {
+        throw new Error('Players cannot be removed after the game starts');
+      }
+      if (targetUserId === hostId) throw new Error('The host cannot remove themselves');
+      if (!lobby.players.some((player) => player.id === targetUserId)) {
+        throw new Error('Player not found');
+      }
 
-    lobby.players = lobby.players.filter((player) => player.id !== targetUserId);
-    await this.saveLobby(lobby);
-    await this.lobbyRepo.update(
-      { code },
-      { playerIds: lobby.players.map((player) => player.id) },
-    );
-    return lobby;
+      lobby.players = lobby.players.filter((player) => player.id !== targetUserId);
+      await this.saveLobby(lobby);
+      await this.lobbyRepo.update(
+        { code },
+        { playerIds: lobby.players.map((player) => player.id) },
+      );
+      return lobby;
+    });
+  }
+
+  async addBot(code: string, hostId: string): Promise<Lobby> {
+    return this.withLobbyMutation(code, async () => {
+      const lobby = await this.getLobby(code);
+      if (!lobby) throw new Error('lobby_not_found');
+      if (lobby.hostId !== hostId) throw new Error('only_host');
+      if (lobby.status !== LobbyStatus.WAITING) throw new Error('invalid_lobby_state');
+      if (lobby.gameType !== GameType.DISTINCT || lobby.gameKey !== 'monopoly') {
+        throw new Error('bots_not_supported');
+      }
+      const maxSeats = Math.min(4, lobby.maxPlayers);
+      if (lobby.players.length >= maxSeats) throw new Error('lobby_full');
+
+      const bot: LobbyPlayer = {
+        id: `bot-${crypto.randomUUID()}`,
+        username: this.nextMonopolyBotName(lobby.players),
+        avatar: '🤖',
+        isBot: true,
+        isReady: true,
+        isHost: false,
+        team: null,
+        joinedAt: new Date(),
+      };
+
+      lobby.players.push(bot);
+      await this.saveLobby(lobby);
+      await this.lobbyRepo.update(
+        { code },
+        { playerIds: lobby.players.map((player) => player.id) },
+      );
+      return lobby;
+    });
   }
 
   async setReady(
@@ -317,35 +358,39 @@ export class LobbyService {
     userId: string,
     ready: boolean,
   ): Promise<Lobby> {
-    const lobby = await this.getLobby(code);
-    if (!lobby) throw new Error('Lobby not found');
+    return this.withLobbyMutation(code, async () => {
+      const lobby = await this.getLobby(code);
+      if (!lobby) throw new Error('Lobby not found');
 
-    const player = lobby.players.find((p) => p.id === userId);
-    if (!player) throw new Error('Not in lobby');
+      const player = lobby.players.find((p) => p.id === userId);
+      if (!player) throw new Error('Not in lobby');
 
-    player.isReady = ready;
-    await this.saveLobby(lobby);
-    return lobby;
+      player.isReady = ready;
+      await this.saveLobby(lobby);
+      return lobby;
+    });
   }
 
   async setTeam(code: string, userId: string, team: LobbyTeam): Promise<Lobby> {
-    const lobby = await this.getLobby(code);
-    if (!lobby) throw new Error('Lobby not found');
-    if (!this.isPartnershipLobby(lobby)) throw new Error('Teams are not enabled for this game');
-    if (lobby.status !== LobbyStatus.WAITING) throw new Error('Game already in progress');
-    if (team !== 0 && team !== 1) throw new Error('Invalid team');
+    return this.withLobbyMutation(code, async () => {
+      const lobby = await this.getLobby(code);
+      if (!lobby) throw new Error('Lobby not found');
+      if (!this.isPartnershipLobby(lobby)) throw new Error('Teams are not enabled for this game');
+      if (lobby.status !== LobbyStatus.WAITING) throw new Error('Game already in progress');
+      if (team !== 0 && team !== 1) throw new Error('Invalid team');
 
-    const player = lobby.players.find((candidate) => candidate.id === userId);
-    if (!player) throw new Error('Not in lobby');
-    if (player.team === team) return lobby;
+      const player = lobby.players.find((candidate) => candidate.id === userId);
+      if (!player) throw new Error('Not in lobby');
+      if (player.team === team) return lobby;
 
-    const teamSize = lobby.players.filter((candidate) => candidate.team === team).length;
-    if (teamSize >= 2) throw new Error('That team is full');
+      const teamSize = lobby.players.filter((candidate) => candidate.team === team).length;
+      if (teamSize >= 2) throw new Error('That team is full');
 
-    player.team = team;
-    player.isReady = false;
-    await this.saveLobby(lobby);
-    return lobby;
+      player.team = team;
+      player.isReady = false;
+      await this.saveLobby(lobby);
+      return lobby;
+    });
   }
 
   canStartGame(lobby: Lobby, userId: string): { ok: boolean; reason?: string } {
@@ -395,24 +440,28 @@ export class LobbyService {
   }
 
   async setStatus(code: string, status: LobbyStatus): Promise<void> {
-    const lobby = await this.getLobby(code);
-    if (!lobby) return;
-    lobby.status = status;
-    await this.saveLobby(lobby);
-    await this.lobbyRepo.update({ code }, { status });
+    await this.withLobbyMutation(code, async () => {
+      const lobby = await this.getLobby(code);
+      if (!lobby) return;
+      lobby.status = status;
+      await this.saveLobby(lobby);
+      await this.lobbyRepo.update({ code }, { status });
+    });
   }
 
   /** Reset lobby for a new game: set status to WAITING and clear all players' ready flags */
   async resetForNewGame(code: string): Promise<Lobby | null> {
-    const lobby = await this.getLobby(code);
-    if (!lobby) return null;
-    lobby.status = LobbyStatus.WAITING;
-    for (const p of lobby.players) {
-      p.isReady = false;
-    }
-    await this.saveLobby(lobby);
-    await this.lobbyRepo.update({ code }, { status: LobbyStatus.WAITING });
-    return lobby;
+    return this.withLobbyMutation(code, async () => {
+      const lobby = await this.getLobby(code);
+      if (!lobby) return null;
+      lobby.status = LobbyStatus.WAITING;
+      for (const p of lobby.players) {
+        p.isReady = !!p.isBot;
+      }
+      await this.saveLobby(lobby);
+      await this.lobbyRepo.update({ code }, { status: LobbyStatus.WAITING });
+      return lobby;
+    });
   }
 
   private async saveLobby(lobby: Lobby): Promise<void> {
@@ -424,6 +473,29 @@ export class LobbyService {
     );
   }
 
+  private async withLobbyMutation<T>(
+    code: string,
+    mutate: () => Promise<T>,
+  ): Promise<T> {
+    const previous = this.lobbyMutationTails.get(code) ?? Promise.resolve();
+    let release = (): void => undefined;
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const tail = previous.then(() => current);
+    this.lobbyMutationTails.set(code, tail);
+
+    await previous;
+    try {
+      return await mutate();
+    } finally {
+      release();
+      if (this.lobbyMutationTails.get(code) === tail) {
+        this.lobbyMutationTails.delete(code);
+      }
+    }
+  }
+
   private isPartnershipLobby(lobby: Lobby): boolean {
     return lobby.gameType === GameType.DISTINCT
       && isPartnershipGameKey(lobby.gameKey);
@@ -433,5 +505,19 @@ export class LobbyService {
     const bytes = crypto.randomBytes(4);
     const num = bytes.readUInt32BE(0) % 1_000_000;
     return num.toString().padStart(GAME_CONSTANTS.LOBBY_CODE_LENGTH, '0');
+  }
+
+  private nextMonopolyBotName(players: LobbyPlayer[]): string {
+    const used = new Set(
+      players
+        .filter((player) => player.isBot)
+        .map((player) => /^Bot\s+(\d+)$/.exec(player.username)?.[1])
+        .filter((raw): raw is string => !!raw)
+        .map(Number)
+        .filter((value) => Number.isInteger(value) && value > 0),
+    );
+    let next = 1;
+    while (used.has(next)) next += 1;
+    return `Bot ${next}`;
   }
 }

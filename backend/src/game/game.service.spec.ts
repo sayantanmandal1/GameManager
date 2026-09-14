@@ -236,6 +236,15 @@ describe('GameService', () => {
       expect(service.getDistinctPlayerView(gameId, 'outside')).toBeNull();
     });
 
+    it('schedules automatic actions after distinct game creation', async () => {
+      mockLobbyService.getLobby!.mockResolvedValue(distinctLobby);
+      const scheduleSpy = jest.spyOn(service as any, 'scheduleDistinctAutoPlay');
+
+      await service.startDistinctGame('123456');
+
+      expect(scheduleSpy).toHaveBeenCalledWith('game1', '123456');
+    });
+
     it('waits for multiplayer state fanout before completing an action', async () => {
       mockLobbyService.getLobby!.mockResolvedValue(distinctLobby);
       const { gameId } = await service.startDistinctGame('123456');
@@ -299,6 +308,40 @@ describe('GameService', () => {
         '123456',
         'reversi',
         expect.objectContaining({ winnerId: 'player2', reason: 'surrender' }),
+      );
+    });
+
+    it('emits a bot winner without storing its synthetic ID in the UUID column', async () => {
+      const monopolyLobby = {
+        ...distinctLobby,
+        gameKey: 'monopoly' as const,
+        players: [
+          distinctLobby.players[0],
+          {
+            ...distinctLobby.players[1],
+            id: 'bot-fixed',
+            username: 'Bot 1',
+            isBot: true,
+          },
+        ],
+      };
+      mockLobbyService.getLobby!.mockResolvedValue(monopolyLobby);
+      const { gameId } = await service.startDistinctGame('123456');
+      const finished = jest.fn();
+      service.onDistinctGameFinished = finished;
+
+      await expect(
+        service.distinctGameSurrender(gameId, 'player1', '123456'),
+      ).resolves.toEqual({ ok: true });
+      expect(mockGameRepo.update).toHaveBeenCalledWith(
+        gameId,
+        expect.objectContaining({ winnerId: null, status: GameStatus.FINISHED }),
+      );
+      expect(finished).toHaveBeenCalledWith(
+        gameId,
+        '123456',
+        'monopoly',
+        expect.objectContaining({ winnerId: 'bot-fixed', reason: 'surrender' }),
       );
     });
 

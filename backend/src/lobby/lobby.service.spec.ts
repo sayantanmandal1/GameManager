@@ -367,6 +367,55 @@ describe('LobbyService', () => {
       expect(result!.hostId).toBe('user2');
       expect(result!.players[0].isHost).toBe(true);
     });
+
+    it('transfers host to a human when a bot is first in the remaining seats', async () => {
+      const fakeLobby: Lobby = {
+        id: 'lobby1',
+        code: '123456',
+        hostId: 'user1',
+        gameType: GameType.DISTINCT,
+        gameKey: 'monopoly',
+        players: [
+          { id: 'user1', username: 'Alice', avatar: 'A', isReady: false, isHost: true, joinedAt: new Date() },
+          { id: 'bot-seat', username: 'Bot 1', avatar: 'B', isReady: true, isHost: false, isBot: true, joinedAt: new Date() },
+          { id: 'user2', username: 'Bob', avatar: 'C', isReady: true, isHost: false, joinedAt: new Date() },
+        ],
+        status: LobbyStatus.WAITING,
+        maxPlayers: 4,
+        createdAt: new Date(),
+      };
+      mockRedis.get!.mockResolvedValue(JSON.stringify(fakeLobby));
+
+      const result = await service.leaveLobby('123456', 'user1');
+
+      expect(result?.hostId).toBe('user2');
+      expect(result?.players.find((player) => player.id === 'user2')?.isHost).toBe(true);
+    });
+
+    it('dissolves a lobby when its last human leaves bots behind', async () => {
+      const fakeLobby: Lobby = {
+        id: 'lobby1',
+        code: '123456',
+        hostId: 'user1',
+        gameType: GameType.DISTINCT,
+        gameKey: 'monopoly',
+        players: [
+          { id: 'user1', username: 'Alice', avatar: 'A', isReady: false, isHost: true, joinedAt: new Date() },
+          { id: 'bot-seat', username: 'Bot 1', avatar: 'B', isReady: true, isHost: false, isBot: true, joinedAt: new Date() },
+        ],
+        status: LobbyStatus.WAITING,
+        maxPlayers: 4,
+        createdAt: new Date(),
+      };
+      mockRedis.get!.mockResolvedValue(JSON.stringify(fakeLobby));
+
+      await expect(service.leaveLobby('123456', 'user1')).resolves.toBeNull();
+      expect(mockRedis.del).toHaveBeenCalledWith('lobby:123456');
+      expect(mockLobbyRepo.update).toHaveBeenCalledWith(
+        { code: '123456' },
+        { status: LobbyStatus.FINISHED },
+      );
+    });
   });
 
   describe('removePlayer', () => {
@@ -415,6 +464,141 @@ describe('LobbyService', () => {
       mockRedis.get!.mockResolvedValue(JSON.stringify(activeLobby));
       await expect(service.removePlayer('123456', 'user1', 'user2'))
         .rejects.toThrow('Players cannot be removed after the game starts');
+    });
+  });
+
+  describe('addBot', () => {
+    const monopolyLobby = (): Lobby => ({
+      id: 'lobby1',
+      code: '123456',
+      hostId: 'user1',
+      gameType: GameType.DISTINCT,
+      gameKey: 'monopoly',
+      players: [
+        { id: 'user1', username: 'Alice', avatar: 'A', isReady: false, isHost: true, joinedAt: new Date() },
+        { id: 'user2', username: 'Bob', avatar: 'B', isReady: true, isHost: false, joinedAt: new Date() },
+      ],
+      status: LobbyStatus.WAITING,
+      maxPlayers: 4,
+      createdAt: new Date(),
+    });
+
+    it('allows only the host to add a Monopoly bot and persists playerIds', async () => {
+      const lobby = monopolyLobby();
+      mockRedis.get!.mockResolvedValue(JSON.stringify(lobby));
+
+      const result = await service.addBot('123456', 'user1');
+
+      const bot = result.players.find((player) => player.isBot);
+      expect(bot).toMatchObject({
+        isBot: true,
+        isReady: true,
+        isHost: false,
+        team: null,
+        avatar: '🤖',
+      });
+      expect(bot?.id.startsWith('bot-')).toBe(true);
+      expect(bot?.username).toBe('Bot 1');
+      expect(mockLobbyRepo.update).toHaveBeenCalledWith(
+        { code: '123456' },
+        { playerIds: result.players.map((player) => player.id) },
+      );
+    });
+
+    it('numbers bots deterministically from existing seats', async () => {
+      const lobby = monopolyLobby();
+      lobby.players.push({
+        id: 'bot-fixed',
+        username: 'Bot 1',
+        avatar: '🤖',
+        isBot: true,
+        isReady: true,
+        isHost: false,
+        team: null,
+        joinedAt: new Date(),
+      });
+      mockRedis.get!.mockResolvedValue(JSON.stringify(lobby));
+
+      const result = await service.addBot('123456', 'user1');
+
+      expect(result.players.at(-1)?.username).toBe('Bot 2');
+    });
+
+    it('serializes concurrent bot additions without losing a seat', async () => {
+      let storedLobby = JSON.stringify(monopolyLobby());
+      mockRedis.get!.mockImplementation(async () => storedLobby);
+      mockRedis.set!.mockImplementation(async (_key, value) => {
+        storedLobby = value as string;
+        return 'OK';
+      });
+
+      await Promise.all([
+        service.addBot('123456', 'user1'),
+        service.addBot('123456', 'user1'),
+      ]);
+
+      const persisted = JSON.parse(storedLobby) as Lobby;
+      expect(persisted.players).toHaveLength(4);
+      expect(persisted.players.filter((player) => player.isBot).map((player) => player.username))
+        .toEqual(['Bot 1', 'Bot 2']);
+    });
+
+    it('rechecks bot authorization after a queued host departure', async () => {
+      const lobby = monopolyLobby();
+      let storedLobby = JSON.stringify(lobby);
+      mockRedis.get!.mockImplementation(async () => storedLobby);
+      mockRedis.set!.mockImplementation(async (_key, value) => {
+        storedLobby = value as string;
+        return 'OK';
+      });
+
+      const departure = service.leaveLobby('123456', 'user1');
+      const staleHostAddition = service.addBot('123456', 'user1');
+
+      await expect(departure).resolves.toMatchObject({ hostId: 'user2' });
+      await expect(staleHostAddition).rejects.toThrow('only_host');
+    });
+
+    it('rejects non-host callers, non-monopoly lobbies, in-progress lobbies, and full rooms', async () => {
+      const lobby = monopolyLobby();
+
+      mockRedis.get!.mockResolvedValueOnce(JSON.stringify(lobby));
+      await expect(service.addBot('123456', 'user2')).rejects.toThrow('only_host');
+
+      const nonMonopoly = { ...lobby, gameKey: 'reversi' as const };
+      mockRedis.get!.mockResolvedValueOnce(JSON.stringify(nonMonopoly));
+      await expect(service.addBot('123456', 'user1')).rejects.toThrow('bots_not_supported');
+
+      const inProgress = { ...lobby, status: LobbyStatus.IN_PROGRESS };
+      mockRedis.get!.mockResolvedValueOnce(JSON.stringify(inProgress));
+      await expect(service.addBot('123456', 'user1')).rejects.toThrow('invalid_lobby_state');
+
+      const full = monopolyLobby();
+      full.players.push(
+        { id: 'u3', username: 'Cara', avatar: 'C', isReady: true, isHost: false, joinedAt: new Date() },
+        { id: 'u4', username: 'Dev', avatar: 'D', isReady: true, isHost: false, joinedAt: new Date() },
+      );
+      mockRedis.get!.mockResolvedValueOnce(JSON.stringify(full));
+      await expect(service.addBot('123456', 'user1')).rejects.toThrow('lobby_full');
+    });
+
+    it('removes a bot seat through the existing removePlayer flow', async () => {
+      const lobby = monopolyLobby();
+      lobby.players.push({
+        id: 'bot-seat',
+        username: 'Bot 1',
+        avatar: '🤖',
+        isBot: true,
+        isReady: true,
+        isHost: false,
+        team: null,
+        joinedAt: new Date(),
+      });
+      mockRedis.get!.mockResolvedValue(JSON.stringify(lobby));
+
+      const result = await service.removePlayer('123456', 'user1', 'bot-seat');
+
+      expect(result.players.some((player) => player.id === 'bot-seat')).toBe(false);
     });
   });
 
@@ -639,18 +823,20 @@ describe('LobbyService', () => {
   });
 
   describe('resetForNewGame', () => {
-    it('should reset lobby status and clear ready flags', async () => {
+    it('should reset lobby status, keeping bots ready and humans not ready', async () => {
       const fakeLobby: Lobby = {
         id: 'lobby1',
         code: '123456',
         hostId: 'user1',
-        gameType: GameType.BINGO,
+        gameType: GameType.DISTINCT,
+        gameKey: 'monopoly',
         players: [
           { id: 'user1', username: 'Alice', avatar: '🦊', isReady: true, isHost: true, joinedAt: new Date() },
           { id: 'user2', username: 'Bob', avatar: '🐱', isReady: true, isHost: false, joinedAt: new Date() },
+          { id: 'bot-seat', username: 'Bot 1', avatar: '🤖', isBot: true, isReady: true, isHost: false, team: null, joinedAt: new Date() },
         ],
         status: LobbyStatus.IN_PROGRESS,
-        maxPlayers: 8,
+        maxPlayers: 4,
         createdAt: new Date(),
       };
       mockRedis.get!.mockResolvedValue(JSON.stringify(fakeLobby));
@@ -658,7 +844,9 @@ describe('LobbyService', () => {
       const result = await service.resetForNewGame('123456');
       expect(result).toBeTruthy();
       expect(result!.status).toBe(LobbyStatus.WAITING);
-      expect(result!.players.every((p) => p.isReady === false)).toBe(true);
+      expect(result!.players.find((player) => player.id === 'user1')?.isReady).toBe(false);
+      expect(result!.players.find((player) => player.id === 'user2')?.isReady).toBe(false);
+      expect(result!.players.find((player) => player.id === 'bot-seat')?.isReady).toBe(true);
     });
   });
 

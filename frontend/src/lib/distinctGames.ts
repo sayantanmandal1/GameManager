@@ -344,4 +344,13 @@ export const DISTINCT_GAME_UI: Record<DistinctGameKey, DistinctGameUiDefinition>
     surface: '#2a241c',
     prompt: 'Use legal controls for roll, buy, trade, and settlement',
   },
+  wrongway: {
+    name: 'Wrongway',
+    eyebrow: '9 BY 9 WALL TACTICS',
+    headline: 'Cross the board while blocking the lane.',
+    description: 'Advance one step at a time, jump or sidestep around pressure, and place walls without cutting off every path.',
+    accent: '#675cff',
+    surface: '#08142d',
+    prompt: 'Move a pawn or place a legal wall anchor',
+  },
 };

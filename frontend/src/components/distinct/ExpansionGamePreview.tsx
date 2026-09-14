@@ -1,4 +1,6 @@
-import type { DistinctGameKey } from '@/shared';
+import type { DistinctGameKey, MonopolyPlayer } from '@/shared';
+import { MonopolyBoard } from './renderers/MonopolyBoard';
+import { buildMonopolyCanonicalPreviewBoard } from './renderers/monopolyBoardData';
 
 const EXPANSION_GAME_KEYS = [
   'hearts',
@@ -23,6 +25,7 @@ const EXPANSION_GAME_KEYS = [
   'slapjack',
   'spoons',
   'monopoly',
+  'wrongway',
 ] as const satisfies readonly DistinctGameKey[];
 
 type ExpansionGameKey = (typeof EXPANSION_GAME_KEYS)[number];
@@ -77,6 +80,8 @@ export function ExpansionGamePreview({ gameKey }: Readonly<{ gameKey: ExpansionG
       return <CardMechanicPreview title="SPOONS" badge="FOUR OF A KIND" cards={['7♠', '7♥', '7♣', '7♦']} accent="#d9e2e0" />;
     case 'monopoly':
       return <MonopolyPreview />;
+    case 'wrongway':
+      return <WrongwayPreview />;
   }
 }
 
@@ -166,64 +171,104 @@ function BridgePreview() {
 }
 
 function MonopolyPreview() {
-  const boardCells = Array.from({ length: 40 }, (_, index) => {
-    if (index === 0) return { index, label: 'GO', kind: 'go' as const };
-    if (index === 10) return { index, label: 'JAIL', kind: 'jail' as const };
-    if (index === 20) return { index, label: 'PARK', kind: 'free' as const };
-    if (index === 30) return { index, label: 'G2J', kind: 'goto' as const };
-    if ([7, 22, 36].includes(index)) return { index, label: 'CH?', kind: 'chance' as const };
-    if ([2, 17, 33].includes(index)) return { index, label: 'CC', kind: 'chest' as const };
-    if ([5, 15, 25, 35].includes(index)) return { index, label: 'RR', kind: 'rail' as const };
-    if ([12, 28].includes(index)) return { index, label: 'UT', kind: 'utility' as const };
-    if ([4, 38].includes(index)) return { index, label: 'TAX', kind: 'tax' as const };
-    return { index, label: `${index}`, kind: 'street' as const };
-  });
+  const board = buildMonopolyCanonicalPreviewBoard();
+  board[16].ownerId = 'preview-top-hat';
+  board[16].buildingCount = 2;
+  board[18].ownerId = 'preview-top-hat';
+  board[19].ownerId = 'preview-top-hat';
+  board[24].ownerId = 'preview-racecar';
+  board[37].ownerId = 'preview-battleship';
+  board[39].ownerId = 'preview-battleship';
+  board[39].buildingCount = 5;
+
+  const players: MonopolyPlayer[] = [
+    previewMonopolyPlayer('preview-top-hat', 'Ava', 'top_hat', '#e43b36', 16, [16, 18, 19]),
+    previewMonopolyPlayer('preview-racecar', 'Max', 'racecar', '#2786df', 24, [24]),
+    previewMonopolyPlayer('preview-battleship', 'Rio', 'battleship', '#21a65a', 39, [37, 39]),
+  ];
 
   return (
-    <div aria-label="Monopoly board preview" className="w-full max-w-md border-4 border-[#3a2d20] bg-[#efe4d0] p-3 shadow-2xl">
-      <div className="relative grid aspect-square grid-cols-11 grid-rows-11 border-2 border-[#302317] bg-[#f7f0e2]">
-        {boardCells.map((cell) => {
-          const coordinate = previewCoordinate(cell.index);
-          return (
-            <span
-              key={cell.index}
-              className={`flex items-center justify-center border border-[#4b3a2a] text-[8px] font-black text-[#2b2015] ${previewCellTone(cell.kind)}`}
-              style={{ gridColumnStart: coordinate.col + 1, gridRowStart: coordinate.row + 1 }}
-            >
-              {cell.label}
-            </span>
-          );
-        })}
-        <div className="absolute inset-[19%] border border-[#5a4835] bg-[#e7dac3] text-center">
-          <p className="mt-5 text-xs font-black tracking-[0.14em] text-[#3d3022]">PROPERTY TRADE TABLE</p>
-          <p className="mt-3 text-[11px] font-semibold text-[#4d3d2d]">40-SPACE PERIMETER BOARD</p>
-          <div className="mx-auto mt-4 flex w-[72%] justify-between text-[10px] font-bold text-[#4d3d2d]">
-            <span>HOUSES 28</span>
-            <span>HOTELS 10</span>
-          </div>
-        </div>
-      </div>
+    <div role="group" aria-label="Monopoly board preview" className="w-full max-w-[42rem] p-1">
+      <MonopolyBoard
+        board={board}
+        players={players}
+        mode="preview"
+        showAttribution
+        lastRoll={null}
+      />
     </div>
   );
 }
 
-function previewCoordinate(index: number): { row: number; col: number } {
-  if (index === 0) return { row: 10, col: 10 };
-  if (index >= 1 && index <= 9) return { row: 10, col: 10 - index };
-  if (index === 10) return { row: 10, col: 0 };
-  if (index >= 11 && index <= 19) return { row: 10 - (index - 10), col: 0 };
-  if (index === 20) return { row: 0, col: 0 };
-  if (index >= 21 && index <= 29) return { row: 0, col: index - 20 };
-  if (index === 30) return { row: 0, col: 10 };
-  return { row: index - 30, col: 10 };
+function previewMonopolyPlayer(
+  id: string,
+  name: string,
+  originalToken: string,
+  originalColor: string,
+  position: number,
+  properties: number[],
+): MonopolyPlayer {
+  return {
+    id,
+    name,
+    isBot: false,
+    originalToken,
+    originalColor,
+    position,
+    cash: 1500,
+    inJail: false,
+    jailTurns: 0,
+    jailCards: 0,
+    bankrupt: false,
+    bankruptOrder: null,
+    properties,
+  };
 }
 
-function previewCellTone(kind: 'street' | 'go' | 'jail' | 'free' | 'goto' | 'chance' | 'chest' | 'rail' | 'utility' | 'tax'): string {
-  if (kind === 'street') return 'bg-[#f9f3e8]';
-  if (kind === 'go' || kind === 'jail' || kind === 'free' || kind === 'goto') return 'bg-[#dcc8a6]';
-  if (kind === 'chance' || kind === 'chest') return 'bg-[#d9e2d2]';
-  if (kind === 'tax') return 'bg-[#ead1c2]';
-  return 'bg-[#e8ddcd]';
+function WrongwayPreview() {
+  return (
+    <div role="group" aria-label="Wrongway board preview" className="w-full max-w-md rounded-md border border-[#203655] bg-[#050b1e] p-3 shadow-2xl">
+      <div className="relative mx-auto aspect-square w-full max-w-[20rem] overflow-hidden rounded-md border border-[#2a4467] bg-[#08142d]">
+        <div className="grid h-full w-full grid-cols-9 grid-rows-9">
+          {Array.from({ length: 81 }, (_, index) => {
+            const row = Math.floor(index / 9);
+            const column = index % 9;
+            const tone = (row + column) % 2 === 0 ? 'bg-[#0b1b3b]' : 'bg-[#08142d]';
+            const redPawn = row === 8 && column === 4;
+            const bluePawn = row === 0 && column === 4;
+            return (
+              <span key={`wrongway-preview-cell-${index}`} className={`relative border border-[#314869] ${tone}`}>
+                {redPawn && (
+                  <span
+                    className="absolute left-1/2 top-1/2 h-[68%] w-[68%] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[#ff9ca3] bg-[#ff4e59]"
+                    style={{ boxShadow: '0 0 8px rgba(255, 78, 89, 0.8)' }}
+                  />
+                )}
+                {bluePawn && (
+                  <span
+                    className="absolute left-1/2 top-1/2 h-[68%] w-[68%] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[#9ac3ff] bg-[#4d9cff]"
+                    style={{ boxShadow: '0 0 8px rgba(77, 156, 255, 0.8)' }}
+                  />
+                )}
+              </span>
+            );
+          })}
+        </div>
+        <span
+          className="pointer-events-none absolute rounded-[2px] border border-[#ff9ca3]/70 bg-[#ff4e59]"
+          style={{ left: '22.222%', top: 'calc(33.333% - 1.1%)', width: '22.222%', height: '2.2%', boxShadow: '0 0 8px rgba(255, 78, 89, 0.78)' }}
+        />
+        <span
+          className="pointer-events-none absolute rounded-[2px] border border-[#adc7ff]/70 bg-[#4d9cff]"
+          style={{ left: 'calc(66.666% - 1.1%)', top: '55.555%', width: '2.2%', height: '22.222%', boxShadow: '0 0 8px rgba(77, 156, 255, 0.75)' }}
+        />
+      </div>
+      <div className="mt-3 flex items-center justify-between rounded-md border border-[#2b3f66] bg-[#08142d] px-2.5 py-2 text-xs font-semibold text-[#cfe0ff]">
+        <span className="rounded-sm border border-[#675cff] bg-[#675cff] px-2 py-1 text-white">MOVE</span>
+        <span className="rounded-sm border border-[#675cff] bg-[#675cff]/25 px-2 py-1">WALL · H</span>
+      </div>
+    </div>
+  );
 }
 
 function CardMechanicPreview({ title, badge, cards, accent, hidden = false }: Readonly<{

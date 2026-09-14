@@ -17,6 +17,7 @@ interface LobbyState {
   leaveLobby: () => void;
   setReady: (ready: boolean) => void;
   selectTeam: (team: LobbyTeam) => void;
+  addBot: () => void;
   removePlayer: (targetUserId: string) => void;
   startGame: () => void;
   initListeners: () => () => void;
@@ -77,6 +78,12 @@ export const useLobbyStore = create<LobbyState>()((set) => ({
     const socket = getSocket();
     if (!socket) return;
     socket.emit(LOBBY_EVENTS.TEAM_SELECT, { team });
+  },
+
+  addBot: () => {
+    const socket = getSocket();
+    if (!socket) return;
+    socket.emit(LOBBY_EVENTS.ADD_BOT);
   },
 
   removePlayer: (targetUserId: string) => {

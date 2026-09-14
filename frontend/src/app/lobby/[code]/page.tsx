@@ -58,6 +58,7 @@ export default function LobbyPage() {
     leaveLobby,
     setReady,
     selectTeam,
+    addBot,
     removePlayer,
     startGame,
     initListeners,
@@ -145,6 +146,13 @@ export default function LobbyPage() {
   const minimumPlayers = isPartnershipGame ? 4 : 2;
   const canStart =
     isHost && allReady && teamsComplete && (lobby?.players.length ?? 0) >= minimumPlayers;
+  const canAddBot =
+    !!isHost
+    && lobby?.status === LobbyStatus.WAITING
+    && lobby?.gameType === GameType.DISTINCT
+    && lobby?.gameKey === 'monopoly'
+    && (lobby?.players.length ?? 0) < Math.min(4, lobby?.maxPlayers ?? 4);
+  const supportsBots = lobby?.gameType === GameType.DISTINCT && lobby?.gameKey === 'monopoly';
   const gameName = getGameName(lobby);
 
   const copyCode = async () => {
@@ -260,13 +268,24 @@ export default function LobbyPage() {
               )}
 
               {isHost && (
-                <Button
-                  disabled={!canStart}
-                  onClick={startGame}
-                  className={canStart ? 'animate-pulse-glow' : ''}
-                >
-                  {canStart ? 'Start game' : 'Waiting for players'}
-                </Button>
+                <>
+                  {supportsBots && (
+                    <Button
+                      variant="secondary"
+                      disabled={!canAddBot}
+                      onClick={addBot}
+                    >
+                      Add bot
+                    </Button>
+                  )}
+                  <Button
+                    disabled={!canStart}
+                    onClick={startGame}
+                    className={canStart ? 'animate-pulse-glow' : ''}
+                  >
+                    {canStart ? 'Start game' : 'Waiting for players'}
+                  </Button>
+                </>
               )}
 
               <Button variant="danger" onClick={handleLeave}>

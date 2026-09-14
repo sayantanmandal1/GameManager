@@ -1,0 +1,81 @@
+import type { MonopolyBoardSpaceView } from '@/shared';
+
+type CanonicalSpace = Omit<MonopolyBoardSpaceView, 'ownerId' | 'mortgaged' | 'buildingCount'>;
+type RentTuple = [number, number, number, number, number, number];
+
+const STREET_RENTS: Record<string, RentTuple> = {
+  mediterranean: [2, 10, 30, 90, 160, 250],
+  baltic: [4, 20, 60, 180, 320, 450],
+  oriental: [6, 30, 90, 270, 400, 550],
+  vermont: [6, 30, 90, 270, 400, 550],
+  connecticut: [8, 40, 100, 300, 450, 600],
+  stCharles: [10, 50, 150, 450, 625, 750],
+  states: [10, 50, 150, 450, 625, 750],
+  virginia: [12, 60, 180, 500, 700, 900],
+  stJames: [14, 70, 200, 550, 750, 950],
+  tennessee: [14, 70, 200, 550, 750, 950],
+  newYork: [16, 80, 220, 600, 800, 1000],
+  kentucky: [18, 90, 250, 700, 875, 1050],
+  indiana: [18, 90, 250, 700, 875, 1050],
+  illinois: [20, 100, 300, 750, 925, 1100],
+  atlantic: [22, 110, 330, 800, 975, 1150],
+  ventnor: [22, 110, 330, 800, 975, 1150],
+  marvin: [24, 120, 360, 850, 1025, 1200],
+  pacific: [26, 130, 390, 900, 1100, 1275],
+  northCarolina: [26, 130, 390, 900, 1100, 1275],
+  pennsylvania: [28, 150, 450, 1000, 1200, 1400],
+  park: [35, 175, 500, 1100, 1300, 1500],
+  boardwalk: [50, 200, 600, 1400, 1700, 2000],
+};
+
+export const MONOPOLY_CANONICAL_PREVIEW_BOARD: readonly CanonicalSpace[] = [
+  { index: 0, name: 'GO', kind: 'go' },
+  { index: 1, name: 'Mediterranean Avenue', kind: 'street', group: 'brown', price: 60, rents: STREET_RENTS.mediterranean, houseCost: 50, mortgage: 30 },
+  { index: 2, name: 'Community Chest', kind: 'chest' },
+  { index: 3, name: 'Baltic Avenue', kind: 'street', group: 'brown', price: 60, rents: STREET_RENTS.baltic, houseCost: 50, mortgage: 30 },
+  { index: 4, name: 'Income Tax', kind: 'tax', amount: 200 },
+  { index: 5, name: 'Reading Railroad', kind: 'railroad', price: 200, mortgage: 100 },
+  { index: 6, name: 'Oriental Avenue', kind: 'street', group: 'light_blue', price: 100, rents: STREET_RENTS.oriental, houseCost: 50, mortgage: 50 },
+  { index: 7, name: 'Chance', kind: 'chance' },
+  { index: 8, name: 'Vermont Avenue', kind: 'street', group: 'light_blue', price: 100, rents: STREET_RENTS.vermont, houseCost: 50, mortgage: 50 },
+  { index: 9, name: 'Connecticut Avenue', kind: 'street', group: 'light_blue', price: 120, rents: STREET_RENTS.connecticut, houseCost: 50, mortgage: 60 },
+  { index: 10, name: 'In Jail / Just Visiting', kind: 'jail' },
+  { index: 11, name: 'St. Charles Place', kind: 'street', group: 'pink', price: 140, rents: STREET_RENTS.stCharles, houseCost: 100, mortgage: 70 },
+  { index: 12, name: 'Electric Company', kind: 'utility', price: 150, mortgage: 75 },
+  { index: 13, name: 'States Avenue', kind: 'street', group: 'pink', price: 140, rents: STREET_RENTS.states, houseCost: 100, mortgage: 70 },
+  { index: 14, name: 'Virginia Avenue', kind: 'street', group: 'pink', price: 160, rents: STREET_RENTS.virginia, houseCost: 100, mortgage: 80 },
+  { index: 15, name: 'Pennsylvania Railroad', kind: 'railroad', price: 200, mortgage: 100 },
+  { index: 16, name: 'St. James Place', kind: 'street', group: 'orange', price: 180, rents: STREET_RENTS.stJames, houseCost: 100, mortgage: 90 },
+  { index: 17, name: 'Community Chest', kind: 'chest' },
+  { index: 18, name: 'Tennessee Avenue', kind: 'street', group: 'orange', price: 180, rents: STREET_RENTS.tennessee, houseCost: 100, mortgage: 90 },
+  { index: 19, name: 'New York Avenue', kind: 'street', group: 'orange', price: 200, rents: STREET_RENTS.newYork, houseCost: 100, mortgage: 100 },
+  { index: 20, name: 'Free Parking', kind: 'free_parking' },
+  { index: 21, name: 'Kentucky Avenue', kind: 'street', group: 'red', price: 220, rents: STREET_RENTS.kentucky, houseCost: 150, mortgage: 110 },
+  { index: 22, name: 'Chance', kind: 'chance' },
+  { index: 23, name: 'Indiana Avenue', kind: 'street', group: 'red', price: 220, rents: STREET_RENTS.indiana, houseCost: 150, mortgage: 110 },
+  { index: 24, name: 'Illinois Avenue', kind: 'street', group: 'red', price: 240, rents: STREET_RENTS.illinois, houseCost: 150, mortgage: 120 },
+  { index: 25, name: 'B. & O. Railroad', kind: 'railroad', price: 200, mortgage: 100 },
+  { index: 26, name: 'Atlantic Avenue', kind: 'street', group: 'yellow', price: 260, rents: STREET_RENTS.atlantic, houseCost: 150, mortgage: 130 },
+  { index: 27, name: 'Ventnor Avenue', kind: 'street', group: 'yellow', price: 260, rents: STREET_RENTS.ventnor, houseCost: 150, mortgage: 130 },
+  { index: 28, name: 'Water Works', kind: 'utility', price: 150, mortgage: 75 },
+  { index: 29, name: 'Marvin Gardens', kind: 'street', group: 'yellow', price: 280, rents: STREET_RENTS.marvin, houseCost: 150, mortgage: 140 },
+  { index: 30, name: 'Go To Jail', kind: 'go_to_jail' },
+  { index: 31, name: 'Pacific Avenue', kind: 'street', group: 'green', price: 300, rents: STREET_RENTS.pacific, houseCost: 200, mortgage: 150 },
+  { index: 32, name: 'North Carolina Avenue', kind: 'street', group: 'green', price: 300, rents: STREET_RENTS.northCarolina, houseCost: 200, mortgage: 150 },
+  { index: 33, name: 'Community Chest', kind: 'chest' },
+  { index: 34, name: 'Pennsylvania Avenue', kind: 'street', group: 'green', price: 320, rents: STREET_RENTS.pennsylvania, houseCost: 200, mortgage: 160 },
+  { index: 35, name: 'Short Line', kind: 'railroad', price: 200, mortgage: 100 },
+  { index: 36, name: 'Chance', kind: 'chance' },
+  { index: 37, name: 'Park Place', kind: 'street', group: 'dark_blue', price: 350, rents: STREET_RENTS.park, houseCost: 200, mortgage: 175 },
+  { index: 38, name: 'Luxury Tax', kind: 'tax', amount: 100 },
+  { index: 39, name: 'Boardwalk', kind: 'street', group: 'dark_blue', price: 400, rents: STREET_RENTS.boardwalk, houseCost: 200, mortgage: 200 },
+];
+
+export function buildMonopolyCanonicalPreviewBoard(): MonopolyBoardSpaceView[] {
+  return MONOPOLY_CANONICAL_PREVIEW_BOARD.map((space) => ({
+    ...space,
+    ownerId: null,
+    mortgaged: false,
+    buildingCount: 0,
+  }));
+}

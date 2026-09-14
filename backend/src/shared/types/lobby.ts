@@ -22,6 +22,7 @@ export interface LobbyPlayer {
   id: string;
   username: string;
   avatar: string;
+  isBot?: boolean;
   isReady: boolean;
   isHost: boolean;
   /** Chosen partnership for team games; absent on older cached lobbies. */

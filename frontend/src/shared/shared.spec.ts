@@ -142,6 +142,10 @@ describe('Frontend Event Constants', () => {
     it('should include GAME_STARTING event', () => {
       expect(LOBBY_EVENTS.GAME_STARTING).toBe('lobby:game_starting');
     });
+
+    it('should include ADD_BOT event', () => {
+      expect(LOBBY_EVENTS.ADD_BOT).toBe('lobby:add_bot');
+    });
   });
 
   describe('GAME_EVENTS', () => {

@@ -109,6 +109,7 @@ describe('Event Constants', () => {
       expect(LOBBY_EVENTS.JOIN).toBeDefined();
       expect(LOBBY_EVENTS.LEAVE).toBeDefined();
       expect(LOBBY_EVENTS.PLAYER_READY).toBeDefined();
+      expect(LOBBY_EVENTS.ADD_BOT).toBeDefined();
       expect(LOBBY_EVENTS.STATE).toBeDefined();
       expect(LOBBY_EVENTS.ERROR).toBeDefined();
       expect(LOBBY_EVENTS.START_GAME).toBeDefined();

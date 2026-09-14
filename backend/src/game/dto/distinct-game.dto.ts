@@ -101,13 +101,13 @@ export class DistinctActionPayloadDto {
   @IsOptional()
   @IsInt()
   @Min(0)
-  @Max(4)
+  @Max(8)
   row?: number;
 
   @IsOptional()
   @IsInt()
   @Min(0)
-  @Max(4)
+  @Max(8)
   column?: number;
 
   @IsOptional()
@@ -139,6 +139,7 @@ export class DistinctActionPayloadDto {
     'monopoly_build', 'monopoly_sell_building', 'monopoly_mortgage', 'monopoly_unmortgage',
     'monopoly_propose_trade', 'monopoly_respond_trade', 'monopoly_cancel_trade',
     'monopoly_pay_debt', 'monopoly_declare_bankruptcy',
+    'wrongway_move', 'wrongway_place_wall',
   ])
   type?: string;
 

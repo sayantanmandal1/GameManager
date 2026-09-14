@@ -11,6 +11,7 @@ describe('LobbyGateway connection handling', () => {
     getLobby: jest.Mock;
     joinLobby: jest.Mock;
     leaveLobby: jest.Mock;
+    addBot: jest.Mock;
     removePlayer: jest.Mock;
     resetForNewGame: jest.Mock;
     setReady: jest.Mock;
@@ -38,6 +39,7 @@ describe('LobbyGateway connection handling', () => {
       getLobby: jest.fn(),
       joinLobby: jest.fn(),
       leaveLobby: jest.fn(),
+      addBot: jest.fn(),
       removePlayer: jest.fn(),
       resetForNewGame: jest.fn(),
       setReady: jest.fn().mockResolvedValue(undefined),
@@ -131,8 +133,8 @@ describe('LobbyGateway connection handling', () => {
       hostId: 'user-1',
       status: LobbyStatus.WAITING,
       players: [
-        { id: 'user-1', isHost: true, isReady: false },
-        { id: 'user-2', isHost: false, isReady: false },
+        { id: 'user-1', isHost: true, isReady: false, isBot: false },
+        { id: 'user-2', isHost: false, isReady: false, isBot: false },
       ],
     });
     const start = jest.spyOn(gateway, 'handleStartGame').mockResolvedValue();
@@ -153,8 +155,8 @@ describe('LobbyGateway connection handling', () => {
       hostId: 'user-1',
       status: LobbyStatus.WAITING,
       players: [
-        { id: 'user-1', isHost: true, isReady: false },
-        { id: 'user-2', isHost: false, isReady: false },
+        { id: 'user-1', isHost: true, isReady: false, isBot: false },
+        { id: 'user-2', isHost: false, isReady: false, isBot: false },
       ],
     });
 
@@ -183,8 +185,8 @@ describe('LobbyGateway connection handling', () => {
       hostId: 'user-1',
       status: LobbyStatus.WAITING,
       players: [
-        { id: 'user-1', isHost: true, isReady: false },
-        { id: 'user-2', isHost: false, isReady: false },
+        { id: 'user-1', isHost: true, isReady: false, isBot: false },
+        { id: 'user-2', isHost: false, isReady: false, isBot: false },
       ],
     });
     const start = jest.spyOn(gateway, 'handleStartGame').mockResolvedValue();
@@ -199,6 +201,45 @@ describe('LobbyGateway connection handling', () => {
     });
     expect(start).toHaveBeenCalledWith(hostSocket);
     expect(lobbyService.setReady).toHaveBeenCalledWith('123456', 'user-2', true);
+  });
+
+  it('excludes bots from rematch required counts and readiness loop', async () => {
+    const hostSocket = makeSocket();
+    const guestSocket = {
+      ...makeSocket(),
+      id: 'socket-2',
+      data: { user: { sub: 'user-2', username: 'Bob' } },
+    };
+    gateway.getSocketLobbyMap().set(hostSocket.id, '123456');
+    gateway.getSocketLobbyMap().set(guestSocket.id, '123456');
+    roomSockets = [hostSocket, guestSocket];
+    lobbyService.getLobby.mockResolvedValue({
+      code: '123456',
+      hostId: 'user-1',
+      status: LobbyStatus.WAITING,
+      players: [
+        { id: 'user-1', isHost: true, isReady: false, isBot: false },
+        { id: 'user-2', isHost: false, isReady: false, isBot: false },
+        { id: 'bot-1', isHost: false, isReady: true, isBot: true },
+      ],
+    });
+    const start = jest.spyOn(gateway, 'handleStartGame').mockResolvedValue();
+
+    await gateway.handleRematchRequest(hostSocket as never);
+    await gateway.handleRematchRequest(guestSocket as never);
+
+    expect(roomEmit).toHaveBeenCalledWith(LOBBY_EVENTS.REMATCH_STATE, {
+      requestedBy: ['user-1'],
+      required: 2,
+    });
+    expect(roomEmit).toHaveBeenCalledWith(LOBBY_EVENTS.REMATCH_STATE, {
+      requestedBy: [],
+      required: 2,
+      starting: true,
+    });
+    expect(lobbyService.setReady).toHaveBeenCalledWith('123456', 'user-2', true);
+    expect(lobbyService.setReady).not.toHaveBeenCalledWith('123456', 'bot-1', true);
+    expect(start).toHaveBeenCalledWith(hostSocket);
   });
 
   it('rejects rematch votes before the current game ends', async () => {
@@ -333,6 +374,37 @@ describe('LobbyGateway connection handling', () => {
     });
     expect(gateway.getSocketLobbyMap().has(targetSocket.id)).toBe(false);
     expect(roomEmit).toHaveBeenCalledWith(LOBBY_EVENTS.STATE, { lobby });
+  });
+
+  it('adds a Monopoly bot through a host-only handler and broadcasts state', async () => {
+    const socket = makeSocket();
+    const lobby = {
+      code: '123456',
+      status: LobbyStatus.WAITING,
+      gameType: GameType.DISTINCT,
+      gameKey: 'monopoly',
+      players: [{ id: 'user-1' }, { id: 'bot-1', isBot: true }],
+    };
+    gateway.getSocketLobbyMap().set(socket.id, '123456');
+    lobbyService.addBot.mockResolvedValue(lobby);
+
+    await gateway.handleAddBot(socket as never);
+
+    expect(lobbyService.addBot).toHaveBeenCalledWith('123456', 'user-1');
+    expect(roomEmit).toHaveBeenCalledWith(LOBBY_EVENTS.STATE, { lobby });
+  });
+
+  it('maps add-bot failures to a safe public error', async () => {
+    const socket = makeSocket();
+    gateway.getSocketLobbyMap().set(socket.id, '123456');
+    lobbyService.addBot.mockRejectedValue(new Error('only_host'));
+
+    await gateway.handleAddBot(socket as never);
+
+    expect(socket.emit).toHaveBeenCalledWith(LOBBY_EVENTS.ERROR, {
+      message: 'Only the host can add bots',
+      code: 'ADD_BOT_FAILED',
+    });
   });
 
   it('reports a rejected removal without changing room membership', async () => {

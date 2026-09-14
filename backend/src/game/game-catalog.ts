@@ -388,6 +388,13 @@ const DISTINCT_PRESENTATION = {
     accent: '#f0b55d',
     surface: '#2f2419',
   },
+  wrongway: {
+    name: 'Wrongway',
+    mark: 'WW',
+    description: 'Dash for the opposite edge, deploy walls, and force hard detours in a neon duel.',
+    accent: '#5da8ff',
+    surface: '#0d1b36',
+  },
   durak: {
     name: 'Durak',
     mark: 'D',

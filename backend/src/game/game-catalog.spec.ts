@@ -7,8 +7,8 @@ describe('game catalog', () => {
   const registry = new GameRegistry();
   const games = getGameCatalog(registry);
 
-  it('exposes exactly the existing eight plus thirty-seven distinct games', () => {
-    expect(games).toHaveLength(45);
+  it('exposes exactly the existing eight plus thirty-eight distinct games', () => {
+    expect(games).toHaveLength(46);
     expect(games.map((game) => game.key)).toEqual([
       'bingo',
       'chess',
@@ -55,6 +55,7 @@ describe('game catalog', () => {
       'slapjack',
       'spoons',
       'monopoly',
+      'wrongway',
     ]);
   });
 
@@ -73,11 +74,11 @@ describe('game catalog', () => {
 
   it('derives distinct capacities from their registered adapters', () => {
     const added = games.filter((game) => game.gameType === GameType.DISTINCT);
-    expect(added).toHaveLength(37);
+    expect(added).toHaveLength(38);
     expect(added.every((game) => game.minPlayers >= 2 && game.maxPlayers <= 10)).toBe(true);
     expect(added.every((game) => game.gameKey === game.key)).toBe(true);
     expect(added.every((game) => game.modes.length === 1 && game.modes[0].key === 'online')).toBe(true);
-    expect(new Set(games.map((game) => game.key)).size).toBe(45);
+    expect(new Set(games.map((game) => game.key)).size).toBe(46);
     expect(added.find((game) => game.key === 'hangman')).toMatchObject({ minPlayers: 2, maxPlayers: 8 });
     expect(added.find((game) => game.key === 'go-fish')).toMatchObject({ minPlayers: 2, maxPlayers: 5 });
     expect(added.find((game) => game.key === 'draw-dominoes')).toMatchObject({ minPlayers: 2, maxPlayers: 4 });
@@ -94,10 +95,11 @@ describe('game catalog', () => {
     expect(added.find((game) => game.key === 'slapjack')).toMatchObject({ minPlayers: 2, maxPlayers: 8 });
     expect(added.find((game) => game.key === 'spoons')).toMatchObject({ minPlayers: 3, maxPlayers: 8 });
     expect(added.find((game) => game.key === 'monopoly')).toMatchObject({ minPlayers: 2, maxPlayers: 4 });
+    expect(added.find((game) => game.key === 'wrongway')).toMatchObject({ minPlayers: 2, maxPlayers: 2 });
     expect(added.find((game) => game.key === 'trivia-quiz-bowl')).toMatchObject({ minPlayers: 2, maxPlayers: 10 });
   });
 
   it('returns the count from the REST controller', () => {
-    expect(new GameCatalogController(registry).getCatalog()).toEqual({ games, total: 45 });
+    expect(new GameCatalogController(registry).getCatalog()).toEqual({ games, total: 46 });
   });
 });

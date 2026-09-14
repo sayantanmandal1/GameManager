@@ -46,6 +46,7 @@ async function main() {
     alphaSocket = await connect(alpha.token);
 
     await verifyLudoProjection(alpha, beta, alphaSocket, betaSocket);
+    await verifyMonopolyBot(alpha, alphaSocket);
     await verifyDistinctGames(
       alpha,
       beta,
@@ -59,7 +60,7 @@ async function main() {
     await verifyVoiceRelay(alphaSocket, betaSocket);
 
     console.log(
-      'Runtime E2E passed: 45-game catalog, rematch, lobby, reconnect, eight existing games, thirty-seven distinct games, voice.',
+      'Runtime E2E passed: 46-game catalog, rematch, lobby, reconnect, eight existing games, thirty-eight distinct games, Monopoly bots, voice.',
     );
   } finally {
     alphaSocket.disconnect();
@@ -320,7 +321,7 @@ async function verifyCatalog() {
   const response = await fetch(`${API_URL}/games/catalog`);
   assert.equal(response.status, 200);
   const catalog = await response.json();
-  assert.equal(catalog.total, 45);
+  assert.equal(catalog.total, 46);
   assert.deepEqual(
     catalog.games.map((game) => game.key),
     [
@@ -369,6 +370,7 @@ async function verifyCatalog() {
       'slapjack',
       'spoons',
       'monopoly',
+      'wrongway',
     ],
   );
 }
@@ -916,6 +918,97 @@ async function verifyLudoProjection(alpha, beta, alphaSocket, betaSocket) {
   if (rollResult.turnSkipped) {
     assert.equal(stateAfterRoll.view.dice, null);
   }
+}
+
+async function verifyMonopolyBot(alpha, alphaSocket) {
+  console.log('Runtime E2E Monopoly: host-managed bot and automatic turn');
+  const lobby = (await emitAndWait(
+    alphaSocket,
+    'lobby:create',
+    { gameType: 'distinct', gameKey: 'monopoly', maxPlayers: 8 },
+    'lobby:state',
+    (payload) => payload.lobby?.gameKey === 'monopoly',
+    'monopoly bot: create lobby',
+  )).lobby;
+  assert.equal(lobby.maxPlayers, 4);
+
+  const withBot = await emitAndWait(
+    alphaSocket,
+    'lobby:add_bot',
+    undefined,
+    'lobby:state',
+    (payload) => payload.lobby?.code === lobby.code
+      && payload.lobby.players.length === 2
+      && payload.lobby.players.some((player) => player.isBot === true),
+    'monopoly bot: add bot',
+  );
+  const botLobbyPlayer = withBot.lobby.players.find((player) => player.isBot === true);
+  assert(botLobbyPlayer);
+  assert.equal(botLobbyPlayer.isReady, true);
+
+  const started = waitForEvent(
+    alphaSocket,
+    'distinct:state',
+    (payload) => payload.gameKey === 'monopoly',
+    'monopoly bot: game state',
+  );
+  alphaSocket.emit('lobby:start_game');
+  let current = await started;
+  const gameId = current.gameId;
+  assert.equal(current.view.players.find((player) => player.id === botLobbyPlayer.id)?.isBot, true);
+
+  for (let step = 0; step < 20 && current.view.currentTurnId === alpha.user.id; step += 1) {
+    const action = chooseHumanMonopolyProgressAction(current.view, alpha.user.id);
+    assert(action, 'Human Monopoly turn should always have a progress action');
+    current = await emitDistinctActionAndWait(
+      alphaSocket,
+      alphaSocket,
+      { gameId, lobbyCode: lobby.code, action },
+      (payload) => payload.gameId === gameId,
+    );
+  }
+  assert.equal(current.view.currentTurnId, botLobbyPlayer.id);
+
+  const botActed = await waitForEvent(
+    alphaSocket,
+    'distinct:state',
+    (payload) => payload.gameId === gameId
+      && (
+        payload.view.currentTurnId !== botLobbyPlayer.id
+        || payload.view.turn?.lastRoll !== null
+        || payload.view.players.find((player) => player.id === botLobbyPlayer.id)?.position !== 0
+      ),
+    'monopoly bot: automatic action',
+  );
+  assert.equal(botActed.view.players.find((player) => player.id === botLobbyPlayer.id)?.isBot, true);
+
+  const resultPromise = waitForEvent(
+    alphaSocket,
+    'distinct:result',
+    (payload) => payload.gameId === gameId,
+    'monopoly bot: surrender result',
+  );
+  alphaSocket.emit('game:surrender', { gameId, lobbyCode: lobby.code });
+  const result = await resultPromise;
+  assert.equal(result.result.winnerId, botLobbyPlayer.id);
+  await leaveLobbyAndWait(alphaSocket, lobby.code);
+}
+
+function chooseHumanMonopolyProgressAction(view, humanId) {
+  const legal = new Set(view.legalActions ?? []);
+  if (view.pendingDebt?.debtorId === humanId) {
+    const human = view.players.find((player) => player.id === humanId);
+    return human?.cash >= view.pendingDebt.amount
+      ? { type: 'monopoly_pay_debt' }
+      : { type: 'monopoly_declare_bankruptcy' };
+  }
+  if (view.pendingPurchase?.playerId === humanId) return { type: 'monopoly_buy' };
+  if (legal.has('monopoly_pay_jail')) return { type: 'monopoly_pay_jail' };
+  if (legal.has('monopoly_use_jail_card')) return { type: 'monopoly_use_jail_card' };
+  if (legal.has('monopoly_attempt_doubles')) return { type: 'monopoly_attempt_doubles' };
+  if (legal.has('monopoly_end_turn')) return { type: 'monopoly_end_turn' };
+  if (legal.has('monopoly_roll')) return { type: 'monopoly_roll' };
+  return null;
 }
 
 async function verifyDistinctGames(
@@ -1624,6 +1717,27 @@ async function verifyDistinctGames(
         const host = view.players.find((player) => player.id === alpha.user.id);
         assert(Number.isInteger(host.position) && host.position >= 0 && host.position < 40);
         assert(['buying', 'post_roll', 'debt', 'jail'].includes(view.phase));
+      },
+    },
+    {
+      gameKey: 'wrongway',
+      expectedMaxPlayers: 2,
+      action: (view) => ({ type: 'wrongway_move', cell: view.legalMoves[0] }),
+      assertInitial: (alphaView, betaView) => {
+        assert.deepEqual(alphaView.players.map((player) => ({ color: player.color, position: player.position, walls: player.wallsRemaining })), [
+          { color: 'red', position: { row: 8, column: 4 }, walls: 10 },
+          { color: 'blue', position: { row: 0, column: 4 }, walls: 10 },
+        ]);
+        assert.equal(alphaView.walls.length, 0);
+        assert(alphaView.legalMoves.length > 0);
+        assert(alphaView.legalWallPlacements.length > 0);
+        assert.equal(betaView.canAct, false);
+      },
+      assertTransition: (view, previousView) => {
+        const red = view.players.find((player) => player.color === 'red');
+        assert(red);
+        assert.notDeepEqual(red.position, previousView.players.find((player) => player.color === 'red').position);
+        assert.equal(view.currentTurnId, beta.user.id);
       },
     },
   ];

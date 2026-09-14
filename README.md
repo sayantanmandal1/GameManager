@@ -52,9 +52,10 @@ A real-time multiplayer gaming platform built with **Next.js**, **NestJS**, **So
 | President | 3–8 | Equal-group climbing, re-enterable passes, complete ranking, title exchange, and eight scored rounds. |
 | Slapjack | 2–8 | Server-ordered flips and slap windows, false-slap penalties, recovery chances, and hidden stacks. |
 | Spoons | 3–8 | Continuous pass pipeline, quartet-triggered spoon rush, letters, elimination, and private hands. |
-| Monopoly | 2–4 | Forty-space property board, secure dice, purchases and auctions, rent, jail, cards, finite buildings, mortgages, trades, debt, and bankruptcy. |
+| Monopoly | 2–4 | Classic forty-space property board, host-added bots, secure dice, auctions, rent, jail, cards, finite buildings, mortgages, trades, debt, and bankruptcy. |
+| Wrongway | 2 | Neon 9×9 pawn race with straight jumps, blocked-jump diagonals, ten walls each, and guaranteed open routes. |
 
-The library contains **45 implemented games**: the original eight plus 37 separately registered multiplayer rules engines. Global six-digit room joining works across the library, and every multiplayer completion screen offers unanimous in-room rematch without repeating lobby ready/start steps. Bridge, Hearts, Spades, Euchre, and Whist use one responsive felt table with three hidden opponent hands and the local hand face-up. Bridge, Spades, Euchre, and Whist require players to choose balanced two-versus-two partnerships in the lobby before the host can start.
+The library contains **46 implemented games**: the original eight plus 38 separately registered multiplayer rules engines. Global six-digit room joining works across the library, and every multiplayer completion screen offers unanimous in-room rematch without repeating lobby ready/start steps. Bridge, Hearts, Spades, Euchre, and Whist use one responsive felt table with three hidden opponent hands and the local hand face-up. Bridge, Spades, Euchre, and Whist require players to choose balanced two-versus-two partnerships in the lobby before the host can start.
 
 ---
 
@@ -74,11 +75,11 @@ The library contains **45 implemented games**: the original eight plus 37 separa
 ```
 
 - **Server-authoritative**: All game state lives on the server; clients receive only their own view.
-- **Distinct-game framework**: Thirty-seven games use one lifecycle and Socket.IO namespace while retaining separate engines, strongly typed contracts, and unique ruleset IDs.
+- **Distinct-game framework**: Thirty-eight games use one lifecycle and Socket.IO namespace while retaining separate engines, strongly typed contracts, and unique ruleset IDs.
 - **Private projections**: Hands, fleets, secret codes, phrases, and dice are redacted per player; all random outcomes are generated server-side.
-- **Shared catalog**: `GET /games/catalog` is the source for the web and mobile 45-game shelves; lobby records persist the validated distinct-game key.
+- **Shared catalog**: `GET /games/catalog` is the source for the web and mobile 46-game shelves; lobby records persist the validated distinct-game key.
 - **WebRTC voice chat**: Peer-to-peer mesh topology (≤ 8 players), signaling through Socket.IO.
-- **Crossplay**: Android and browser users share the same 45-game library, authentication, lobby, game UI, rematch, and Socket.IO contracts.
+- **Crossplay**: Android and browser users share the same 46-game library, authentication, lobby, game UI, rematch, and Socket.IO contracts.
 - **Secure mobile session**: Guest credentials are stored with the platform keystore via `expo-secure-store`.
 - **Self-healing guest sessions**: Expired JWTs or cleaned-up guest rows renew once with the existing username; transient outages do not silently replace identity.
 
@@ -216,7 +217,7 @@ cd ../mobileapp
 npm run typecheck
 npx expo export --platform android
 
-# Production-like REST and Socket.IO flow (45-entry catalog, rematch,
+# Production-like REST and Socket.IO flow (46-entry catalog, rematch,
 # reconnect, all multiplayer games, and voice signaling)
 cd ../frontend
 npm run test:e2e:runtime

@@ -13,6 +13,7 @@ import type {
   MonopolyTradeOffer,
 } from '../../../shared';
 import { DistinctActionResult, DistinctGameAdapter } from '../distinct-game.adapter';
+import type { DistinctAutomaticAction } from '../distinct-game.adapter';
 import { hasExactActionShape, isBoundedInteger } from '../action-shape';
 import { secureShuffle } from '../standard-cards';
 
@@ -47,7 +48,12 @@ const GO_COLLECT = 200;
 const HOUSE_BANK_TOTAL = 32;
 const HOTEL_BANK_TOTAL = 12;
 const JAIL_BAIL = 50;
-const PLAYER_TOKENS = ['compass', 'lantern', 'rocket', 'kite'] as const;
+const BOT_ACTION_DELAY_MIN_MS = 650;
+const BOT_ACTION_DELAY_MAX_MS = 900;
+const BOT_CASH_RESERVE = 200;
+const BOT_JAIL_BAIL_RESERVE = 250;
+const BOT_JAIL_CARD_VALUE = 40;
+const PLAYER_TOKENS = ['top_hat', 'racecar', 'battleship', 'dog'] as const;
 const PLAYER_COLORS = ['red', 'blue', 'green', 'yellow'] as const;
 
 const freshTurnState = () => ({
@@ -59,53 +65,53 @@ const freshTurnState = () => ({
 });
 
 const BOARD: MonopolyBoardSpace[] = [
-  { index: 0, kind: 'go', name: 'Start' },
-  { index: 1, kind: 'street', name: 'Harbor Row', group: 'brown', price: 60, rents: [2, 10, 30, 90, 160, 250], houseCost: 50, mortgage: 30 },
-  { index: 2, kind: 'chest', name: 'Community Fund' },
-  { index: 3, kind: 'street', name: 'Maple Alley', group: 'brown', price: 60, rents: [4, 20, 60, 180, 320, 450], houseCost: 50, mortgage: 30 },
-  { index: 4, kind: 'tax', name: 'Civic Tax', amount: 200 },
-  { index: 5, kind: 'railroad', name: 'Northline Rail', price: 200, mortgage: 100 },
-  { index: 6, kind: 'street', name: 'Skyline Avenue', group: 'light_blue', price: 100, rents: [6, 30, 90, 270, 400, 550], houseCost: 50, mortgage: 50 },
-  { index: 7, kind: 'chance', name: 'Opportunity Deck' },
-  { index: 8, kind: 'street', name: 'Juniper Avenue', group: 'light_blue', price: 100, rents: [6, 30, 90, 270, 400, 550], houseCost: 50, mortgage: 50 },
-  { index: 9, kind: 'street', name: 'Orchid Avenue', group: 'light_blue', price: 120, rents: [8, 40, 100, 300, 450, 600], houseCost: 50, mortgage: 60 },
-  { index: 10, kind: 'jail', name: 'Jail / Visiting' },
-  { index: 11, kind: 'street', name: 'Cedar Square', group: 'pink', price: 140, rents: [10, 50, 150, 450, 625, 750], houseCost: 100, mortgage: 70 },
-  { index: 12, kind: 'utility', name: 'Reservoir Authority', price: 150, mortgage: 75 },
-  { index: 13, kind: 'street', name: 'Willow Square', group: 'pink', price: 140, rents: [10, 50, 150, 450, 625, 750], houseCost: 100, mortgage: 70 },
-  { index: 14, kind: 'street', name: 'Rose Square', group: 'pink', price: 160, rents: [12, 60, 180, 500, 700, 900], houseCost: 100, mortgage: 80 },
-  { index: 15, kind: 'railroad', name: 'Eastline Rail', price: 200, mortgage: 100 },
-  { index: 16, kind: 'street', name: 'Marina Boulevard', group: 'orange', price: 180, rents: [14, 70, 200, 550, 750, 950], houseCost: 100, mortgage: 90 },
-  { index: 17, kind: 'chest', name: 'Community Fund' },
-  { index: 18, kind: 'street', name: 'Sunset Boulevard', group: 'orange', price: 180, rents: [14, 70, 200, 550, 750, 950], houseCost: 100, mortgage: 90 },
-  { index: 19, kind: 'street', name: 'Beacon Boulevard', group: 'orange', price: 200, rents: [16, 80, 220, 600, 800, 1000], houseCost: 100, mortgage: 100 },
+  { index: 0, kind: 'go', name: 'GO' },
+  { index: 1, kind: 'street', name: 'Mediterranean Avenue', group: 'brown', price: 60, rents: [2, 10, 30, 90, 160, 250], houseCost: 50, mortgage: 30 },
+  { index: 2, kind: 'chest', name: 'Community Chest' },
+  { index: 3, kind: 'street', name: 'Baltic Avenue', group: 'brown', price: 60, rents: [4, 20, 60, 180, 320, 450], houseCost: 50, mortgage: 30 },
+  { index: 4, kind: 'tax', name: 'Income Tax', amount: 200 },
+  { index: 5, kind: 'railroad', name: 'Reading Railroad', price: 200, mortgage: 100 },
+  { index: 6, kind: 'street', name: 'Oriental Avenue', group: 'light_blue', price: 100, rents: [6, 30, 90, 270, 400, 550], houseCost: 50, mortgage: 50 },
+  { index: 7, kind: 'chance', name: 'Chance' },
+  { index: 8, kind: 'street', name: 'Vermont Avenue', group: 'light_blue', price: 100, rents: [6, 30, 90, 270, 400, 550], houseCost: 50, mortgage: 50 },
+  { index: 9, kind: 'street', name: 'Connecticut Avenue', group: 'light_blue', price: 120, rents: [8, 40, 100, 300, 450, 600], houseCost: 50, mortgage: 60 },
+  { index: 10, kind: 'jail', name: 'In Jail / Just Visiting' },
+  { index: 11, kind: 'street', name: 'St. Charles Place', group: 'pink', price: 140, rents: [10, 50, 150, 450, 625, 750], houseCost: 100, mortgage: 70 },
+  { index: 12, kind: 'utility', name: 'Electric Company', price: 150, mortgage: 75 },
+  { index: 13, kind: 'street', name: 'States Avenue', group: 'pink', price: 140, rents: [10, 50, 150, 450, 625, 750], houseCost: 100, mortgage: 70 },
+  { index: 14, kind: 'street', name: 'Virginia Avenue', group: 'pink', price: 160, rents: [12, 60, 180, 500, 700, 900], houseCost: 100, mortgage: 80 },
+  { index: 15, kind: 'railroad', name: 'Pennsylvania Railroad', price: 200, mortgage: 100 },
+  { index: 16, kind: 'street', name: 'St. James Place', group: 'orange', price: 180, rents: [14, 70, 200, 550, 750, 950], houseCost: 100, mortgage: 90 },
+  { index: 17, kind: 'chest', name: 'Community Chest' },
+  { index: 18, kind: 'street', name: 'Tennessee Avenue', group: 'orange', price: 180, rents: [14, 70, 200, 550, 750, 950], houseCost: 100, mortgage: 90 },
+  { index: 19, kind: 'street', name: 'New York Avenue', group: 'orange', price: 200, rents: [16, 80, 220, 600, 800, 1000], houseCost: 100, mortgage: 100 },
   { index: 20, kind: 'free_parking', name: 'Free Parking' },
-  { index: 21, kind: 'street', name: 'River Gardens', group: 'red', price: 220, rents: [18, 90, 250, 700, 875, 1050], houseCost: 150, mortgage: 110 },
-  { index: 22, kind: 'chance', name: 'Opportunity Deck' },
-  { index: 23, kind: 'street', name: 'Summit Gardens', group: 'red', price: 220, rents: [18, 90, 250, 700, 875, 1050], houseCost: 150, mortgage: 110 },
-  { index: 24, kind: 'street', name: 'Grove Gardens', group: 'red', price: 240, rents: [20, 100, 300, 750, 925, 1100], houseCost: 150, mortgage: 120 },
-  { index: 25, kind: 'railroad', name: 'Southline Rail', price: 200, mortgage: 100 },
-  { index: 26, kind: 'street', name: 'Liberty Avenue', group: 'yellow', price: 260, rents: [22, 110, 330, 800, 975, 1150], houseCost: 150, mortgage: 130 },
-  { index: 27, kind: 'street', name: 'Aurora Avenue', group: 'yellow', price: 260, rents: [22, 110, 330, 800, 975, 1150], houseCost: 150, mortgage: 130 },
-  { index: 28, kind: 'utility', name: 'Power Grid', price: 150, mortgage: 75 },
-  { index: 29, kind: 'street', name: 'Coral Avenue', group: 'yellow', price: 280, rents: [24, 120, 360, 850, 1025, 1200], houseCost: 150, mortgage: 140 },
+  { index: 21, kind: 'street', name: 'Kentucky Avenue', group: 'red', price: 220, rents: [18, 90, 250, 700, 875, 1050], houseCost: 150, mortgage: 110 },
+  { index: 22, kind: 'chance', name: 'Chance' },
+  { index: 23, kind: 'street', name: 'Indiana Avenue', group: 'red', price: 220, rents: [18, 90, 250, 700, 875, 1050], houseCost: 150, mortgage: 110 },
+  { index: 24, kind: 'street', name: 'Illinois Avenue', group: 'red', price: 240, rents: [20, 100, 300, 750, 925, 1100], houseCost: 150, mortgage: 120 },
+  { index: 25, kind: 'railroad', name: 'B. & O. Railroad', price: 200, mortgage: 100 },
+  { index: 26, kind: 'street', name: 'Atlantic Avenue', group: 'yellow', price: 260, rents: [22, 110, 330, 800, 975, 1150], houseCost: 150, mortgage: 130 },
+  { index: 27, kind: 'street', name: 'Ventnor Avenue', group: 'yellow', price: 260, rents: [22, 110, 330, 800, 975, 1150], houseCost: 150, mortgage: 130 },
+  { index: 28, kind: 'utility', name: 'Water Works', price: 150, mortgage: 75 },
+  { index: 29, kind: 'street', name: 'Marvin Gardens', group: 'yellow', price: 280, rents: [24, 120, 360, 850, 1025, 1200], houseCost: 150, mortgage: 140 },
   { index: 30, kind: 'go_to_jail', name: 'Go To Jail' },
-  { index: 31, kind: 'street', name: 'Midtown Terrace', group: 'green', price: 300, rents: [26, 130, 390, 900, 1100, 1275], houseCost: 200, mortgage: 150 },
-  { index: 32, kind: 'street', name: 'Park Terrace', group: 'green', price: 300, rents: [26, 130, 390, 900, 1100, 1275], houseCost: 200, mortgage: 150 },
-  { index: 33, kind: 'chest', name: 'Community Fund' },
-  { index: 34, kind: 'street', name: 'Harbor Terrace', group: 'green', price: 320, rents: [28, 150, 450, 1000, 1200, 1400], houseCost: 200, mortgage: 160 },
-  { index: 35, kind: 'railroad', name: 'Westline Rail', price: 200, mortgage: 100 },
-  { index: 36, kind: 'chance', name: 'Opportunity Deck' },
-  { index: 37, kind: 'street', name: 'Grand Esplanade', group: 'dark_blue', price: 350, rents: [35, 175, 500, 1100, 1300, 1500], houseCost: 200, mortgage: 175 },
-  { index: 38, kind: 'tax', name: 'Metro Tax', amount: 100 },
-  { index: 39, kind: 'street', name: 'Crown Esplanade', group: 'dark_blue', price: 400, rents: [50, 200, 600, 1400, 1700, 2000], houseCost: 200, mortgage: 200 },
+  { index: 31, kind: 'street', name: 'Pacific Avenue', group: 'green', price: 300, rents: [26, 130, 390, 900, 1100, 1275], houseCost: 200, mortgage: 150 },
+  { index: 32, kind: 'street', name: 'North Carolina Avenue', group: 'green', price: 300, rents: [26, 130, 390, 900, 1100, 1275], houseCost: 200, mortgage: 150 },
+  { index: 33, kind: 'chest', name: 'Community Chest' },
+  { index: 34, kind: 'street', name: 'Pennsylvania Avenue', group: 'green', price: 320, rents: [28, 150, 450, 1000, 1200, 1400], houseCost: 200, mortgage: 160 },
+  { index: 35, kind: 'railroad', name: 'Short Line', price: 200, mortgage: 100 },
+  { index: 36, kind: 'chance', name: 'Chance' },
+  { index: 37, kind: 'street', name: 'Park Place', group: 'dark_blue', price: 350, rents: [35, 175, 500, 1100, 1300, 1500], houseCost: 200, mortgage: 175 },
+  { index: 38, kind: 'tax', name: 'Luxury Tax', amount: 100 },
+  { index: 39, kind: 'street', name: 'Boardwalk', group: 'dark_blue', price: 400, rents: [50, 200, 600, 1400, 1700, 2000], houseCost: 200, mortgage: 200 },
 ];
 
 const CHANCE_CARDS: MonopolyCard[] = [
   { id: 'chance_advance_start', deck: 'chance', text: 'Move to Start and collect the crossing bonus', kind: 'move_absolute', destination: 0 },
-  { id: 'chance_advance_grove', deck: 'chance', text: 'Proceed to Grove Gardens', kind: 'move_absolute', destination: 24 },
-  { id: 'chance_advance_cedar', deck: 'chance', text: 'Proceed to Cedar Square', kind: 'move_absolute', destination: 11 },
-  { id: 'chance_advance_northline', deck: 'chance', text: 'Proceed to Northline Rail', kind: 'move_absolute', destination: 5 },
+  { id: 'chance_advance_grove', deck: 'chance', text: 'Advance to Illinois Avenue', kind: 'move_absolute', destination: 24 },
+  { id: 'chance_advance_cedar', deck: 'chance', text: 'Advance to St. Charles Place', kind: 'move_absolute', destination: 11 },
+  { id: 'chance_advance_northline', deck: 'chance', text: 'Take a trip to Reading Railroad', kind: 'move_absolute', destination: 5 },
   { id: 'chance_nearest_rail_1', deck: 'chance', text: 'Take the next rail line; rent is doubled if owned', kind: 'move_nearest_railroad' },
   { id: 'chance_nearest_rail_2', deck: 'chance', text: 'Take the next rail line; rent is doubled if owned', kind: 'move_nearest_railroad' },
   { id: 'chance_nearest_utility', deck: 'chance', text: 'Travel to the next utility; owned rent uses a fresh roll', kind: 'move_nearest_utility' },
@@ -113,11 +119,11 @@ const CHANCE_CARDS: MonopolyCard[] = [
   { id: 'chance_pay_fine', deck: 'chance', text: 'Pay a 15 civic levy', kind: 'pay', value: 15 },
   { id: 'chance_repair', deck: 'chance', text: 'Fund repairs across your developments', kind: 'repairs', houseRepair: 25, hotelRepair: 100 },
   { id: 'chance_collect_loan', deck: 'chance', text: 'A construction bond matures; receive 150', kind: 'collect', value: 150 },
-  { id: 'chance_collect_each', deck: 'chance', text: 'Table chair bonus: collect 50 from every rival', kind: 'collect_each_player', value: 50 },
+  { id: 'chance_collect_each', deck: 'chance', text: 'You are chairman of the board. Pay each player 50', kind: 'pay_each_player', value: 50 },
   { id: 'chance_go_back_three', deck: 'chance', text: 'Move back three spaces', kind: 'move_relative', value: -3 },
   { id: 'chance_go_to_jail', deck: 'chance', text: 'Report to jail without collecting the Start bonus', kind: 'go_to_jail' },
   { id: 'chance_jail_free', deck: 'chance', text: 'Keep this pass to leave jail without paying', kind: 'jail_free' },
-  { id: 'chance_collect_bonus', deck: 'chance', text: 'Receive a 100 neighborhood bonus', kind: 'collect', value: 100 },
+  { id: 'chance_collect_bonus', deck: 'chance', text: 'Advance to Boardwalk', kind: 'move_absolute', destination: 39 },
 ];
 
 const CHEST_CARDS: MonopolyCard[] = [
@@ -128,13 +134,13 @@ const CHEST_CARDS: MonopolyCard[] = [
   { id: 'chest_collect_fund', deck: 'chest', text: 'Your savings fund pays 100', kind: 'collect', value: 100 },
   { id: 'chest_collect_refund', deck: 'chest', text: 'Receive a 20 tax rebate', kind: 'collect', value: 20 },
   { id: 'chest_collect_each', deck: 'chest', text: 'Collect 10 from every rival', kind: 'collect_each_player', value: 10 },
-  { id: 'chest_pay_each', deck: 'chest', text: 'Give every rival 50', kind: 'pay_each_player', value: 50 },
+  { id: 'chest_collect_life', deck: 'chest', text: 'Life insurance matures. Collect 100', kind: 'collect', value: 100 },
   { id: 'chest_collect_advisory', deck: 'chest', text: 'Advisory work pays 25', kind: 'collect', value: 25 },
   { id: 'chest_repair', deck: 'chest', text: 'Cover repairs on all developments', kind: 'repairs', houseRepair: 40, hotelRepair: 115 },
   { id: 'chest_collect_prize', deck: 'chest', text: 'A local contest awards you 10', kind: 'collect', value: 10 },
   { id: 'chest_collect_inherit', deck: 'chest', text: 'An estate payment gives you 100', kind: 'collect', value: 100 },
   { id: 'chest_pay_hospital', deck: 'chest', text: 'Pay 100 in hospital costs', kind: 'pay', value: 100 },
-  { id: 'chest_pay_school', deck: 'chest', text: 'Pay 150 in school costs', kind: 'pay', value: 150 },
+  { id: 'chest_pay_school', deck: 'chest', text: 'Pay school fees of 50', kind: 'pay', value: 50 },
   { id: 'chest_go_to_jail', deck: 'chest', text: 'Report to jail without collecting the Start bonus', kind: 'go_to_jail' },
   { id: 'chest_jail_free', deck: 'chest', text: 'Keep this pass to leave jail without paying', kind: 'jail_free' },
 ];
@@ -160,6 +166,7 @@ export class MonopolyEngine implements DistinctGameAdapter<MonopolyGameState, Mo
     const players: MonopolyPlayer[] = playerIds.map((id, index) => ({
       id,
       name: playerNames[id] || `Player ${index + 1}`,
+      isBot: id.startsWith('bot-'),
       originalToken: PLAYER_TOKENS[index],
       originalColor: PLAYER_COLORS[index],
       position: 0,
@@ -356,6 +363,22 @@ export class MonopolyEngine implements DistinctGameAdapter<MonopolyGameState, Mo
       legalActions: this.legalActions(state, playerId),
       lastCard: state.lastCard ? { ...state.lastCard } : null,
       lastEvent: state.lastEvent,
+    };
+  }
+
+  getAutomaticAction(state: MonopolyGameState): DistinctAutomaticAction | null {
+    if (state.phase === 'finished') return null;
+    const actorId = this.getAutomaticActorId(state);
+    if (!actorId) return null;
+    const actor = this.getPlayer(state, actorId);
+    if (!actor || actor.bankrupt || !actor.isBot) return null;
+
+    const action = this.chooseAutomaticAction(state, actor.id);
+    if (!action) return null;
+    return {
+      playerId: actor.id,
+      action,
+      delayMs: randomInt(BOT_ACTION_DELAY_MIN_MS, BOT_ACTION_DELAY_MAX_MS + 1),
     };
   }
 
@@ -1401,6 +1424,181 @@ export class MonopolyEngine implements DistinctGameAdapter<MonopolyGameState, Mo
     if (state.pendingDebt) return state.pendingDebt.debtorId === playerId;
     if (state.pendingAuction) return state.pendingAuction.currentBidderId === playerId;
     return state.currentTurnId === playerId;
+  }
+
+  private getAutomaticActorId(state: MonopolyGameState): string | null {
+    if (state.pendingTrade) {
+      if (state.pendingTrade.proposerId.startsWith('bot-')) return state.pendingTrade.proposerId;
+      if (state.pendingTrade.targetPlayerId.startsWith('bot-')) return state.pendingTrade.targetPlayerId;
+      return null;
+    }
+    if (state.pendingDebt) return state.pendingDebt.debtorId;
+    if (state.pendingAuction) return state.pendingAuction.currentBidderId;
+    return state.currentTurnId;
+  }
+
+  private chooseAutomaticAction(state: MonopolyGameState, playerId: string): MonopolyAction | null {
+    if (state.pendingTrade) return this.chooseAutomaticTradeAction(state, playerId);
+    if (state.pendingDebt) return this.chooseAutomaticDebtAction(state, playerId);
+    if (state.pendingAuction) return this.chooseAutomaticAuctionAction(state, playerId);
+
+    const player = this.getPlayer(state, playerId);
+    if (!player || state.currentTurnId !== playerId) return null;
+
+    if (state.pendingPurchase?.playerId === playerId) {
+      const affordable = player.cash >= state.pendingPurchase.price;
+      const keepsReserve = player.cash - state.pendingPurchase.price >= BOT_CASH_RESERVE
+        || state.pendingPurchase.price <= 120;
+      return affordable && keepsReserve
+        ? { type: 'monopoly_buy' }
+        : { type: 'monopoly_decline' };
+    }
+
+    if (player.inJail && !state.turn.hasRolled) {
+      if (player.jailCards > 0) return { type: 'monopoly_use_jail_card' };
+      if (player.cash - JAIL_BAIL >= BOT_JAIL_BAIL_RESERVE) return { type: 'monopoly_pay_jail' };
+      return { type: 'monopoly_attempt_doubles' };
+    }
+
+    if (!state.turn.hasRolled) {
+      return { type: 'monopoly_roll' };
+    }
+
+    const buildAction = this.findFirstValidBuildAction(state, playerId);
+    if (buildAction) return buildAction;
+
+    const unmortgageAction = this.findFirstSafeUnmortgageAction(state, playerId);
+    if (unmortgageAction) return unmortgageAction;
+
+    return state.turn.mustEndTurn
+      ? { type: 'monopoly_end_turn' }
+      : { type: 'monopoly_roll' };
+  }
+
+  private chooseAutomaticTradeAction(state: MonopolyGameState, playerId: string): MonopolyAction | null {
+    const trade = state.pendingTrade;
+    if (!trade) return null;
+    if (trade.proposerId === playerId) return { type: 'monopoly_cancel_trade' };
+    if (trade.targetPlayerId !== playerId) return null;
+    const receivedValue = this.tradeAssetValue(
+      state,
+      trade.offeredCash,
+      trade.offeredPropertyIndices,
+      trade.offeredJailCards,
+    );
+    const givenValue = this.tradeAssetValue(
+      state,
+      trade.requestedCash,
+      trade.requestedPropertyIndices,
+      trade.requestedJailCards,
+    );
+    return { type: 'monopoly_respond_trade', approved: receivedValue >= givenValue };
+  }
+
+  private chooseAutomaticDebtAction(state: MonopolyGameState, playerId: string): MonopolyAction | null {
+    const debt = state.pendingDebt;
+    const player = this.getPlayer(state, playerId);
+    if (!player || debt?.debtorId !== playerId) return null;
+    if (player.cash >= debt.amount) return { type: 'monopoly_pay_debt' };
+
+    const sellAction = this.findFirstValidDebtLiquidationAction(state, playerId, 'monopoly_sell_building');
+    if (sellAction) return sellAction;
+    const mortgageAction = this.findFirstValidDebtLiquidationAction(state, playerId, 'monopoly_mortgage');
+    if (mortgageAction) return mortgageAction;
+    return { type: 'monopoly_declare_bankruptcy' };
+  }
+
+  private chooseAutomaticAuctionAction(state: MonopolyGameState, playerId: string): MonopolyAction | null {
+    const auction = state.pendingAuction;
+    const player = this.getPlayer(state, playerId);
+    if (!auction || !player || auction.currentBidderId !== playerId) return null;
+    const minimumBid = auction.highestBid + 1;
+    const cap = Math.min(player.cash, this.estimatePropertyValue(state, auction.spaceIndex));
+    if (minimumBid <= cap) return { type: 'monopoly_bid', amount: minimumBid };
+    return { type: 'monopoly_pass_auction' };
+  }
+
+  private findFirstValidDebtLiquidationAction(
+    state: MonopolyGameState,
+    playerId: string,
+    type: 'monopoly_sell_building' | 'monopoly_mortgage',
+  ): MonopolyAction | null {
+    const player = this.getPlayer(state, playerId);
+    if (!player) return null;
+    for (const spaceIndex of [...player.properties].sort((left, right) => left - right)) {
+      const action: MonopolyAction = { type, spaceIndex };
+      const simulated = structuredClone(state);
+      if (this.applyAction(simulated, playerId, action).valid) {
+        return action;
+      }
+    }
+    return null;
+  }
+
+  private findFirstValidBuildAction(state: MonopolyGameState, playerId: string): MonopolyAction | null {
+    const player = this.getPlayer(state, playerId);
+    if (!player) return null;
+    for (const spaceIndex of [...player.properties].sort((left, right) => left - right)) {
+      const space = state.board[spaceIndex];
+      if (space.kind !== 'street') continue;
+      if (player.cash < space.houseCost) continue;
+      const action: MonopolyAction = { type: 'monopoly_build', spaceIndex };
+      const simulated = structuredClone(state);
+      if (this.applyAction(simulated, playerId, action).valid) {
+        return action;
+      }
+    }
+    return null;
+  }
+
+  private findFirstSafeUnmortgageAction(state: MonopolyGameState, playerId: string): MonopolyAction | null {
+    const player = this.getPlayer(state, playerId);
+    if (!player) return null;
+    const mortgagedOwned = state.mortgaged
+      .filter((spaceIndex) => state.ownership[spaceIndex] === playerId)
+      .sort((left, right) => left - right);
+    for (const spaceIndex of mortgagedOwned) {
+      const space = state.board[spaceIndex];
+      if (!this.isOwnable(space)) continue;
+      const cost = Math.ceil(space.mortgage * 1.1);
+      if (player.cash - cost < BOT_CASH_RESERVE) continue;
+      const action: MonopolyAction = { type: 'monopoly_unmortgage', spaceIndex };
+      const simulated = structuredClone(state);
+      if (this.applyAction(simulated, playerId, action).valid) {
+        return action;
+      }
+    }
+    return null;
+  }
+
+  private tradeAssetValue(
+    state: MonopolyGameState,
+    cash: number,
+    propertyIndices: number[],
+    jailCards: number,
+  ): number {
+    const properties = propertyIndices
+      .map((spaceIndex) => this.estimatePropertyValue(state, spaceIndex))
+      .reduce((sum, value) => sum + value, 0);
+    return cash + properties + (jailCards * BOT_JAIL_CARD_VALUE);
+  }
+
+  private estimatePropertyValue(state: MonopolyGameState, spaceIndex: number): number {
+    const space = state.board[spaceIndex];
+    if (!this.isOwnable(space)) return 0;
+    let value = space.price;
+    if (space.kind === 'street') {
+      const buildings = state.buildings[spaceIndex] ?? 0;
+      value += Math.floor(space.houseCost * buildings * 0.7);
+    } else if (space.kind === 'railroad') {
+      value += Math.floor(space.price * 0.15);
+    } else if (space.kind === 'utility') {
+      value -= Math.floor(space.price * 0.1);
+    }
+    if (state.mortgaged.includes(spaceIndex)) {
+      value -= Math.floor(space.mortgage * 0.55);
+    }
+    return Math.max(0, value);
   }
 
   private legalActions(state: MonopolyGameState, playerId: string): string[] {

@@ -60,6 +60,7 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
   if ('currentActorId' in view) currentTurnId = view.currentActorId;
   else if ('currentTurnId' in view) currentTurnId = view.currentTurnId;
   const current = view.players.find((player) => player.id === currentTurnId);
+  const yourPlayerId = 'youId' in view ? view.youId : null;
   const winnerId = result?.winnerId ?? view.winnerId;
   const winner = view.players.find((player) => player.id === winnerId);
   let statusText = current ? `Waiting for ${current.name}...` : 'Waiting for other players...';
@@ -104,7 +105,7 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
           {!hasIntegratedCardTable && <div className="mb-4 grid w-full max-w-[52rem] grid-cols-2 gap-3">
             {view.players.map((player) => (
               <div key={player.id} className={`border-b-2 px-3 py-2 ${player.id === currentTurnId && !finished ? 'border-white/55 bg-white/5' : 'border-white/10'}`}>
-                <p className="truncate text-sm font-semibold">{player.name}{player.id === view.youId ? ' (you)' : ''}</p>
+                <p className="truncate text-sm font-semibold">{player.name}{player.id === yourPlayerId ? ' (you)' : ''}</p>
               </div>
             ))}
           </div>}
