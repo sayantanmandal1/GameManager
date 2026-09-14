@@ -139,14 +139,12 @@ export function MonopolyBoard({
     <div
       data-monopoly-board-shell
       data-monopoly-board-mode={mode}
-      className={`monopoly-board-shell relative mx-auto text-[#15110e] ${isPreview ? 'w-full max-w-[42rem]' : ''}`}
-      style={isPreview ? undefined : {
-        width: 'clamp(34rem, min(60vw, calc(100dvh - 20.5rem)), 58rem)',
-        minWidth: '34rem',
-      }}
+      className={`monopoly-board-shell relative mx-auto text-[#15110e] ${isPreview
+        ? 'w-full max-w-[42rem]'
+        : 'w-full min-w-0 sm:w-[min(34rem,100%)] lg:min-w-[34rem] lg:w-[clamp(34rem,min(60vw,calc(100dvh-20.5rem)),58rem)]'}`}
     >
       <div
-        className="relative bg-[#2c1b12] p-[clamp(5px,0.8vw,12px)]"
+        className="relative bg-[#2c1b12] p-1 sm:p-[clamp(5px,0.8vw,12px)]"
         style={{ boxShadow: '0 2px 0 #6e4931, 0 7px 0 #1b0f0a, 0 24px 48px rgba(0,0,0,0.55)' }}
       >
         <div
@@ -217,7 +215,7 @@ export function MonopolyBoard({
                 {!isPreview && space.mortgaged && (
                   <span
                     data-space-mortgaged
-                    className="absolute inset-[12%] z-30 flex -rotate-6 items-center justify-center border-2 border-[#981d19] bg-[#fff6df]/95 px-1 text-[8px] font-black uppercase leading-none text-[#981d19] shadow-md"
+                    className="absolute inset-[12%] z-30 flex -rotate-6 items-center justify-center border border-[#981d19] bg-[#fff6df]/95 px-0.5 text-[5px] font-black uppercase leading-none text-[#981d19] shadow-md sm:border-2 sm:px-1 sm:text-[8px]"
                   >
                     Mortgaged
                   </span>
@@ -299,12 +297,12 @@ function BuildingPieces({ count, side }: Readonly<{ count: number; side: BoardSi
     <span data-building-count={count} aria-label={hotel ? 'Hotel' : `${pieces} houses`} className={`pointer-events-none absolute z-30 flex ${buildingPlacement(side)}`}>
       {Array.from({ length: pieces }, (_, index) => (
         hotel ? (
-          <span key="hotel" className="relative block h-[11px] w-[17px] border border-[#641410] bg-[#c52e28] shadow-[1px_2px_2px_rgba(0,0,0,0.45)]">
-            <span className="absolute -top-[4px] left-[2px] h-[5px] w-[13px] bg-[#e04b40] [clip-path:polygon(50%_0,100%_100%,0_100%)]" />
+          <span key="hotel" className="relative block h-[7px] w-[10px] border border-[#641410] bg-[#c52e28] shadow-[1px_2px_2px_rgba(0,0,0,0.45)] sm:h-[11px] sm:w-[17px]">
+            <span className="absolute -top-[3px] left-px h-[4px] w-[7px] bg-[#e04b40] [clip-path:polygon(50%_0,100%_100%,0_100%)] sm:-top-[4px] sm:left-[2px] sm:h-[5px] sm:w-[13px]" />
           </span>
         ) : (
-          <span key={`house-${index}`} className="relative block h-[8px] w-[10px] border border-[#0c5524] bg-[#119b48] shadow-[1px_2px_2px_rgba(0,0,0,0.4)]">
-            <span className="absolute -top-[4px] -left-px h-[5px] w-[10px] bg-[#24b85c] [clip-path:polygon(50%_0,100%_100%,0_100%)]" />
+          <span key={`house-${index}`} className="relative block h-[5px] w-[6px] border border-[#0c5524] bg-[#119b48] shadow-[1px_2px_2px_rgba(0,0,0,0.4)] sm:h-[8px] sm:w-[10px]">
+            <span className="absolute -top-[3px] -left-px h-[4px] w-[6px] bg-[#24b85c] [clip-path:polygon(50%_0,100%_100%,0_100%)] sm:-top-[4px] sm:h-[5px] sm:w-[10px]" />
           </span>
         )
       ))}
@@ -317,7 +315,7 @@ function PlayerToken({ player, reduceMotion, compact }: Readonly<{ player: Monop
     <motion.span
       layoutId={`monopoly-token-${player.id}`}
       transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 430, damping: 28, mass: 0.72 }}
-      className={`relative inline-flex shrink-0 items-center justify-center rounded-full border-[3px] bg-[#bdc3c4] font-black text-black shadow-[0_2px_0_#555,0_5px_8px_rgba(0,0,0,0.65)] ${compact ? 'h-5 w-5 text-[10px]' : 'h-8 w-8 text-base'}`}
+      className={`relative inline-flex shrink-0 items-center justify-center rounded-full bg-[#bdc3c4] font-black text-black shadow-[0_2px_0_#555,0_5px_8px_rgba(0,0,0,0.65)] ${compact ? 'h-5 w-5 border-2 text-[10px]' : 'h-[18px] w-[18px] border-2 text-[8px] sm:h-8 sm:w-8 sm:border-[3px] sm:text-base'}`}
       style={{
         borderColor: player.originalColor,
         backgroundImage: 'linear-gradient(145deg, #ffffff 0%, #9da6a8 42%, #eef1f0 67%, #62696b 100%)',

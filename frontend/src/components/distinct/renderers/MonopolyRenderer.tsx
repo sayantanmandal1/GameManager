@@ -68,6 +68,7 @@ export function MonopolyRenderer({ view, disabled, onAction }: MonopolyRendererP
   const [requestedProperties, setRequestedProperties] = useState<number[]>([]);
   const [diceRolling, setDiceRolling] = useState(false);
   const [pawnMoving, setPawnMoving] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [eventFeed, setEventFeed] = useState<string[]>(() => [view.lastEvent]);
 
   useEffect(() => {
@@ -153,13 +154,14 @@ export function MonopolyRenderer({ view, disabled, onAction }: MonopolyRendererP
     startTransition(() => {
       setSelectedSpaceIndex(space.index);
       setTableTab('deed');
+      setToolsOpen(true);
     });
   };
 
   return (
     <div
       data-monopoly-live-table
-      className="relative w-full max-w-[112rem] overflow-hidden border border-[#4a3827] bg-[#17130f] text-[#f8f0df] shadow-[0_28px_80px_rgba(0,0,0,0.45)]"
+      className="relative w-full max-w-[112rem] overflow-hidden border-y border-[#4a3827] bg-[#17130f] text-[#f8f0df] shadow-[0_28px_80px_rgba(0,0,0,0.45)] sm:border"
     >
       <div className="absolute inset-0 opacity-50 [background-image:radial-gradient(circle_at_18%_16%,rgba(218,181,102,0.16),transparent_30%),radial-gradient(circle_at_88%_78%,rgba(77,143,105,0.12),transparent_30%),repeating-linear-gradient(90deg,rgba(255,255,255,0.018)_0,rgba(255,255,255,0.018)_1px,transparent_1px,transparent_76px)]" />
 
@@ -175,18 +177,19 @@ export function MonopolyRenderer({ view, disabled, onAction }: MonopolyRendererP
               if (player.id !== view.youId && !player.bankrupt) {
                 setTargetPlayerId(player.id);
                 setTableTab('trade');
+                setToolsOpen(true);
               }
             }}
           />
         ))}
       </section>
 
-      <div className="relative z-10 grid min-w-0 xl:grid-cols-[minmax(0,1fr)_21rem]">
-        <section className="relative min-w-0 bg-[#201a14] p-2 sm:p-4">
+      <div data-monopoly-content className="relative z-10 grid min-w-0 xl:grid-cols-[minmax(0,1fr)_21rem]">
+        <section data-monopoly-board-stage className="relative min-w-0 bg-[#201a14] p-1 sm:p-4">
           <div className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(135deg,rgba(255,255,255,0.035)_25%,transparent_25%),linear-gradient(315deg,rgba(255,255,255,0.02)_25%,transparent_25%)] [background-position:0_0,24px_24px] [background-size:48px_48px]" />
 
-          <div className="relative mx-auto max-w-[75rem]">
-            <div className="mb-3 flex min-h-11 items-center justify-between gap-3 border-y border-white/10 bg-black/20 px-3 py-2">
+          <div data-monopoly-board-column className="relative mx-auto max-w-[75rem]">
+            <div data-monopoly-turn-status className="mb-1 flex min-h-9 items-center justify-between gap-2 border-y border-white/10 bg-black/20 px-2 py-1.5 sm:mb-3 sm:min-h-11 sm:gap-3 sm:px-3 sm:py-2">
               <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase text-[#c9a968]">{phaseLabel(view.phase)}</p>
                 <p className="truncate text-sm font-semibold sm:text-base">
@@ -201,7 +204,7 @@ export function MonopolyRenderer({ view, disabled, onAction }: MonopolyRendererP
 
             <div
               data-monopoly-board-viewport
-              className="monopoly-board-viewport relative w-full overflow-x-auto overflow-y-hidden pb-3"
+              className="monopoly-board-viewport relative w-full touch-pan-y overflow-hidden pb-0 sm:overflow-x-auto sm:overflow-y-hidden sm:pb-3"
             >
               <MonopolyBoard
                 board={view.board}
@@ -229,20 +232,32 @@ export function MonopolyRenderer({ view, disabled, onAction }: MonopolyRendererP
               disabled={actionLocked}
               diceRolling={diceRolling}
               onAction={sendAction}
-              onOpenTrade={() => setTableTab('trade')}
-              onOpenPortfolio={() => setTableTab('portfolio')}
+              onOpenTrade={() => {
+                setTableTab('trade');
+                setToolsOpen(true);
+              }}
+              onOpenPortfolio={() => {
+                setTableTab('portfolio');
+                setToolsOpen(true);
+              }}
             />
           </div>
         </section>
 
-        <aside className="relative border-t border-white/10 bg-[#14110e] xl:border-l xl:border-t-0" aria-label="Monopoly table tools">
+        <aside data-monopoly-tools data-mobile-open={toolsOpen ? 'true' : 'false'} className="relative border-t border-white/10 bg-[#14110e] xl:border-l xl:border-t-0" aria-label="Monopoly table tools">
+          <div data-monopoly-mobile-tools-header className="hidden items-center justify-between border-b border-white/10 px-3 py-2">
+            <p className="text-[10px] font-black uppercase text-[#c9a968]">Table tools</p>
+            <button type="button" onClick={() => setToolsOpen(false)} aria-label="Close table tools" className="flex h-11 w-11 items-center justify-center border border-white/15 bg-white/[0.06] text-[#eee5d6]">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
           {view.pendingDebt && (
             <section aria-label="Debt panel" className="border-b border-[#b4664d]/50 bg-[#2a1712] p-4">
               <DebtDecision view={view} legal={legal} disabled={actionLocked} onAction={sendAction} />
             </section>
           )}
           <TableTabs active={tableTab} onChange={setTableTab} />
-          <div className="min-h-[20rem] p-4 xl:max-h-[64rem] xl:overflow-y-auto">
+          <div className="min-h-[14rem] p-3 sm:min-h-[20rem] sm:p-4 xl:max-h-[64rem] xl:overflow-y-auto">
             {tableTab === 'deed' && (
               <DeedPanel
                 space={selectedSpace}
@@ -329,30 +344,32 @@ function PlayerWallet({ player, isYou, isCurrent, selected, onSelect }: Readonly
   return (
     <button
       type="button"
+      data-monopoly-wallet
       onClick={onSelect}
       disabled={isYou || player.bankrupt}
       aria-label={`${player.name} wallet, $${player.cash}, ${player.properties.length} properties`}
-      className={`relative min-w-0 border-r border-white/10 px-3 py-3 text-left transition-colors last:border-r-0 sm:px-4 ${isCurrent ? 'bg-white/[0.09]' : 'bg-black/25'} ${selected ? 'ring-2 ring-inset ring-[#d8b55d]' : ''} ${player.bankrupt ? 'opacity-45 grayscale' : ''}`}
+      className={`relative min-h-11 min-w-0 border-r border-white/10 px-1.5 py-1.5 text-left transition-colors last:border-r-0 sm:px-4 sm:py-3 ${isCurrent ? 'bg-white/[0.09]' : 'bg-black/25'} ${selected ? 'ring-2 ring-inset ring-[#d8b55d]' : ''} ${player.bankrupt ? 'opacity-45 grayscale' : ''}`}
     >
       {isCurrent && <motion.span layoutId="monopoly-current-turn" className="absolute inset-x-0 bottom-0 h-1" style={{ backgroundColor: player.originalColor }} />}
-      <span className="flex items-center gap-2">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 bg-[#d9dedb] text-lg shadow-[0_2px_0_#555]" style={{ borderColor: player.originalColor }} aria-hidden="true">
+      <span className="flex items-center gap-1 sm:gap-2">
+        <span data-monopoly-wallet-token className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 bg-[#d9dedb] text-sm shadow-[0_2px_0_#555] sm:h-9 sm:w-9 sm:text-lg" style={{ borderColor: player.originalColor }} aria-hidden="true">
           {tokenSymbol(player.originalToken)}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-1.5">
-            <span className="truncate text-sm font-bold">{player.name}</span>
-            {isYou && <span className="text-[9px] font-black uppercase text-[#d7b966]">You</span>}
-            {player.isBot && <Bot className="h-3.5 w-3.5 text-[#8cc9b0]" aria-label="Bot" />}
+          <span className="flex items-center gap-0.5 sm:gap-1.5">
+            <span className="truncate text-[10px] font-bold sm:text-sm">{player.name}</span>
+            {isYou && <span className="text-[7px] font-black uppercase text-[#d7b966] sm:text-[9px]">You</span>}
+            {player.isBot && <Bot className="h-3 w-3 shrink-0 text-[#8cc9b0] sm:h-3.5 sm:w-3.5" aria-label="Bot" />}
+            {player.inJail && <LockKeyhole className="h-3 w-3 shrink-0 text-[#e8a17f] sm:hidden" aria-label={`Jail turn ${player.jailTurns}`} />}
           </span>
-          <span className="mt-0.5 flex items-center gap-3 text-[11px] text-[#c2b8a7]">
+          <span className="mt-0.5 flex items-center gap-1 text-[9px] text-[#c2b8a7] sm:gap-3 sm:text-[11px]">
             <span className="font-black text-[#f3d27c]">${player.cash.toLocaleString()}</span>
-            <span>{player.properties.length} deeds</span>
+            <span className="hidden sm:inline">{player.properties.length} deeds</span>
           </span>
         </span>
       </span>
-      <span className="mt-2 flex items-center gap-2 text-[9px] font-bold uppercase text-[#897e6e]">
-        {player.bankrupt ? 'Bankrupt' : player.inJail ? `Jail · turn ${player.jailTurns}` : 'On the board'}
+      <span data-monopoly-wallet-status className="mt-1 hidden min-h-3 items-center gap-1 truncate text-[7px] font-bold uppercase text-[#897e6e] sm:mt-2 sm:flex sm:gap-2 sm:text-[9px]">
+        {player.bankrupt ? 'Bankrupt' : player.inJail ? `Jail · turn ${player.jailTurns}` : <span className="hidden sm:inline">On the board</span>}
         {player.jailCards > 0 && <><TicketCheck className="h-3 w-3" />{player.jailCards}</>}
       </span>
     </button>
@@ -374,12 +391,12 @@ function ActionDock({ view, legal, current, landingSpace, disabled, diceRolling,
   const canAttemptDoubles = legal.has('monopoly_attempt_doubles');
   const isYourTurn = current?.id === view.youId;
   return (
-    <section aria-label="Turn actions" className="relative z-[70] mx-auto mt-1 flex w-full max-w-[58rem] flex-col items-center justify-between gap-3 border border-[#6a5638] bg-[#11100d]/95 px-3 py-3 shadow-[0_12px_36px_rgba(0,0,0,0.45)] sm:flex-row sm:px-5">
+    <section data-monopoly-action-dock aria-label="Turn actions" className="relative z-[70] mx-auto mt-1 flex w-full max-w-[58rem] flex-col items-center justify-between gap-2 border border-[#6a5638] bg-[#11100d]/95 px-2 py-2 shadow-[0_12px_36px_rgba(0,0,0,0.45)] sm:flex-row sm:gap-3 sm:px-5 sm:py-3">
       <div className="min-w-0 text-center sm:text-left">
         <p className="text-[10px] font-black uppercase text-[#c8a85a]">{isYourTurn ? 'Your turn' : `${current?.name ?? 'Table'} is playing`}</p>
         <p className="truncate text-sm font-semibold">{dockPrompt(view, landingSpace)}</p>
       </div>
-      <div className="flex flex-wrap items-center justify-center gap-2">
+      <div className="flex w-full flex-wrap items-center justify-center gap-2 sm:w-auto">
         {canRoll && (
           <CommandButton
             label={diceRolling ? 'Rolling…' : 'Roll dice'}
@@ -416,7 +433,7 @@ function CommandButton({ label, icon, primary = false, disabled, onClick }: Read
       whileTap={disabled ? undefined : { scale: 0.97 }}
       disabled={disabled}
       onClick={onClick}
-      className={`inline-flex min-h-10 items-center gap-2 border px-3 text-xs font-black uppercase shadow-lg transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${primary ? 'border-[#f0ce70] bg-[#d4ae50] text-[#17120b] hover:bg-[#edca6b]' : 'border-white/15 bg-white/[0.06] text-[#eee5d6] hover:bg-white/[0.11]'}`}
+      className={`inline-flex min-h-11 items-center gap-1 border px-2 text-[10px] font-black uppercase shadow-lg transition-colors disabled:cursor-not-allowed disabled:opacity-45 sm:gap-2 sm:px-3 sm:text-xs ${primary ? 'border-[#f0ce70] bg-[#d4ae50] text-[#17120b] hover:bg-[#edca6b]' : 'border-white/15 bg-white/[0.06] text-[#eee5d6] hover:bg-white/[0.11]'}`}
     >
       {icon}
       {label}
@@ -426,7 +443,7 @@ function CommandButton({ label, icon, primary = false, disabled, onClick }: Read
 
 function TableTabs({ active, onChange }: Readonly<{ active: TableTab; onChange: (tab: TableTab) => void }>) {
   return (
-    <div className="grid grid-cols-3 border-b border-white/10" role="tablist" aria-label="Table tools">
+    <div className="sticky top-0 z-20 grid grid-cols-3 border-b border-white/10" role="tablist" aria-label="Table tools">
       {([
         ['deed', 'Deed', MapPinned],
         ['portfolio', 'Assets', Landmark],
@@ -566,12 +583,12 @@ function TradeWorkspace(props: TradeWorkspaceProps) {
     <section aria-label="Trade composer">
       <div className="flex items-center gap-2"><Handshake className="h-5 w-5 text-[#d3b45e]" /><h3 className="text-sm font-black uppercase">Make a deal</h3></div>
       <label htmlFor="monopoly-trade-target" className="mt-4 block text-[10px] font-black uppercase text-[#9f927f]">Target player</label>
-      <select id="monopoly-trade-target" value={props.targetPlayerId} onChange={(event) => props.setTargetPlayerId(event.target.value)} className="mt-1 h-10 w-full border border-white/15 bg-[#211c16] px-3 text-sm text-white">
+      <select id="monopoly-trade-target" value={props.targetPlayerId} onChange={(event) => props.setTargetPlayerId(event.target.value)} className="mt-1 h-11 w-full border border-white/15 bg-[#211c16] px-3 text-sm text-white">
         <option value="">Choose player</option>
         {props.view.players.filter((player) => player.id !== props.view.youId && !player.bankrupt).map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
       </select>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <TradeColumn
           title="You offer"
           cashId="monopoly-offered-cash"
@@ -636,13 +653,13 @@ function TradeColumn({ title, cashId, cash, setCash, jailId, jailCards, setJailC
     <fieldset className="min-w-0 border border-white/10 bg-white/[0.03] p-2">
       <legend className="px-1 text-[10px] font-black uppercase text-[#c9ad65]">{title}</legend>
       <label htmlFor={cashId} className="mt-1 block text-[9px] uppercase text-[#8d8170]">Cash</label>
-      <input id={cashId} aria-label={cashId.includes('offered') ? 'Offered cash' : 'Requested cash'} type="number" min={0} max={MAX_TRADE_CASH} value={cash} onChange={(event) => setCash(event.target.value)} className="mt-1 h-8 w-full border border-white/10 bg-black/30 px-2 text-xs" />
+      <input id={cashId} aria-label={cashId.includes('offered') ? 'Offered cash' : 'Requested cash'} type="number" min={0} max={MAX_TRADE_CASH} value={cash} onChange={(event) => setCash(event.target.value)} className="mt-1 h-11 w-full border border-white/10 bg-black/30 px-2 text-xs lg:h-8" />
       <label htmlFor={jailId} className="mt-2 block text-[9px] uppercase text-[#8d8170]">Jail cards</label>
-      <input id={jailId} aria-label={jailId.includes('offered') ? 'Offered jail cards' : 'Requested jail cards'} type="number" min={0} max={4} value={jailCards} onChange={(event) => setJailCards(event.target.value)} className="mt-1 h-8 w-full border border-white/10 bg-black/30 px-2 text-xs" />
+      <input id={jailId} aria-label={jailId.includes('offered') ? 'Offered jail cards' : 'Requested jail cards'} type="number" min={0} max={4} value={jailCards} onChange={(event) => setJailCards(event.target.value)} className="mt-1 h-11 w-full border border-white/10 bg-black/30 px-2 text-xs lg:h-8" />
       <div className="mt-3 max-h-44 overflow-y-auto">
         {properties.length === 0 && <p className="text-[10px] text-[#786f62]">No deeds</p>}
         {properties.map((space) => (
-          <label key={space.index} className="mb-1.5 flex cursor-pointer items-center gap-2 text-[10px]">
+          <label key={space.index} className="mb-1.5 flex min-h-11 cursor-pointer items-center gap-2 text-[10px] lg:min-h-0">
             <input type="checkbox" aria-label={`${space.index} ${space.name}`} checked={selected.includes(space.index)} onChange={() => setSelected(toggleValue(selected, space.index))} />
             <span className="min-w-0 truncate">{space.name}</span>
           </label>
@@ -665,13 +682,13 @@ function DecisionOverlay({ kind, view, legal, auctionAmount, setAuctionAmount, p
   onAction: (action: MonopolyAction) => void;
 }>) {
   return (
-    <motion.div className="absolute inset-0 z-[80] flex items-center justify-center bg-black/70 p-4 backdrop-blur-[3px]" initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+    <motion.div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-black/70 p-2 backdrop-blur-[3px] lg:absolute lg:p-4" initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <motion.section
         aria-label={decisionAriaLabel(kind)}
         initial={reduceMotion ? false : { opacity: 0, y: 24, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 16, scale: 0.97 }}
-        className="w-full max-w-lg border border-[#d4b667] bg-[#17130f] p-5 text-[#f8efdf] shadow-[0_26px_80px_rgba(0,0,0,0.65)]"
+        className="max-h-[calc(100dvh-1rem)] w-full max-w-lg overflow-y-auto border border-[#d4b667] bg-[#17130f] p-3 text-[#f8efdf] shadow-[0_26px_80px_rgba(0,0,0,0.65)] lg:max-h-none lg:p-5"
       >
         {kind === 'purchase' && view.pendingPurchase && (
           <PurchaseDecision view={view} legal={legal} disabled={disabled} onAction={onAction} />
@@ -717,15 +734,15 @@ function AuctionDecision({ view, legal, amount, setAmount, disabled, onAction }:
         <div><p className="text-[10px] font-black uppercase text-[#bba86d]">Live auction</p><h3 className="mt-1 text-xl font-black uppercase">{spaceName(view.board, auction.spaceIndex)}</h3></div>
         <Gavel className="h-9 w-9 text-[#e0bc60]" />
       </div>
-      <div className="mt-5 grid grid-cols-2 gap-3 border-y border-white/10 py-4">
+      <div className="mt-3 grid grid-cols-2 gap-3 border-y border-white/10 py-2 lg:mt-5 lg:py-4">
         <div><p className="text-[9px] uppercase text-[#8e8271]">High bid</p><p className="text-3xl font-black text-[#f0cc6e]">${auction.highestBid}</p></div>
         <div className="text-right"><p className="text-[9px] uppercase text-[#8e8271]">Winning bidder</p><p className="mt-1 text-sm font-bold">{playerName(view.players, auction.highestBidderId)}</p></div>
       </div>
-      <p className="mt-4 text-xs"><strong>{playerName(view.players, auction.currentBidderId)}</strong> is on the clock · {auction.activeBidderIds.length} bidders remain</p>
-      <label htmlFor="monopoly-auction-amount" className="mt-4 block text-[10px] font-black uppercase text-[#a99d8a]">Bid amount</label>
-      <input id="monopoly-auction-amount" type="number" min={min} max={max} value={amount} onChange={(event) => setAmount(clampInt(event.target.value, min, Math.max(min, max)))} className="mt-1 h-12 w-full border border-[#d2b45f]/50 bg-black/30 px-4 text-center text-xl font-black text-[#f0cc6e]" />
-      <div className="mt-2 flex gap-2">{quickBids.map((bid) => <button key={bid} type="button" onClick={() => setAmount(bid)} className="flex-1 border border-white/10 bg-white/[0.05] py-2 text-xs font-bold hover:bg-white/[0.1]">${bid}</button>)}</div>
-      <div className="mt-5 flex justify-end gap-3">
+      <p className="mt-3 text-xs lg:mt-4"><strong>{playerName(view.players, auction.currentBidderId)}</strong> is on the clock · {auction.activeBidderIds.length} bidders remain</p>
+      <label htmlFor="monopoly-auction-amount" className="mt-3 block text-[10px] font-black uppercase text-[#a99d8a] lg:mt-4">Bid amount</label>
+      <input id="monopoly-auction-amount" type="number" min={min} max={max} value={amount} onChange={(event) => setAmount(clampInt(event.target.value, min, Math.max(min, max)))} className="mt-1 h-11 w-full border border-[#d2b45f]/50 bg-black/30 px-4 text-center text-xl font-black text-[#f0cc6e] lg:h-12" />
+      <div className="mt-2 flex gap-2">{quickBids.map((bid) => <button key={bid} type="button" onClick={() => setAmount(bid)} className="min-h-11 flex-1 border border-white/10 bg-white/[0.05] py-2 text-xs font-bold hover:bg-white/[0.1]">${bid}</button>)}</div>
+      <div className="mt-3 flex justify-end gap-3 lg:mt-5">
         <CommandButton label="Pass" icon={<X className="h-4 w-4" />} disabled={disabled || !legal.has('monopoly_pass_auction')} onClick={() => onAction({ type: 'monopoly_pass_auction' })} />
         <CommandButton label="Bid" icon={<Gavel className="h-4 w-4" />} primary disabled={disabled || !legal.has('monopoly_bid')} onClick={() => onAction({ type: 'monopoly_bid', amount })} />
       </div>
@@ -786,7 +803,7 @@ function RentRow({ label, value }: Readonly<{ label: string; value: number }>) {
 }
 
 function DeedAction({ label, disabled, onClick }: Readonly<{ label: string; disabled: boolean; onClick: () => void }>) {
-  return <button type="button" disabled={disabled} onClick={onClick} className="border border-[#4c4133] bg-[#e1d3b7] px-2 py-2 text-[10px] font-black uppercase hover:bg-[#d4c29f] disabled:opacity-40">{label}</button>;
+  return <button type="button" disabled={disabled} onClick={onClick} className="min-h-11 border border-[#4c4133] bg-[#e1d3b7] px-2 py-2 text-[10px] font-black uppercase hover:bg-[#d4c29f] disabled:opacity-40">{label}</button>;
 }
 
 function TradeSummary({ title, cash, deeds, cards }: Readonly<{ title: string; cash: number; deeds: number; cards: number }>) {
@@ -821,8 +838,8 @@ function phaseLabel(phase: MonopolyPlayerView['phase']): string {
 
 function walletGridClass(playerCount: number): string {
   if (playerCount <= 2) return 'grid-cols-2';
-  if (playerCount === 3) return 'grid-cols-2 lg:grid-cols-3 [&>button:last-child]:col-span-2 lg:[&>button:last-child]:col-span-1';
-  return 'grid-cols-2 lg:grid-cols-4';
+  if (playerCount === 3) return 'grid-cols-3';
+  return 'grid-cols-4';
 }
 
 function sortedOwnedProperties(view: MonopolyPlayerView, ownerId: string): MonopolyBoardSpaceView[] {

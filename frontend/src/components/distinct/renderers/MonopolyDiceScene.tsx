@@ -257,7 +257,7 @@ export function MonopolyDiceScene({
       data-monopoly-dice-scene
       aria-label={label}
       role="img"
-      className={`relative ${compact ? 'h-16 w-28' : 'h-28 w-48 sm:h-32 sm:w-56'}`}
+      className={`relative ${compact ? 'h-16 w-28' : 'h-20 w-36 sm:h-32 sm:w-56'}`}
     >
       <canvas
         ref={canvasRef}
@@ -377,7 +377,7 @@ function FallbackDie({ value, rolling, compact }: Readonly<{
 }>) {
   const pips = new Set(PIP_POSITIONS[value] ?? []);
   return (
-    <span className={`grid grid-cols-3 grid-rows-3 place-items-center rounded-xl border-2 border-[#29251f] bg-[#fffdf4] p-1.5 shadow-[0_5px_0_#5d5448,0_12px_20px_rgba(0,0,0,0.4)] ${compact ? 'h-10 w-10' : 'h-14 w-14'} ${rolling ? 'animate-[dice-shake_0.4s_ease-in-out_infinite]' : ''}`}>
+    <span className={`grid grid-cols-3 grid-rows-3 place-items-center rounded-xl border-2 border-[#29251f] bg-[#fffdf4] p-1.5 shadow-[0_5px_0_#5d5448,0_12px_20px_rgba(0,0,0,0.4)] ${compact ? 'h-10 w-10' : 'h-11 w-11 sm:h-14 sm:w-14'} ${rolling ? 'animate-[dice-shake_0.4s_ease-in-out_infinite]' : ''}`}>
       {Array.from({ length: 9 }, (_, index) => (
         <span key={index} className={`h-1.5 w-1.5 rounded-full bg-[#171411] ${pips.has(index) ? 'opacity-100' : 'opacity-0'}`} />
       ))}

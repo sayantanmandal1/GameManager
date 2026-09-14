@@ -102,7 +102,9 @@ describe('MonopolyRenderer', () => {
   it('renders all spaces with canonical cyclic side placement and shared board wrapper', () => {
     const { container } = render(<MonopolyRenderer view={makeView()} disabled={false} onAction={jest.fn()} />);
 
-    expect(container.querySelector('[data-monopoly-board-viewport]')).toHaveClass('monopoly-board-viewport');
+    expect(container.querySelector('[data-monopoly-board-viewport]')).toHaveClass('monopoly-board-viewport', 'overflow-hidden', 'touch-pan-y');
+    expect(container.querySelector('[data-monopoly-board-shell]')).toHaveClass('w-full', 'min-w-0');
+    expect(container.querySelector('[data-monopoly-board-shell]')).not.toHaveAttribute('style');
     expect(container.querySelector('[data-monopoly-board][data-monopoly-board-shared="true"]')).toBeInTheDocument();
     expect(container.querySelectorAll('[data-space-index]')).toHaveLength(40);
 
@@ -323,7 +325,10 @@ describe('MonopolyRenderer', () => {
     expect(container.querySelector('[data-monopoly-live-table]')).toBeInTheDocument();
     expect(screen.getByLabelText('Monopoly player wallets')).toBeInTheDocument();
     expect(screen.getByLabelText('Ada wallet, $900, 2 properties')).toBeInTheDocument();
+    expect(container.querySelector('[data-monopoly-wallet]')).toBeInTheDocument();
     expect(screen.getByLabelText('Dice show 3 and 4')).toBeInTheDocument();
+    expect(container.querySelector('[data-monopoly-action-dock]')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close table tools', hidden: true })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Roll dice' })).toBeInTheDocument();
 
     rerender(<MonopolyRenderer view={makeView({
