@@ -20,6 +20,16 @@ async function main() {
   const deltaSocket = await connect(delta.token);
 
   try {
+    if (process.env.E2E_ONLY_BRIDGE === '1') {
+      await verifyContractBridge([
+        { user: alpha.user, socket: alphaSocket },
+        { user: beta.user, socket: betaSocket },
+        { user: gamma.user, socket: gammaSocket },
+        { user: delta.user, socket: deltaSocket },
+      ]);
+      console.log('Runtime Bridge E2E passed: auction, play, undo, Home settings, partner consent, doubled scoring.');
+      return;
+    }
     await verifyCatalog();
     await verifyHostRemoval(alpha, beta, alphaSocket, betaSocket);
     const ttt = await verifyTicTacToeAndHostTransfer(
@@ -2291,6 +2301,123 @@ async function verifyContractBridge(clients) {
   assert.deepEqual(conceded.view.tricksWon, [0, 13]);
   assert.equal(conceded.view.dealHistory.at(-1).concededByTeam, 0);
   assert.notDeepEqual(conceded.view.sessionScores, sessionScores);
+  await verifyBridgeHomeRules(clients);
+}
+
+async function verifyBridgeHomeRules(clients) {
+  console.log('Runtime E2E Bridge: Home rules, calling surrender, doubled wins');
+  const host = clients[0];
+  const lobby = (await emitAndWait(
+    host.socket,
+    'lobby:create',
+    { gameType: 'distinct', gameKey: 'contract-bridge' },
+    'lobby:state',
+    (payload) => payload.lobby?.gameKey === 'contract-bridge',
+  )).lobby;
+  for (const client of clients.slice(1)) {
+    await joinAndReady(host.socket, client.socket, lobby.code, client.user.id);
+  }
+  await choosePartnershipTeams(clients, lobby.code, host.socket);
+  const started = waitForEvent(host.socket, 'distinct:state', (payload) => payload.lobbyCode === lobby.code && payload.view?.phase === 'setup');
+  host.socket.emit('lobby:start_game');
+  const initial = await started;
+  const gameId = initial.gameId;
+  assert.deepEqual(initial.view.homeRules, { lowPointSurrenderEnabled: true, surrenderThreshold: 4 });
+  const homeRules = { lowPointSurrenderEnabled: true, surrenderThreshold: 40 };
+  const act = (client, action) => emitDistinctActionAndWait(
+    client.socket,
+    host.socket,
+    { gameId, lobbyCode: lobby.code, action },
+    (payload) => payload.gameId === gameId,
+  );
+  const awaitAuction = async (state) => {
+    let discardedHands = 0;
+    while (state.view.phase === 'deal_complete' && state.view.dealHistory.at(-1)?.outcome === 'zero_points') {
+      assert.deepEqual(state.view.dealHistory.at(-1).score, [0, 0]);
+      const previousDeal = state.view.dealNumber;
+      const previousScores = [...state.view.sessionScores];
+      assert(discardedHands < 10, 'Home redeals should eventually contain points in every hand');
+      discardedHands += 1;
+      state = await waitForEvent(host.socket, 'distinct:state', (payload) => payload.gameId === gameId && payload.view?.dealNumber > previousDeal);
+      assert.deepEqual(state.view.sessionScores, previousScores);
+    }
+    assert.equal(state.view.phase, 'auction');
+    return state;
+  };
+  let latest = await awaitAuction(await act(host, { type: 'select_bridge_mode', mode: 'home', homeRules }));
+  const privateStates = await Promise.all(clients.map((client) => requestGameState(client.socket, lobby.code, 'distinct:state')));
+  const pointValues = { J: 1, Q: 2, K: 3, A: 4 };
+  for (const state of privateStates) {
+    assert.deepEqual(state.view.homeRules, homeRules);
+    assert.equal(state.view.yourHandPoints, state.view.yourHand.reduce((points, card) => points + (pointValues[card.rank] || 0), 0));
+    assert.equal(state.view.canVoteSurrender, true);
+    assert(state.view.players.every((player) => !Object.hasOwn(player, 'handPoints')));
+  }
+  for (const call of [{ type: 'bid', level: 7, strain: 'notrump' }, { type: 'double' }, { type: 'redouble' }]) {
+    const actor = clients.find((client) => client.user.id === latest.view.currentTurnId);
+    assert(actor);
+    latest = await act(actor, { type: 'bridge_call', call });
+  }
+  const originalAuction = structuredClone(latest.view.auction);
+  const originalTurn = latest.view.currentTurnId;
+  const hostTeam = latest.view.players.find((player) => player.id === host.user.id).team;
+  const partnerPlayer = latest.view.players.find((player) => player.team === hostTeam && player.id !== host.user.id);
+  const partner = clients.find((client) => client.user.id === partnerPlayer.id);
+  const opponent = clients.find((client) => latest.view.players.find((player) => player.id === client.user.id).team !== hostTeam);
+  assert(partner);
+  assert(opponent);
+  latest = await act(host, { type: 'bridge_surrender_vote', confirmed: true });
+  assert.deepEqual(latest.view.auctionSurrenderRequest, { requesterId: host.user.id, partnerId: partner.user.id });
+  assert.equal(latest.view.canPass, false);
+  const rejected = waitForEvent(opponent.socket, 'distinct:error');
+  opponent.socket.emit('distinct:action', { gameId, lobbyCode: lobby.code, action: { type: 'bridge_surrender_vote', confirmed: true } });
+  assert.match((await rejected).message, /not available/);
+  latest = await act(partner, { type: 'bridge_surrender_vote', confirmed: false });
+  assert.equal(latest.view.phase, 'auction');
+  assert.equal(latest.view.auctionSurrenderRequest, null);
+  assert.deepEqual(latest.view.auction, originalAuction);
+  assert.equal(latest.view.currentTurnId, originalTurn);
+  assert.deepEqual(latest.view.sessionScores, [0, 0]);
+
+  latest = await act(host, { type: 'bridge_surrender_vote', confirmed: true });
+  latest = await act(partner, { type: 'bridge_surrender_vote', confirmed: true });
+  const surrenderedScore = [0, 0];
+  surrenderedScore[1 - hostTeam] = 100;
+  assert.equal(latest.view.phase, 'deal_complete');
+  assert.deepEqual(latest.view.sessionScores, surrenderedScore);
+  assert.deepEqual(latest.view.dealHistory.at(-1).score, surrenderedScore);
+  assert.equal(latest.view.dealHistory.at(-1).outcome, 'auction_surrender');
+  assert.equal(latest.view.contract, null);
+
+  latest = await awaitAuction(await act(host, { type: 'next_bridge_deal' }));
+  assert.deepEqual(latest.view.homeRules, homeRules);
+  assert.equal(latest.view.auctionSurrenderRequest, null);
+  assert.deepEqual(latest.view.surrenderVotes, [[], []]);
+  const scoresBeforeWin = [...latest.view.sessionScores];
+  for (const call of [
+    { type: 'bid', level: 4, strain: 'hearts' },
+    { type: 'double' },
+    { type: 'pass' },
+    { type: 'pass' },
+    { type: 'pass' },
+  ]) {
+    const actor = clients.find((client) => client.user.id === latest.view.currentTurnId);
+    assert(actor);
+    latest = await act(actor, { type: 'bridge_call', call });
+  }
+  assert.equal(latest.view.contract.doubling, 'doubled');
+  const declaringTeam = latest.view.contract.declaringTeam;
+  const defenders = clients.filter((client) => latest.view.players.find((player) => player.id === client.user.id).team !== declaringTeam);
+  for (const defender of defenders) {
+    latest = await act(defender, { type: 'bridge_surrender_vote', confirmed: true });
+  }
+  const winningScore = [0, 0];
+  winningScore[declaringTeam] = 800;
+  scoresBeforeWin[declaringTeam] += 800;
+  assert.equal(latest.view.phase, 'deal_complete');
+  assert.deepEqual(latest.view.dealHistory.at(-1).score, winningScore);
+  assert.deepEqual(latest.view.sessionScores, scoresBeforeWin);
+  assert.equal(latest.view.tricksWon[declaringTeam], 13);
 }
 
 async function verifyDistinctRematch(code, previousGameId, alpha, beta, alphaSocket, betaSocket) {

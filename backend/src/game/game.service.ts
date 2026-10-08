@@ -585,9 +585,9 @@ export class GameService implements OnModuleDestroy {
     ) {
       return { ok: false, error: 'Game not found' };
     }
-    this.cancelDistinctAutoPlay(gameId);
     const outcome = this.distinctGameLifecycle.applyAction(gameId, playerId, action);
     if (!outcome.valid) return { ok: false, error: outcome.reason };
+    this.cancelDistinctAutoPlay(gameId);
 
     const state = this.distinctGameLifecycle.getState(gameId)!;
     await this.redis.set(`game:${gameId}`, JSON.stringify(state), 'EX', 3600);

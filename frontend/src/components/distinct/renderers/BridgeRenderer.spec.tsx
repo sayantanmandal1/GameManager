@@ -22,6 +22,7 @@ function view(overrides: Partial<BridgePlayerView> = {}): BridgePlayerView {
     hostId: 'a',
     youId: 'a',
     mode: null,
+    homeRules: { lowPointSurrenderEnabled: true, surrenderThreshold: 4 },
     phase: 'setup',
     dealerId: 'a',
     dealNumber: 0,
@@ -37,6 +38,7 @@ function view(overrides: Partial<BridgePlayerView> = {}): BridgePlayerView {
     leaderId: null,
     dummyRevealed: false,
     yourHand: [],
+    yourHandPoints: 0,
     dummyHand: [],
     partnerHand: [],
     sessionScores: [0, 0],
@@ -52,6 +54,7 @@ function view(overrides: Partial<BridgePlayerView> = {}): BridgePlayerView {
     legalCardIds: [],
     actingHand: null,
     surrenderVotes: [[], []],
+    auctionSurrenderRequest: null,
     canVoteSurrender: false,
     undoRequest: null,
     canRequestUndo: false,
@@ -71,9 +74,135 @@ describe('BridgeRenderer', () => {
     render(<BridgeRenderer view={view()} disabled={false} onAction={onAction} />);
 
     fireEvent.click(screen.getByRole('button', { name: /Home/ }));
-    expect(onAction).toHaveBeenCalledWith({ type: 'select_bridge_mode', mode: 'home' });
+    expect(onAction).not.toHaveBeenCalled();
+    expect(screen.getByRole('switch', { name: 'Low-point surrender' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByLabelText('Surrender below (points)')).toHaveValue(4);
+    fireEvent.click(screen.getByRole('button', { name: 'Start Home game' }));
+    expect(onAction).toHaveBeenCalledWith({
+      type: 'select_bridge_mode', mode: 'home',
+      homeRules: { lowPointSurrenderEnabled: true, surrenderThreshold: 4 },
+    });
     expect(screen.getByRole('button', { name: /Rubber/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Duplicate/ })).toBeInTheDocument();
+  });
+
+  it('submits a custom Home threshold and supports disabling low-point surrender', () => {
+    const onAction = jest.fn();
+    render(<BridgeRenderer view={view()} disabled={false} onAction={onAction} />);
+    fireEvent.click(screen.getByRole('button', { name: /Home/ }));
+    fireEvent.change(screen.getByLabelText('Surrender below (points)'), { target: { value: '6' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Start Home game' }));
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'select_bridge_mode', mode: 'home',
+      homeRules: { lowPointSurrenderEnabled: true, surrenderThreshold: 6 },
+    });
+    fireEvent.click(screen.getByRole('switch', { name: 'Low-point surrender' }));
+    expect(screen.getByRole('switch', { name: 'Low-point surrender' })).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByLabelText('Surrender below (points)')).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Start Home game' }));
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'select_bridge_mode', mode: 'home',
+      homeRules: { lowPointSurrenderEnabled: false, surrenderThreshold: 6 },
+    });
+  });
+
+  it.each(['', '0', '41', '4.5'])('does not submit an invalid threshold %s', (value) => {
+    const onAction = jest.fn();
+    render(<BridgeRenderer view={view()} disabled={false} onAction={onAction} />);
+    fireEvent.click(screen.getByRole('button', { name: /Home/ }));
+    fireEvent.change(screen.getByLabelText('Surrender below (points)'), { target: { value } });
+    expect(screen.getByRole('button', { name: 'Start Home game' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Start Home game' }));
+    expect(onAction).not.toHaveBeenCalled();
+  });
+
+  it.each(['Rubber', 'Duplicate'])('starts %s without Home settings', (mode) => {
+    const onAction = jest.fn();
+    render(<BridgeRenderer view={view()} disabled={false} onAction={onAction} />);
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(mode) }));
+    expect(onAction).toHaveBeenCalledWith({ type: 'select_bridge_mode', mode: mode.toLowerCase() });
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+  });
+
+  it('does not expose mode settings to a non-host', () => {
+    render(<BridgeRenderer view={view({ youId: 'b', legalModes: [], canAct: false })} disabled={false} onAction={jest.fn()} />);
+    expect(screen.getByText('Waiting for the host to choose a mode.')).toBeInTheDocument();
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+  });
+
+  it('confirms the fixed auction surrender award before requesting partner consent', () => {
+    const onAction = jest.fn();
+    const { rerender } = render(<BridgeRenderer view={view({
+      mode: 'home', phase: 'auction', dealNumber: 1, legalModes: [],
+      yourHandPoints: 3, canAct: false, canVoteSurrender: true,
+    })} disabled={false} onAction={onAction} />);
+    expect(screen.getByLabelText('Your hand points')).toHaveTextContent('3 points');
+    fireEvent.click(screen.getByRole('button', { name: 'Surrender deal' }));
+    expect(screen.getByText(/opponents receive exactly 100 points/)).toBeInTheDocument();
+    expect(onAction).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm surrender' }));
+    expect(onAction).toHaveBeenLastCalledWith({ type: 'bridge_surrender_vote', confirmed: true });
+
+    rerender(<BridgeRenderer view={view({
+      mode: 'home', phase: 'auction', dealNumber: 1, legalModes: [],
+      canAct: false, canVoteSurrender: true, surrenderVotes: [['a'], []],
+      auctionSurrenderRequest: { requesterId: 'a', partnerId: 'c' },
+    })} disabled={false} onAction={onAction} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Waiting for South to decide');
+    expect(screen.queryByRole('button', { name: 'Accept surrender' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel surrender' }));
+    expect(onAction).toHaveBeenLastCalledWith({ type: 'bridge_surrender_vote', confirmed: false });
+  });
+
+  it('lets the partner accept or decline without exposing auction calls while consent is pending', () => {
+    const onAction = jest.fn();
+    render(<BridgeRenderer view={view({
+      mode: 'home', phase: 'auction', dealNumber: 1, legalModes: [], youId: 'c',
+      yourHandPoints: 12, canVoteSurrender: true,
+      auctionSurrenderRequest: { requesterId: 'a', partnerId: 'c' },
+      surrenderVotes: [['a'], []],
+    })} disabled={false} onAction={onAction} />);
+    expect(screen.getByText('North requests surrender')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Pass' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Choose Clubs' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Accept surrender' }));
+    expect(onAction).toHaveBeenLastCalledWith({ type: 'bridge_surrender_vote', confirmed: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Decline surrender' }));
+    expect(onAction).toHaveBeenLastCalledWith({ type: 'bridge_surrender_vote', confirmed: false });
+  });
+
+  it('does not give opponents a pending surrender approval or cancellation control', () => {
+    render(<BridgeRenderer view={view({
+      mode: 'home', phase: 'auction', legalModes: [], youId: 'b', canAct: false,
+      auctionSurrenderRequest: { requesterId: 'a', partnerId: 'c' },
+    })} disabled={false} onAction={jest.fn()} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Waiting for South to decide');
+    expect(screen.queryByRole('button', { name: 'Accept surrender' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancel surrender' })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['zero_points', [0, 0], 'Zero-point hand'],
+    ['auction_surrender', [0, 100], 'Auction surrender'],
+  ] as const)('renders a %s scorecard without a contract', (outcome, score, label) => {
+    render(<BridgeRenderer view={view({
+      mode: 'home', phase: 'deal_complete', dealNumber: 1, legalModes: [],
+      sessionScores: [...score],
+      dealHistory: [{
+        dealNumber: 1, dealerId: 'a', vulnerability: [false, false], contract: null,
+        tricksWon: [0, 0], score: [...score], passedOut: false,
+        concededByTeam: outcome === 'auction_surrender' ? 0 : null, outcome,
+      }],
+    })} disabled={false} onAction={jest.fn()} />);
+    expect(screen.getAllByText(label)).toHaveLength(2);
+    if (outcome === 'zero_points') {
+      expect(screen.getByRole('status')).toHaveTextContent('Both teams score 0. Dealing the next hand...');
+      expect(screen.queryByRole('button', { name: 'Next deal' })).not.toBeInTheDocument();
+    } else {
+      expect(screen.getByText('Opponents awarded 100 points')).toBeInTheDocument();
+      expect(screen.getByLabelText('Host team net score')).toHaveTextContent('-100');
+      expect(screen.getByRole('button', { name: 'Next deal' })).toBeInTheDocument();
+    }
   });
 
   it('enables only server-declared bids and calls', () => {
@@ -234,6 +363,7 @@ describe('BridgeRenderer', () => {
         score: [0, 0],
         passedOut: true,
         concededByTeam: null,
+        outcome: 'passed_out',
       }],
     })} disabled={false} onAction={onAction} />);
 
@@ -331,6 +461,7 @@ describe('BridgeRenderer', () => {
         score: [90, 0],
         passedOut: false,
         concededByTeam: null,
+        outcome: 'played',
       }],
     })} disabled={false} onAction={jest.fn()} />);
 

@@ -122,7 +122,9 @@ export function scoreHomeDeal(
 
   let contractPoints = 50;
   if (tricksTaken >= 10) contractPoints = contract.level >= 4 ? 250 : 100;
-  const bonusPoints = (tricksTaken >= 12 ? 50 : 0) + (tricksTaken === 13 ? 100 : 0);
+  const multiplier = doublingMultiplier(contract.doubling);
+  contractPoints *= multiplier;
+  const bonusPoints = ((tricksTaken >= 12 ? 50 : 0) + (tricksTaken === 13 ? 100 : 0)) * multiplier;
   return {
     made: true,
     requiredTricks,

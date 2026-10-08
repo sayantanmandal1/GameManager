@@ -1145,6 +1145,19 @@ export type BridgeStrain = (typeof BRIDGE_STRAINS)[number];
 export type BridgeDoubling = 'undoubled' | 'doubled' | 'redoubled';
 export type BridgeSeat = 'north' | 'east' | 'south' | 'west';
 export type BridgeTeam = 0 | 1;
+export interface BridgeHomeRules {
+  lowPointSurrenderEnabled: boolean;
+  surrenderThreshold: number;
+}
+export const BRIDGE_DEFAULT_HOME_RULES: Readonly<BridgeHomeRules> = {
+  lowPointSurrenderEnabled: true,
+  surrenderThreshold: 4,
+};
+export const BRIDGE_MAX_SURRENDER_THRESHOLD = 40;
+export interface BridgeAuctionSurrenderRequest {
+  requesterId: string;
+  partnerId: string;
+}
 export interface BridgePlayer extends DistinctPlayer {
   seat: BridgeSeat;
   team: BridgeTeam;
@@ -1159,7 +1172,7 @@ export type BridgeCall =
   | { type: 'double' }
   | { type: 'redouble' };
 export type BridgeAction =
-  | { type: 'select_bridge_mode'; mode: BridgeMode }
+  | { type: 'select_bridge_mode'; mode: BridgeMode; homeRules?: BridgeHomeRules }
   | { type: 'bridge_call'; call: BridgeCall }
   | { type: 'bridge_undo_call' }
   | { type: 'play_bridge_card'; cardId: string }
@@ -1251,11 +1264,13 @@ export interface BridgeDealSummary {
   score: [number, number];
   passedOut: boolean;
   concededByTeam: BridgeTeam | null;
+  outcome: 'played' | 'passed_out' | 'zero_points' | 'auction_surrender';
 }
 export interface BridgeGameState {
   players: [BridgePlayer, BridgePlayer, BridgePlayer, BridgePlayer];
   hostId: string;
   mode: BridgeMode | null;
+  homeRules: BridgeHomeRules;
   hands: Record<string, StandardCard[]>;
   dealerIndex: number;
   dealNumber: number;
@@ -1277,6 +1292,7 @@ export interface BridgeGameState {
   dealHistory: BridgeDealSummary[];
   pendingHonorBonus: { team: BridgeTeam; points: number } | null;
   surrenderVotes: [string[], string[]];
+  auctionSurrenderRequest: BridgeAuctionSurrenderRequest | null;
   playHistory: BridgePlayHistoryEntry[];
   nextPlayId: number;
   undoRequest: BridgeUndoRequest | null;
@@ -1302,6 +1318,7 @@ export interface BridgePlayerView {
   hostId: string;
   youId: string;
   mode: BridgeMode | null;
+  homeRules: BridgeHomeRules;
   phase: BridgeGameState['phase'];
   dealerId: string;
   dealNumber: number;
@@ -1317,6 +1334,7 @@ export interface BridgePlayerView {
   leaderId: string | null;
   dummyRevealed: boolean;
   yourHand: StandardCard[];
+  yourHandPoints: number;
   dummyHand: StandardCard[];
   partnerHand: StandardCard[];
   sessionScores: [number, number];
@@ -1332,6 +1350,7 @@ export interface BridgePlayerView {
   legalCardIds: string[];
   actingHand: 'own' | 'dummy' | null;
   surrenderVotes: [string[], string[]];
+  auctionSurrenderRequest: BridgeAuctionSurrenderRequest | null;
   canVoteSurrender: boolean;
   undoRequest: { requesterId: string; approvals: string[] } | null;
   canRequestUndo: boolean;

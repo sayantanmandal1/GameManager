@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
+import { ArrowRight, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import type {
   BridgeAction,
@@ -10,7 +11,7 @@ import type {
   BridgeStrain,
   StandardCard,
 } from '@/shared';
-import { BRIDGE_STRAINS } from '@/shared';
+import { BRIDGE_DEFAULT_HOME_RULES, BRIDGE_MAX_SURRENDER_THRESHOLD, BRIDGE_STRAINS } from '@/shared';
 import { CardTable } from './CardTable';
 import { CardFace } from './CardFace';
 
@@ -49,6 +50,14 @@ export function BridgeRenderer({ view, disabled, onAction }: Props) {
   const [confirmSurrender, setConfirmSurrender] = useState(false);
   const [handView, setHandView] = useState<HandView>('own');
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [configuringHome, setConfiguringHome] = useState(false);
+  const [lowPointSurrenderEnabled, setLowPointSurrenderEnabled] = useState(view.homeRules.lowPointSurrenderEnabled);
+  const [homeThreshold, setHomeThreshold] = useState(String(view.homeRules.surrenderThreshold));
+  const surrenderThreshold = Number(homeThreshold);
+  const validThreshold = homeThreshold.trim() !== ''
+    && Number.isInteger(surrenderThreshold)
+    && surrenderThreshold >= 1
+    && surrenderThreshold <= BRIDGE_MAX_SURRENDER_THRESHOLD;
   const playerName = (playerId: string | null) =>
     view.players.find((player) => player.id === playerId)?.name ?? '—';
 
@@ -92,14 +101,76 @@ export function BridgeRenderer({ view, disabled, onAction }: Props) {
                 key={mode}
                 type="button"
                 disabled={disabled}
-                onClick={() => onAction({ type: 'select_bridge_mode', mode })}
-                className="min-h-28 border border-white/15 bg-black/15 px-4 py-5 text-left hover:border-[#e5c66d]/70 disabled:opacity-40"
+                aria-pressed={mode === 'home' && configuringHome}
+                onClick={() => {
+                  if (mode === 'home') setConfiguringHome(true);
+                  else onAction({ type: 'select_bridge_mode', mode });
+                }}
+                className={`min-h-28 border bg-black/15 px-4 py-5 text-left hover:border-[#e5c66d]/70 disabled:opacity-40 ${mode === 'home' && configuringHome ? 'border-[#e5c66d]' : 'border-white/15'}`}
               >
                 <span className="block text-lg font-black">{MODE_LABELS[mode].name}</span>
                 <span className="mt-2 block text-sm text-white/50">{MODE_LABELS[mode].detail}</span>
               </button>
             ))}
           </div>
+          {configuringHome && view.legalModes.includes('home') && (
+            <form
+              aria-label="Home mode rules"
+              className="mt-5 border-t border-white/15 py-5 text-left"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (disabled || (lowPointSurrenderEnabled && !validThreshold)) return;
+                onAction({
+                  type: 'select_bridge_mode',
+                  mode: 'home',
+                  homeRules: {
+                    lowPointSurrenderEnabled,
+                    surrenderThreshold: validThreshold ? surrenderThreshold : BRIDGE_DEFAULT_HOME_RULES.surrenderThreshold,
+                  },
+                });
+              }}
+            >
+              <div className="flex min-h-11 items-center justify-between gap-4">
+                <label htmlFor="bridge-home-surrender" className="text-sm font-bold">Low-point surrender</label>
+                <button
+                  id="bridge-home-surrender"
+                  type="button"
+                  role="switch"
+                  aria-checked={lowPointSurrenderEnabled}
+                  disabled={disabled}
+                  onClick={() => setLowPointSurrenderEnabled((enabled) => !enabled)}
+                  className="flex h-11 w-12 shrink-0 items-center justify-center rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#e5c66d] disabled:opacity-40"
+                >
+                  <span className={`relative h-6 w-11 rounded-full border transition-colors ${lowPointSurrenderEnabled ? 'border-[#8bcead] bg-[#438761]' : 'border-white/25 bg-black/30'}`}>
+                    <span className={`absolute left-0.5 top-0.5 h-[18px] w-[18px] rounded-full bg-white transition-transform ${lowPointSurrenderEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </span>
+                </button>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <label htmlFor="bridge-home-threshold" className="text-sm font-bold">Surrender below (points)</label>
+                <input
+                  id="bridge-home-threshold"
+                  type="number"
+                  min={1}
+                  max={BRIDGE_MAX_SURRENDER_THRESHOLD}
+                  step={1}
+                  required
+                  value={homeThreshold}
+                  disabled={disabled || !lowPointSurrenderEnabled}
+                  onChange={(event) => setHomeThreshold(event.target.value)}
+                  className="h-11 w-24 rounded border border-white/20 bg-black/25 px-3 text-base font-bold disabled:opacity-40"
+                />
+              </div>
+              <div className="mt-4 flex flex-wrap justify-between gap-2 text-xs text-white/60">
+                <span>J = 1, Q = 2, K = 3, A = 4</span>
+                <span>Partner consent required · opponents +100</span>
+                <span>Zero-point hand: discard, 0–0, redeal</span>
+              </div>
+              <Button type="submit" className="mt-5 inline-flex items-center gap-2" disabled={disabled || (lowPointSurrenderEnabled && !validThreshold)}>
+                Start Home game <ArrowRight className="h-4 w-4" />
+              </Button>
+            </form>
+          )}
           {view.legalModes.length === 0 && <p className="mt-6 text-white/55">Waiting for the host to choose a mode.</p>}
         </div>
       </div>
@@ -190,9 +261,11 @@ export function BridgeRenderer({ view, disabled, onAction }: Props) {
               </button>
             )}
             <UndoControls view={view} disabled={disabled} onAction={onAction} playerName={playerName} />
-            {view.canVoteSurrender && (
+            {view.canVoteSurrender && !view.auctionSurrenderRequest && (
               <div className="flex items-center justify-center gap-2 text-[10px] text-white/55">
-                <span>{yourVotes.length}/2 team confirmations{partnerHasVoted ? ` · ${partner?.name} confirmed` : ''}</span>
+                <span>{view.phase === 'auction'
+                  ? `${view.yourHandPoints} points · below ${view.homeRules.surrenderThreshold}`
+                  : `${yourVotes.length}/2 team confirmations${partnerHasVoted ? ` · ${partner?.name} confirmed` : ''}`}</span>
                 <button
                   type="button"
                   disabled={disabled}
@@ -203,7 +276,7 @@ export function BridgeRenderer({ view, disabled, onAction }: Props) {
                       setConfirmSurrender(true);
                     }
                   }}
-                  className="rounded-md border border-red-300/25 px-2 py-1 font-bold text-red-200 disabled:opacity-40"
+                  className="min-h-11 rounded-md border border-red-300/25 px-2 py-1 font-bold text-red-200 disabled:opacity-40"
                 >
                   {hasVotedToSurrender ? 'Withdraw surrender' : 'Surrender deal'}
                 </button>
@@ -218,7 +291,9 @@ export function BridgeRenderer({ view, disabled, onAction }: Props) {
           <div className="w-full max-w-sm rounded-lg border border-white/12 bg-[#1c1f1b] p-6 text-center shadow-2xl">
             <h2 className="text-xl font-bold">Confirm deal surrender?</h2>
             <p className="mt-2 text-sm text-white/55">
-              Both teammates must confirm. Every unplayed trick will be awarded to the other team, then this deal will be scored normally.
+              {view.phase === 'auction'
+                ? 'Your partner must accept. The opponents receive exactly 100 points and your team receives 0, regardless of any calls.'
+                : 'Both teammates must confirm. Every unplayed trick will be awarded to the other team, then this deal will be scored normally.'}
             </p>
             <div className="mt-5 flex justify-center gap-3">
               <Button variant="secondary" onClick={() => setConfirmSurrender(false)}>Cancel</Button>
@@ -248,7 +323,7 @@ export function BridgeRenderer({ view, disabled, onAction }: Props) {
               {view.dealHistory.map((deal) => (
                 <tr key={deal.dealNumber} className="border-t border-white/8">
                   <td className="p-2">{deal.dealNumber}</td>
-                  <td className="p-2">{deal.passedOut ? 'Passed out' : formatContract(deal.contract!)}</td>
+                  <td className="p-2">{dealLabel(deal)}</td>
                   <td className="p-2">{deal.contract ? playerName(deal.contract.declarerId) : '—'}</td>
                   <td className="p-2">{deal.tricksWon[hostTeam]}</td>
                   <td className="p-2">{signed(deal.score[hostTeam] - deal.score[opposingTeam])}</td>
@@ -287,12 +362,15 @@ function BridgeTableCenter({ view, disabled, clock, onAction, playerName }: Read
     const hostTeam = view.players.find((player) => player.id === view.hostId)?.team ?? 0;
     const opposingTeam = (1 - hostTeam) as 0 | 1;
     const dealNet = lastDeal.score[hostTeam] - lastDeal.score[opposingTeam];
+    const discarded = lastDeal.outcome === 'zero_points';
     return (
       <div className="rounded-lg border border-[#e7cf85]/35 bg-[#0d2c24]/90 px-5 py-4 text-center shadow-xl">
-        <p className="text-xs font-bold uppercase text-[#e7cf85]">Deal complete</p>
-        <p className="mt-1 font-black">{lastDeal.passedOut ? 'Passed out' : `${formatContract(lastDeal.contract!)} · ${lastDeal.tricksWon[0]}–${lastDeal.tricksWon[1]} tricks`}</p>
+        <p className="text-xs font-bold uppercase text-[#e7cf85]">{discarded ? 'Deal discarded' : 'Deal complete'}</p>
+        <p className="mt-1 font-black">{dealLabel(lastDeal)}{lastDeal.contract ? ` · ${lastDeal.tricksWon[0]}–${lastDeal.tricksWon[1]} tricks` : ''}</p>
         <p className="mt-1 text-sm text-white/60">Host net {signed(dealNet)}</p>
-        {view.canAct && <Button className="mt-3" disabled={disabled} onClick={() => onAction({ type: 'next_bridge_deal' })}>Next deal</Button>}
+        {discarded && <p role="status" className="mt-2 text-sm text-[#e7cf85]">Both teams score 0. Dealing the next hand...</p>}
+        {lastDeal.outcome === 'auction_surrender' && <p className="mt-2 text-sm text-white/65">Opponents awarded 100 points</p>}
+        {view.canAct && !discarded && <Button className="mt-3" disabled={disabled} onClick={() => onAction({ type: 'next_bridge_deal' })}>Next deal</Button>}
       </div>
     );
   }
@@ -363,6 +441,7 @@ function Auction({ view, disabled, onAction, playerName }: Readonly<{
     : [];
   return (
     <section className="w-full max-w-4xl rounded-xl border border-white/10 bg-[#0d2c24]/95 p-3 shadow-xl" aria-label="Bridge auction">
+      <p aria-label="Your hand points" className="mb-2 text-center text-xs font-bold text-[#e7cf85]">Your hand: {view.yourHandPoints} points</p>
       <div className="flex max-h-14 min-h-7 flex-wrap justify-center gap-1 overflow-y-auto">
         {view.auction.map((entry, index) => (
           <span key={`${entry.playerId}-${index}`} className="rounded-full border border-white/12 bg-black/20 px-2 py-0.5 text-[10px]">
@@ -372,7 +451,25 @@ function Auction({ view, disabled, onAction, playerName }: Readonly<{
         {view.auction.length === 0 && <span className="self-center text-xs text-white/45">Auction unopened</span>}
       </div>
 
-      {view.phase === 'auction' && view.canAct && (
+      {view.auctionSurrenderRequest && (
+        <div aria-label="Auction surrender request" className="mt-3 text-center">
+          <p className="text-sm font-bold">{playerName(view.auctionSurrenderRequest.requesterId)} requests surrender</p>
+          <p className="mt-1 text-xs text-white/60">Opponents +100 · surrendering team 0</p>
+          {view.youId === view.auctionSurrenderRequest.partnerId && view.canVoteSurrender ? (
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+              <Button variant="danger" className="inline-flex items-center gap-2" disabled={disabled} onClick={() => onAction({ type: 'bridge_surrender_vote', confirmed: true })}><Check className="h-4 w-4" />Accept surrender</Button>
+              <Button variant="secondary" className="inline-flex items-center gap-2" disabled={disabled} onClick={() => onAction({ type: 'bridge_surrender_vote', confirmed: false })}><X className="h-4 w-4" />Decline surrender</Button>
+            </div>
+          ) : (
+            <p role="status" className="mt-2 text-xs text-[#e7cf85]">Waiting for {playerName(view.auctionSurrenderRequest.partnerId)} to decide</p>
+          )}
+          {view.youId === view.auctionSurrenderRequest.requesterId && view.canVoteSurrender && (
+            <Button variant="secondary" className="mt-3" disabled={disabled} onClick={() => onAction({ type: 'bridge_surrender_vote', confirmed: false })}>Cancel surrender</Button>
+          )}
+        </div>
+      )}
+
+      {view.phase === 'auction' && view.canAct && !view.auctionSurrenderRequest && (
         <div className="mt-2">
           {!selectedStrain && (
             <div>
@@ -573,6 +670,13 @@ function formatContract(contract: NonNullable<BridgePlayerView['contract']>): st
   if (contract.doubling === 'doubled') doubling = ' X';
   else if (contract.doubling === 'redoubled') doubling = ' XX';
   return `${contract.level}${STRAIN_LABELS[contract.strain]}${doubling}`;
+}
+
+function dealLabel(deal: BridgePlayerView['dealHistory'][number]): string {
+  if (deal.outcome === 'zero_points') return 'Zero-point hand';
+  if (deal.outcome === 'auction_surrender') return 'Auction surrender';
+  if (deal.passedOut) return 'Passed out';
+  return deal.contract ? formatContract(deal.contract) : 'No contract';
 }
 
 function compareCards(left: StandardCard, right: StandardCard): number {

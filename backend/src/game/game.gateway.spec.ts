@@ -76,6 +76,42 @@ describe('chess DTOs — class-validator', () => {
 });
 
 describe('distinct game DTOs - class-validator', () => {
+  it.each([
+    { lowPointSurrenderEnabled: true, surrenderThreshold: 4 },
+    { lowPointSurrenderEnabled: false, surrenderThreshold: 6 },
+    { lowPointSurrenderEnabled: true, surrenderThreshold: 1 },
+    { lowPointSurrenderEnabled: true, surrenderThreshold: 40 },
+  ])('accepts validated nested Bridge Home settings %#', async (homeRules) => {
+    const dto = plainToInstance(DistinctGameActionDto, {
+      gameId: '123e4567-e89b-12d3-a456-426614174000',
+      lobbyCode: '123456',
+      action: { type: 'select_bridge_mode', mode: 'home', homeRules },
+    });
+
+    await expect(validate(dto, { whitelist: true, forbidNonWhitelisted: true })).resolves.toHaveLength(0);
+    expect(dto.action.homeRules).toEqual(homeRules);
+  });
+
+  it.each([
+    [],
+    { lowPointSurrenderEnabled: true, surrenderThreshold: 0 },
+    { lowPointSurrenderEnabled: true, surrenderThreshold: 41 },
+    { lowPointSurrenderEnabled: true, surrenderThreshold: 4.5 },
+    { lowPointSurrenderEnabled: true, surrenderThreshold: '4' },
+    { lowPointSurrenderEnabled: 'true', surrenderThreshold: 4 },
+    { lowPointSurrenderEnabled: true },
+    { lowPointSurrenderEnabled: true, surrenderThreshold: 4, extra: true },
+  ])('rejects malformed nested Bridge Home settings %#', async (homeRules) => {
+    const dto = plainToInstance(DistinctGameActionDto, {
+      gameId: '123e4567-e89b-12d3-a456-426614174000',
+      lobbyCode: '123456',
+      action: { type: 'select_bridge_mode', mode: 'home', homeRules },
+    });
+
+    const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
   it('accepts a bounded game action', async () => {
     const dto = plainToInstance(DistinctGameActionDto, {
       gameId: '123e4567-e89b-12d3-a456-426614174000',

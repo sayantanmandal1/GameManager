@@ -511,6 +511,19 @@ export type BridgeStrain = (typeof BRIDGE_STRAINS)[number];
 export type BridgeDoubling = 'undoubled' | 'doubled' | 'redoubled';
 export type BridgeSeat = 'north' | 'east' | 'south' | 'west';
 export type BridgeTeam = 0 | 1;
+export interface BridgeHomeRules {
+  lowPointSurrenderEnabled: boolean;
+  surrenderThreshold: number;
+}
+export const BRIDGE_DEFAULT_HOME_RULES: Readonly<BridgeHomeRules> = {
+  lowPointSurrenderEnabled: true,
+  surrenderThreshold: 4,
+};
+export const BRIDGE_MAX_SURRENDER_THRESHOLD = 40;
+export interface BridgeAuctionSurrenderRequest {
+  requesterId: string;
+  partnerId: string;
+}
 export interface BridgePlayer extends DistinctPlayer { seat: BridgeSeat; team: BridgeTeam }
 export interface BridgeBid { level: number; strain: BridgeStrain }
 export type BridgeCall =
@@ -519,7 +532,7 @@ export type BridgeCall =
   | { type: 'double' }
   | { type: 'redouble' };
 export type BridgeAction =
-  | { type: 'select_bridge_mode'; mode: BridgeMode }
+  | { type: 'select_bridge_mode'; mode: BridgeMode; homeRules?: BridgeHomeRules }
   | { type: 'bridge_call'; call: BridgeCall }
   | { type: 'bridge_undo_call' }
   | { type: 'play_bridge_card'; cardId: string }
@@ -546,6 +559,7 @@ export interface BridgeDealSummary {
   dealNumber: number; dealerId: string; vulnerability: [boolean, boolean];
   contract: BridgeContract | null; tricksWon: [number, number]; score: [number, number]; passedOut: boolean;
   concededByTeam: BridgeTeam | null;
+  outcome: 'played' | 'passed_out' | 'zero_points' | 'auction_surrender';
 }
 export interface BridgeResult {
   gameKey: 'contract-bridge'; winnerId: string | null; winnerTeam: BridgeTeam | null;
@@ -556,17 +570,20 @@ export interface BridgePlayerView {
   gameKey: 'contract-bridge';
   players: Array<BridgePlayer & { handCount: number; tricksWon: number }>;
   hostId: string; youId: string; mode: BridgeMode | null;
+  homeRules: BridgeHomeRules;
   phase: 'setup' | 'auction' | 'opening_lead' | 'playing' | 'deal_complete' | 'finished';
   dealerId: string; dealNumber: number; vulnerability: [boolean, boolean];
   auction: BridgeAuctionEntry[]; contract: BridgeContract | null; trick: BridgeTrickCard[];
   lastTrick: BridgeCompletedTrick | null; trickDisplayUntil: number | null;
   tricksWon: [number, number]; currentTurnId: string | null; currentActorId: string | null;
   leaderId: string | null; dummyRevealed: boolean; yourHand: StandardCard[]; dummyHand: StandardCard[];
+  yourHandPoints: number;
   partnerHand: StandardCard[];
   sessionScores: [number, number]; rubber: BridgeRubberState; dealHistory: BridgeDealSummary[];
   canAct: boolean; legalModes: BridgeMode[]; legalBids: BridgeBid[]; canPass: boolean;
   canDouble: boolean; canRedouble: boolean; canUndoCall: boolean; legalCardIds: string[];
   actingHand: 'own' | 'dummy' | null; surrenderVotes: [string[], string[]];
+  auctionSurrenderRequest: BridgeAuctionSurrenderRequest | null;
   canVoteSurrender: boolean;
   undoRequest: { requesterId: string; approvals: string[] } | null;
   canRequestUndo: boolean;

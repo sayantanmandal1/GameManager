@@ -245,6 +245,30 @@ describe('GameService', () => {
       expect(scheduleSpy).toHaveBeenCalledWith('game1', '123456');
     });
 
+    it('preserves a pending automatic transition when an action is rejected', async () => {
+      jest.useFakeTimers();
+      try {
+        mockLobbyService.getLobby!.mockResolvedValue(distinctLobby);
+        const { gameId } = await service.startDistinctGame('123456');
+        const automaticTransition = jest.fn();
+        const timer = setTimeout(automaticTransition, 3_500) as unknown as ReturnType<typeof setTimeout>;
+        const timers = (service as unknown as {
+          distinctAutoPlayTimers: Map<string, ReturnType<typeof setTimeout>>;
+        }).distinctAutoPlayTimers;
+        timers.set(gameId, timer);
+
+        const rejected = await service.distinctGameAction(gameId, 'player1', { cell: -1 }, '123456');
+
+        expect(rejected.ok).toBe(false);
+        expect(timers.get(gameId)).toBe(timer);
+        jest.advanceTimersByTime(3_500);
+        expect(automaticTransition).toHaveBeenCalledTimes(1);
+      } finally {
+        service.onModuleDestroy();
+        jest.useRealTimers();
+      }
+    });
+
     it('waits for multiplayer state fanout before completing an action', async () => {
       mockLobbyService.getLobby!.mockResolvedValue(distinctLobby);
       const { gameId } = await service.startDistinctGame('123456');

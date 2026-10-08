@@ -4,6 +4,7 @@ import type {
   BridgeCall,
   BridgeDealSummary,
   BridgeGameState,
+  BridgeHomeRules,
   BridgeMode,
   BridgePlayerView,
   BridgeResult,
@@ -11,7 +12,12 @@ import type {
   BridgeTeam,
   StandardCard,
 } from '../../../shared';
-import { BRIDGE_MODES, BRIDGE_STRAINS } from '../../../shared';
+import {
+  BRIDGE_DEFAULT_HOME_RULES,
+  BRIDGE_MAX_SURRENDER_THRESHOLD,
+  BRIDGE_MODES,
+  BRIDGE_STRAINS,
+} from '../../../shared';
 import type {
   DistinctActionResult,
   DistinctAutomaticAction,
@@ -25,6 +31,7 @@ type CardShuffler = (cards: StandardCard[]) => StandardCard[];
 const SEATS = ['north', 'east', 'south', 'west'] as const;
 const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'] as const;
 const TRICK_REVEAL_MS = 3_500;
+const HIGH_CARD_POINTS: Partial<Record<StandardCard['rank'], number>> = { J: 1, Q: 2, K: 3, A: 4 };
 const DUPLICATE_VULNERABILITY: Array<[boolean, boolean]> = [
   [false, false], [true, false], [false, true], [true, true],
   [true, false], [false, true], [true, true], [false, false],
@@ -55,6 +62,7 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
       players,
       hostId: playerIds[0],
       mode: null,
+      homeRules: { ...BRIDGE_DEFAULT_HOME_RULES },
       hands: Object.fromEntries(playerIds.map((id) => [id, [] as StandardCard[]])),
       dealerIndex: 0,
       dealNumber: 0,
@@ -76,6 +84,7 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
       dealHistory: [],
       pendingHonorBonus: null,
       surrenderVotes: [[], []],
+      auctionSurrenderRequest: null,
       playHistory: [],
       nextPlayId: 1,
       undoRequest: null,
@@ -94,6 +103,9 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
     action: BridgeAction,
   ): DistinctActionResult<BridgeResult> {
     if (state.phase === 'finished') return { valid: false, reason: 'Game already finished' };
+    if (state.auctionSurrenderRequest && action.type !== 'bridge_surrender_vote') {
+      return { valid: false, reason: 'Resolve the surrender request first' };
+    }
     if (action.type === 'bridge_request_undo') {
       return this.requestUndo(state, playerId, action);
     }
@@ -108,7 +120,12 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
     }
     if (state.undoRequest) return { valid: false, reason: 'Resolve the undo request first' };
     if (state.phase === 'setup') return this.selectMode(state, playerId, action);
-    if (state.phase === 'auction') return this.makeCall(state, playerId, action);
+    if (state.phase === 'auction') {
+      if (action.type === 'bridge_surrender_vote') {
+        return this.setAuctionSurrenderVote(state, playerId, action);
+      }
+      return this.makeCall(state, playerId, action);
+    }
     if (state.phase === 'opening_lead' || state.phase === 'playing') {
       if (action.type === 'bridge_surrender_vote') {
         return this.setSurrenderVote(state, playerId, action);
@@ -123,6 +140,7 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
     const contract = state.contract;
     const currentActorId = this.currentActorId(state);
     const canAct = this.canPlayerAct(state, playerId, currentActorId);
+    const canCall = canAct && state.phase === 'auction' && !state.auctionSurrenderRequest;
     const actingAsDummy = canAct && !!contract && state.currentTurnId === contract.dummyId;
     const lastOwnPlay = [...state.playHistory]
       .reverse()
@@ -142,6 +160,7 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
       hostId: state.hostId,
       youId: playerId,
       mode: state.mode,
+      homeRules: { ...state.homeRules },
       phase: state.phase,
       dealerId: state.players[state.dealerIndex].id,
       dealNumber: state.dealNumber,
@@ -164,6 +183,7 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
       leaderId: state.leaderId,
       dummyRevealed: state.dummyRevealed,
       yourHand: (state.hands[playerId] ?? []).map((card) => ({ ...card })),
+      yourHandPoints: this.highCardPoints(state.hands[playerId] ?? []),
       dummyHand: state.dummyRevealed && contract
         ? state.hands[contract.dummyId].map((card) => ({ ...card }))
         : [],
@@ -179,11 +199,12 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
       dealHistory: state.dealHistory.map((summary) => this.cloneDealSummary(summary)),
       canAct,
       legalModes: state.phase === 'setup' && playerId === state.hostId ? [...BRIDGE_MODES] : [],
-      legalBids: canAct && state.phase === 'auction' ? this.legalBids(state) : [],
-      canPass: canAct && state.phase === 'auction',
-      canDouble: canAct && state.phase === 'auction' && this.canDouble(state, playerId),
-      canRedouble: canAct && state.phase === 'auction' && this.canRedouble(state, playerId),
+      legalBids: canCall ? this.legalBids(state) : [],
+      canPass: canCall,
+      canDouble: canCall && this.canDouble(state, playerId),
+      canRedouble: canCall && this.canRedouble(state, playerId),
       canUndoCall: !undoRequest
+        && !state.auctionSurrenderRequest
         && state.playHistory.length === 0
         && state.lastCallUndo?.playerId === playerId,
       legalCardIds: legalCards.map((card) => card.id),
@@ -194,8 +215,10 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
         [...state.surrenderVotes[0]],
         [...state.surrenderVotes[1]],
       ],
-      canVoteSurrender: !!contract
-        && (state.phase === 'opening_lead' || state.phase === 'playing'),
+      auctionSurrenderRequest: state.auctionSurrenderRequest ? { ...state.auctionSurrenderRequest } : null,
+      canVoteSurrender: !undoRequest && (state.phase === 'auction'
+        ? this.canVoteAuctionSurrender(state, playerId)
+        : !!contract && (state.phase === 'opening_lead' || state.phase === 'playing')),
       undoRequest: undoRequest
         ? { requesterId: undoRequest.requesterId, approvals: [...undoRequest.approvals] }
         : null,
@@ -216,6 +239,13 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
   }
 
   getAutomaticAction(state: BridgeGameState): DistinctAutomaticAction | null {
+    if (state.phase === 'deal_complete' && state.dealHistory.at(-1)?.outcome === 'zero_points') {
+      return {
+        playerId: state.hostId,
+        action: { type: 'next_bridge_deal' },
+        delayMs: TRICK_REVEAL_MS,
+      };
+    }
     if (state.undoRequest
       || (state.phase !== 'opening_lead' && state.phase !== 'playing')
       || !state.currentTurnId) {
@@ -262,11 +292,18 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
     action: BridgeAction,
   ): DistinctActionResult<BridgeResult> {
     if (playerId !== state.hostId) return { valid: false, reason: 'Only the host can select the mode' };
-    if (!hasExactActionShape(action, 'select_bridge_mode', ['mode'])
+    if (!hasExactActionShape(action, 'select_bridge_mode', ['mode'], ['homeRules'])
       || !BRIDGE_MODES.includes(action.mode as BridgeMode)) {
       return { valid: false, reason: 'Invalid Bridge mode' };
     }
+    if (action.homeRules !== undefined
+      && (action.mode !== 'home' || !this.isValidHomeRules(action.homeRules))) {
+      return { valid: false, reason: 'Invalid Home rules' };
+    }
     state.mode = action.mode as BridgeMode;
+    state.homeRules = action.homeRules
+      ? { ...action.homeRules as BridgeHomeRules }
+      : { ...BRIDGE_DEFAULT_HOME_RULES };
     this.startDeal(state);
     return { valid: true };
   }
@@ -387,6 +424,75 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
     return result ? { valid: true, result } : { valid: true };
   }
 
+  private setAuctionSurrenderVote(
+    state: BridgeGameState,
+    playerId: string,
+    action: Extract<BridgeAction, { type: 'bridge_surrender_vote' }>,
+  ): DistinctActionResult<BridgeResult> {
+    if (!hasExactActionShape(action, 'bridge_surrender_vote', ['confirmed'])
+      || typeof action.confirmed !== 'boolean') {
+      return { valid: false, reason: 'Invalid surrender vote' };
+    }
+    if (!state.players.some((player) => player.id === playerId)) {
+      return { valid: false, reason: 'Player not found' };
+    }
+    if (!this.canVoteAuctionSurrender(state, playerId)) {
+      return { valid: false, reason: 'Auction surrender is not available for this player' };
+    }
+    const request = state.auctionSurrenderRequest;
+    const team = this.playerTeam(state, playerId);
+    if (!request) {
+      if (!action.confirmed) return { valid: false, reason: 'No surrender request is pending' };
+      const partnerId = state.players.find((player) => player.team === team && player.id !== playerId)!.id;
+      state.auctionSurrenderRequest = { requesterId: playerId, partnerId };
+      state.surrenderVotes[team] = [playerId];
+      state.lastCallUndo = null;
+      return { valid: true };
+    }
+    if (!action.confirmed) {
+      state.auctionSurrenderRequest = null;
+      state.surrenderVotes[team] = [];
+      return { valid: true };
+    }
+    if (request.partnerId !== playerId) {
+      return { valid: false, reason: 'Only your partner can accept the surrender' };
+    }
+    const winningTeam = (1 - team) as BridgeTeam;
+    const score: [number, number] = [0, 0];
+    score[winningTeam] = 100;
+    state.sessionScores[winningTeam] += 100;
+    state.surrenderVotes[team] = [request.requesterId, playerId];
+    state.dealHistory.push({
+      ...this.createDealSummary(state, score, false, team),
+      outcome: 'auction_surrender',
+    });
+    state.hands = Object.fromEntries(state.players.map((player) => [player.id, []]));
+    state.auctionSurrenderRequest = null;
+    state.currentTurnId = null;
+    state.leaderId = null;
+    state.phase = 'deal_complete';
+    return { valid: true };
+  }
+
+  private canVoteAuctionSurrender(state: BridgeGameState, playerId: string): boolean {
+    if (state.mode !== 'home' || !state.homeRules.lowPointSurrenderEnabled) return false;
+    const request = state.auctionSurrenderRequest;
+    if (request) return request.requesterId === playerId || request.partnerId === playerId;
+    return this.highCardPoints(state.hands[playerId] ?? []) < state.homeRules.surrenderThreshold;
+  }
+
+  private isValidHomeRules(value: unknown): value is BridgeHomeRules {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const rules = value as Record<string, unknown>;
+    return Object.keys(rules).length === 2
+      && typeof rules.lowPointSurrenderEnabled === 'boolean'
+      && isBoundedInteger(rules.surrenderThreshold, 1, BRIDGE_MAX_SURRENDER_THRESHOLD);
+  }
+
+  private highCardPoints(cards: readonly StandardCard[]): number {
+    return cards.reduce((points, card) => points + (HIGH_CARD_POINTS[card.rank] ?? 0), 0);
+  }
+
   private setSurrenderVote(
     state: BridgeGameState,
     playerId: string,
@@ -456,10 +562,20 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
     state.dummyRevealed = false;
     state.pendingHonorBonus = null;
     state.surrenderVotes = [[], []];
+    state.auctionSurrenderRequest = null;
     state.playHistory = [];
     state.undoRequest = null;
     state.lastCallUndo = null;
     state.phase = 'auction';
+    if (state.mode === 'home'
+      && state.players.some((player) => this.highCardPoints(state.hands[player.id]) === 0)) {
+      state.dealHistory.push({
+        ...this.createDealSummary(state, [0, 0], false, null),
+        outcome: 'zero_points',
+      });
+      state.currentTurnId = null;
+      state.phase = 'deal_complete';
+    }
   }
 
   private undoLastCall(
@@ -733,6 +849,7 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
       score: [...score],
       passedOut,
       concededByTeam,
+      outcome: passedOut ? 'passed_out' : 'played',
     };
   }
 
@@ -748,6 +865,7 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
   }
 
   private currentActorId(state: BridgeGameState): string | null {
+    if (state.auctionSurrenderRequest) return state.auctionSurrenderRequest.partnerId;
     if (state.phase === 'setup' || state.phase === 'deal_complete') return state.hostId;
     if (!state.currentTurnId) return null;
     if ((state.phase === 'opening_lead' || state.phase === 'playing')

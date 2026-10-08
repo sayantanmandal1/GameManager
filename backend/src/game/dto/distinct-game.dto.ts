@@ -19,6 +19,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { BRIDGE_MAX_SURRENDER_THRESHOLD } from '../../shared';
 
 const CARD_RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 const CARD_SUITS = ['clubs', 'diamonds', 'hearts', 'spades'];
@@ -54,6 +55,16 @@ export class BridgeCallDto {
   @IsOptional()
   @IsIn(['clubs', 'diamonds', 'hearts', 'spades', 'notrump'])
   strain?: 'clubs' | 'diamonds' | 'hearts' | 'spades' | 'notrump';
+}
+
+export class BridgeHomeRulesDto {
+  @IsBoolean()
+  lowPointSurrenderEnabled!: boolean;
+
+  @IsInt()
+  @Min(1)
+  @Max(BRIDGE_MAX_SURRENDER_THRESHOLD)
+  surrenderThreshold!: number;
 }
 
 export class EuchreCallDto {
@@ -156,6 +167,12 @@ export class DistinctActionPayloadDto {
   @IsOptional()
   @IsIn(['rubber', 'duplicate', 'home'])
   mode?: 'rubber' | 'duplicate' | 'home';
+
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => BridgeHomeRulesDto)
+  homeRules?: BridgeHomeRulesDto;
 
   @IsOptional()
   @IsBoolean()

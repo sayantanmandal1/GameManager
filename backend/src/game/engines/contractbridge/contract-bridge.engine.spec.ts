@@ -7,6 +7,7 @@ import type {
   StandardCard,
 } from '../../../shared';
 import { ContractBridgeEngine } from './contract-bridge.engine';
+import { createStandardDeck } from '../standard-cards';
 
 describe('ContractBridgeEngine', () => {
   const players = ['a', 'b', 'c', 'd'];
@@ -99,6 +100,181 @@ describe('ContractBridgeEngine', () => {
       dealNumber: 1,
       phase: 'auction',
     });
+  });
+
+  it('defaults Home surrender to enabled below four points and preserves custom rules between deals', () => {
+    const { engine, state } = game('home');
+    expect(state.homeRules).toEqual({ lowPointSurrenderEnabled: true, surrenderThreshold: 4 });
+    expect(engine.getPlayerView(state, 'a').homeRules).toEqual(state.homeRules);
+
+    const configured = engine.initGame(players, names);
+    expect(engine.applyAction(configured, 'a', {
+      type: 'select_bridge_mode',
+      mode: 'home',
+      homeRules: { lowPointSurrenderEnabled: false, surrenderThreshold: 6 },
+    })).toEqual({ valid: true });
+    players.forEach((playerId) => call(engine, configured, playerId, { type: 'pass' }));
+    engine.applyAction(configured, 'a', { type: 'next_bridge_deal' });
+    expect(configured.homeRules).toEqual({ lowPointSurrenderEnabled: false, surrenderThreshold: 6 });
+    expect(configured.auctionSurrenderRequest).toBeNull();
+  });
+
+  it.each([
+    null,
+    [],
+    { lowPointSurrenderEnabled: true, surrenderThreshold: 0 },
+    { lowPointSurrenderEnabled: true, surrenderThreshold: 41 },
+    { lowPointSurrenderEnabled: true, surrenderThreshold: 4.5 },
+    { lowPointSurrenderEnabled: true, surrenderThreshold: '4' },
+    { lowPointSurrenderEnabled: 'true', surrenderThreshold: 4 },
+    { surrenderThreshold: 4 },
+    { lowPointSurrenderEnabled: true, surrenderThreshold: 4, extra: true },
+  ])('rejects malformed Home settings %# without dealing cards', (homeRules) => {
+    const engine = new ContractBridgeEngine((cards) => cards);
+    const state = engine.initGame(players, names);
+    const before = structuredClone(state);
+    expect(engine.applyAction(state, 'a', {
+      type: 'select_bridge_mode', mode: 'home', homeRules,
+    } as unknown as BridgeAction)).toEqual({ valid: false, reason: 'Invalid Home rules' });
+    expect(state).toEqual(before);
+  });
+
+  it.each(['rubber', 'duplicate'] as const)('rejects Home settings in %s mode', (mode) => {
+    const engine = new ContractBridgeEngine((cards) => cards);
+    const state = engine.initGame(players, names);
+    expect(engine.applyAction(state, 'a', {
+      type: 'select_bridge_mode', mode,
+      homeRules: { lowPointSurrenderEnabled: true, surrenderThreshold: 4 },
+    })).toEqual({ valid: false, reason: 'Invalid Home rules' });
+    expect(state.phase).toBe('setup');
+  });
+
+  it('counts only J/Q/K/A points and keeps opponents hand totals private', () => {
+    const { engine, state } = game('home');
+    state.hands.a = [card('clubs', 'J'), card('clubs', 'Q'), card('clubs', 'K'), card('clubs', 'A'), card('clubs', '10'), card('clubs', '2')];
+    const view = engine.getPlayerView(state, 'a');
+    expect(view.yourHandPoints).toBe(10);
+    expect(view.players.every((player) => !('handPoints' in player))).toBe(true);
+  });
+
+  it('discards a zero-point Home hand for no score and schedules a fresh deal even with surrender disabled', () => {
+    let deals = 0;
+    const engine = new ContractBridgeEngine((cards) => {
+      deals += 1;
+      if (deals > 1) return cards;
+      const zeroHand = cards.filter((entry) => !['J', 'Q', 'K', 'A'].includes(entry.rank)).slice(0, 13);
+      const otherCards = cards.filter((entry) => !zeroHand.some((zeroCard) => zeroCard.id === entry.id));
+      return Array.from({ length: 52 }, (_, index) => index % 4 === 0
+        ? zeroHand[index / 4]
+        : otherCards[index - Math.floor(index / 4) - 1]);
+    });
+    const state = engine.initGame(players, names);
+    state.sessionScores = [250, 100];
+    engine.applyAction(state, 'a', {
+      type: 'select_bridge_mode', mode: 'home',
+      homeRules: { lowPointSurrenderEnabled: false, surrenderThreshold: 4 },
+    });
+
+    expect(state).toMatchObject({ phase: 'deal_complete', contract: null, auction: [], currentTurnId: null, sessionScores: [250, 100] });
+    expect(state.hands.b.every((entry) => !['J', 'Q', 'K', 'A'].includes(entry.rank))).toBe(true);
+    expect(state.dealHistory).toEqual([expect.objectContaining({ outcome: 'zero_points', passedOut: false, score: [0, 0], concededByTeam: null })]);
+    expect(engine.getPlayerView(state, 'b').canVoteSurrender).toBe(false);
+    const automatic = engine.getAutomaticAction(state);
+    expect(automatic).toEqual({ playerId: 'a', action: { type: 'next_bridge_deal' }, delayMs: 3_500 });
+    expect(engine.applyAction(state, automatic!.playerId, automatic!.action as BridgeAction)).toEqual({ valid: true });
+    expect(state).toMatchObject({ phase: 'auction', dealNumber: 2, dealerIndex: 1, sessionScores: [250, 100], surrenderVotes: [[], []], auctionSurrenderRequest: null });
+    expect(players.map((id) => state.hands[id].length)).toEqual([13, 13, 13, 13]);
+    expect(new Set(players.flatMap((id) => state.hands[id].map((entry) => entry.id))).size).toBe(52);
+  });
+
+  it.each(['rubber', 'duplicate'] as const)('does not apply Home hand rules to %s', (mode) => {
+    const engine = new ContractBridgeEngine((cards) => [...cards].sort((left, right) => left.suit.localeCompare(right.suit)));
+    const state = engine.initGame(players, names);
+    engine.applyAction(state, 'a', { type: 'select_bridge_mode', mode });
+    state.hands.a = createStandardDeck().filter((entry) => !['J', 'Q', 'K', 'A'].includes(entry.rank)).slice(0, 13);
+    expect(engine.getPlayerView(state, 'a').canVoteSurrender).toBe(false);
+    expect(engine.applyAction(state, 'a', { type: 'bridge_surrender_vote', confirmed: true })).toEqual({ valid: false, reason: 'Auction surrender is not available for this player' });
+    expect(state.phase).toBe('auction');
+    expect(state.dealHistory).toEqual([]);
+  });
+
+  it.each([
+    [3, 4, true],
+    [4, 4, false],
+    [5, 6, true],
+    [6, 6, false],
+  ])('requires hand points %i to be strictly below threshold %i', (points, threshold, allowed) => {
+    const { engine, state } = game('home');
+    state.homeRules.surrenderThreshold = threshold;
+    const pointHands: Record<number, StandardCard[]> = {
+      3: [card('clubs', 'K')],
+      4: [card('clubs', 'A')],
+      5: [card('clubs', 'K'), card('diamonds', 'Q')],
+      6: [card('clubs', 'A'), card('diamonds', 'Q')],
+    };
+    state.hands.a = pointHands[points];
+    expect(engine.getPlayerView(state, 'a').canVoteSurrender).toBe(allowed);
+    expect(engine.applyAction(state, 'a', { type: 'bridge_surrender_vote', confirmed: true }).valid).toBe(allowed);
+  });
+
+  it('rejects low-point surrender when the host disabled it', () => {
+    const { engine, state } = game('home');
+    state.homeRules.lowPointSurrenderEnabled = false;
+    state.hands.a = [card('clubs', 'J')];
+    expect(engine.getPlayerView(state, 'a').canVoteSurrender).toBe(false);
+    expect(engine.applyAction(state, 'a', { type: 'bridge_surrender_vote', confirmed: true })).toEqual({ valid: false, reason: 'Auction surrender is not available for this player' });
+  });
+
+  it('pauses calling for the partner, rejects opponent approval, and resumes unchanged after rejection', () => {
+    const { engine, state } = game('home');
+    state.hands.a = [card('clubs', 'K')];
+    call(engine, state, 'a', { type: 'bid', level: 7, strain: 'notrump' });
+    call(engine, state, 'b', { type: 'double' });
+    const auction = structuredClone(state.auction);
+    expect(engine.applyAction(state, 'a', { type: 'bridge_surrender_vote', confirmed: true })).toEqual({ valid: true });
+    expect(state.auctionSurrenderRequest).toEqual({ requesterId: 'a', partnerId: 'c' });
+    expect(engine.getPlayerView(state, 'c')).toMatchObject({ canVoteSurrender: true, canPass: false, canDouble: false, canRedouble: false, canUndoCall: false, legalBids: [] });
+    expect(call(engine, state, 'c', { type: 'pass' })).toEqual({ valid: false, reason: 'Resolve the surrender request first' });
+    expect(engine.applyAction(state, 'b', { type: 'bridge_undo_call' })).toEqual({ valid: false, reason: 'Resolve the surrender request first' });
+    expect(engine.applyAction(state, 'b', { type: 'bridge_surrender_vote', confirmed: true })).toEqual({ valid: false, reason: 'Auction surrender is not available for this player' });
+    expect(engine.applyAction(state, 'a', { type: 'bridge_surrender_vote', confirmed: true })).toEqual({ valid: false, reason: 'Only your partner can accept the surrender' });
+    expect(engine.applyAction(state, 'c', { type: 'bridge_surrender_vote', confirmed: false })).toEqual({ valid: true });
+    expect(state).toMatchObject({ phase: 'auction', currentTurnId: 'c', doubling: 'doubled', surrenderVotes: [[], []], auctionSurrenderRequest: null, sessionScores: [0, 0] });
+    expect(state.auction).toEqual(auction);
+    expect(state.dealHistory).toEqual([]);
+    expect(call(engine, state, 'c', { type: 'pass' })).toEqual({ valid: true });
+  });
+
+  it.each([
+    ['a', 'c', [20, 140], 0],
+    ['b', 'd', [120, 40], 1],
+  ] as const)('awards only 100 to the opponents after %s and %s confirm despite a redoubled call', (requesterId, partnerId, scores, team) => {
+    const { engine, state } = game('home');
+    state.sessionScores = [20, 40];
+    state.hands[requesterId] = [card('clubs', 'K')];
+    call(engine, state, 'a', { type: 'bid', level: 7, strain: 'notrump' });
+    call(engine, state, 'b', { type: 'double' });
+    call(engine, state, 'c', { type: 'redouble' });
+    expect(engine.applyAction(state, requesterId, { type: 'bridge_surrender_vote', confirmed: true })).toEqual({ valid: true });
+    expect(state.sessionScores).toEqual([20, 40]);
+    expect(engine.applyAction(state, partnerId, { type: 'bridge_surrender_vote', confirmed: true })).toEqual({ valid: true });
+    expect(state).toMatchObject({ phase: 'deal_complete', contract: null, sessionScores: scores, tricksWon: [0, 0], currentTurnId: null, auctionSurrenderRequest: null });
+    expect(state.dealHistory.at(-1)).toMatchObject({ outcome: 'auction_surrender', concededByTeam: team, score: team === 0 ? [0, 100] : [100, 0] });
+    expect(players.every((id) => state.hands[id].length === 0)).toBe(true);
+    expect(engine.applyAction(state, partnerId, { type: 'bridge_surrender_vote', confirmed: true }).valid).toBe(false);
+    expect(state.sessionScores).toEqual(scores);
+    engine.applyAction(state, 'a', { type: 'next_bridge_deal' });
+    expect(state.surrenderVotes).toEqual([[], []]);
+  });
+
+  it('allows the requester to cancel and rejects forged auction surrender votes', () => {
+    const { engine, state } = game('home');
+    state.hands.a = [card('clubs', 'J')];
+    expect(engine.applyAction(state, 'a', { type: 'bridge_surrender_vote', confirmed: 'yes' } as unknown as BridgeAction)).toEqual({ valid: false, reason: 'Invalid surrender vote' });
+    expect(engine.applyAction(state, 'outsider', { type: 'bridge_surrender_vote', confirmed: true })).toEqual({ valid: false, reason: 'Player not found' });
+    engine.applyAction(state, 'a', { type: 'bridge_surrender_vote', confirmed: true });
+    expect(engine.applyAction(state, 'a', { type: 'bridge_surrender_vote', confirmed: false })).toEqual({ valid: true });
+    expect(state).toMatchObject({ auctionSurrenderRequest: null, surrenderVotes: [[], []], phase: 'auction', sessionScores: [0, 0] });
   });
 
   it('never projects another private hand during setup or auction', () => {
@@ -630,6 +806,22 @@ describe('ContractBridgeEngine', () => {
     prepareFinalTrick(down.state, 'home', contract({ level: 5, doubling: 'doubled' }), [8, 4]);
     down.engine.applyAction(down.state, 'd', { type: 'play_bridge_card', cardId: 'c-clubs-3' });
     expect(down.state.sessionScores).toEqual([-200, 0]);
+  });
+
+  it.each([
+    ['doubled', 500],
+    ['redoubled', 1000],
+  ] as const)('credits a made %s Home contract to the session ledger', (doubling, score) => {
+    const { engine, state } = game('home');
+    prepareFinalTrick(state, 'home', contract({ doubling }), [9, 3]);
+
+    expect(engine.applyAction(state, 'd', {
+      type: 'play_bridge_card',
+      cardId: 'c-clubs-3',
+    })).toEqual({ valid: true });
+
+    expect(state.sessionScores).toEqual([score, 0]);
+    expect(state.dealHistory.at(-1)?.score).toEqual([score, 0]);
   });
 
   it('tracks rubber games, vulnerability, honors, and the fast-rubber bonus', () => {

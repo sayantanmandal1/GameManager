@@ -85,6 +85,21 @@ describe('Bridge scoring', () => {
       expect(scoreHomeDeal(bid, tricks).declarerScore).toBe(expected);
     });
 
+    it.each([
+      [contract(1, 'clubs', 'doubled'), 7, 100],
+      [contract(3, 'hearts', 'doubled'), 10, 200],
+      [contract(4, 'hearts', 'doubled'), 10, 500],
+      [contract(6, 'spades', 'doubled'), 12, 600],
+      [contract(7, 'notrump', 'doubled'), 13, 800],
+      [contract(4, 'hearts', 'redoubled'), 10, 1000],
+      [contract(7, 'notrump', 'redoubled'), 13, 1600],
+    ])('multiplies made-contract points and bonuses %#', (bid, tricks, expected) => {
+      const score = scoreHomeDeal(bid, tricks);
+      expect(score.declarerScore).toBe(expected);
+      expect(score.contractPoints + score.bonusPoints).toBe(expected);
+      expect(score.defenderScore).toBe(0);
+    });
+
     it('deducts 50 per undertrick, 100 doubled, and 200 redoubled', () => {
       expect(scoreHomeDeal(contract(5, 'hearts'), 9).declarerScore).toBe(-100);
       expect(scoreHomeDeal(contract(5, 'hearts', 'doubled'), 9).declarerScore).toBe(-200);

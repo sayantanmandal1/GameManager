@@ -57,6 +57,15 @@ A real-time multiplayer gaming platform built with **Next.js**, **NestJS**, **So
 
 The library contains **46 implemented games**: the original eight plus 38 separately registered multiplayer rules engines. Global six-digit room joining works across the library, and every multiplayer completion screen offers unanimous in-room rematch without repeating lobby ready/start steps. Bridge, Hearts, Spades, Euchre, and Whist use one responsive felt table with three hidden opponent hands and the local hand face-up. Bridge, Spades, Euchre, and Whist require players to choose balanced two-versus-two partnerships in the lobby before the host can start.
 
+### Bridge Home Rules
+
+- Hand points are J = 1, Q = 2, K = 3, and A = 4; all other ranks count as zero.
+- Any zero-point hand discards the Home deal for a 0-0 score and automatically deals again. This rule is independent of the surrender setting.
+- Selecting Home opens the low-point surrender switch (on by default) and its threshold (default 4, configurable from 1 to 40). Eligibility is strictly below that threshold.
+- During calling, an eligible player can request surrender at any turn. Their partner must accept; declining or cancelling resumes the same auction. Acceptance awards the opponents exactly 100 points and the surrendering team zero, regardless of calls, doubles, or redoubles.
+- A made Home contract doubles its complete point award when doubled and quadruples it when redoubled. Ordinary surrender after the auction continues to award the remaining tricks and score the contract normally.
+- Rubber and Duplicate keep their existing hand and surrender rules.
+
 ---
 
 ## Architecture
