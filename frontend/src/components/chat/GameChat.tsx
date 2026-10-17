@@ -182,11 +182,11 @@ export function GameChat({ lobbyCode }: GameChatProps) {
           >
             {/* Mini header */}
             <div className="px-3 py-1.5 border-b border-white/[0.04] flex items-center justify-between">
-              <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider group-hover:text-white transition-colors">
+              <span className="text-[11px] font-semibold text-white/65 uppercase tracking-wider group-hover:text-white transition-colors">
                 Chat
               </span>
               {unread > 0 && (
-                <span className="w-5 h-5 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold animate-pulse">
+                <span className="w-5 h-5 bg-red-500 text-white text-[11px] rounded-full flex items-center justify-center font-bold animate-pulse">
                   {unread > 9 ? '9+' : unread}
                 </span>
               )}
@@ -195,17 +195,17 @@ export function GameChat({ lobbyCode }: GameChatProps) {
             {/* Preview messages */}
             <div className="px-3 py-2 min-h-[52px]">
               {previewMessages.length === 0 ? (
-                <p className="text-[11px] text-white/30 italic">Click to chat…</p>
+                <p className="text-xs text-white/60 italic">Tap to chat…</p>
               ) : (
                 previewMessages.map((msg, i) => {
                   const isMe = msg.userId === user?.id;
                   return (
-                    <div key={`${msg.timestamp}-${i}`} className="text-[11px] leading-relaxed truncate">
-                      <span className={`font-semibold ${isMe ? 'text-white/70' : 'text-yellow-400/70'}`}>
+                    <div key={`${msg.timestamp}-${i}`} className="text-xs leading-relaxed truncate">
+                      <span className={`font-semibold ${isMe ? 'text-white/80' : 'text-yellow-300/90'}`}>
                         {isMe ? 'You' : msg.username}
                       </span>
-                      <span className="text-white/40/40 mx-0.5">:</span>
-                      <span className="text-white/50">{msg.message}</span>
+                      <span className="text-white/50 mx-0.5">:</span>
+                      <span className="text-white/75">{msg.message}</span>
                     </div>
                   );
                 })

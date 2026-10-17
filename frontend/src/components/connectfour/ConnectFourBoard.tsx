@@ -21,7 +21,7 @@ export function ConnectFourBoard({
   onDrop,
 }: ConnectFourBoardProps) {
   return (
-    <div className="w-full max-w-[43rem]">
+    <div data-fit-board className="w-full max-w-[43rem]">
       <div className="mb-2 grid grid-cols-7 gap-1.5 px-2 sm:gap-2 sm:px-3">
         {Array.from({ length: CONNECT_FOUR_COLUMNS }, (_, column) => {
           const enabled = canAct && validColumns.includes(column);

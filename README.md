@@ -236,7 +236,13 @@ npm run test:e2e:runtime
 
 `.github/workflows/mobile-apk.yml` runs for every push and pull request. Every pushed commit publishes an installable APK to a prerelease tagged `mobile-<full commit SHA>` and uploads the same APK as a workflow artifact.
 
-For stable production signing, configure the four repository secrets documented in `mobileapp/README.md`. Without them, CI generates a short-lived signer for an installable commit APK.
+Every push to `master` also refreshes the rolling **`mobile-latest`** release (marked as the repository's latest release) with a stable `GameVerse.apk` asset, version, commit, SHA-256 checksum and signing mode. The website's download page (`/download`) reads that metadata from the GitHub API, and `/download/android` is a permanent, shareable link that redirects to the newest APK:
+
+```text
+https://github.com/sayantanmandal1/GameManager/releases/latest/download/GameVerse.apk
+```
+
+Release builds on `master` are signed with the permanent GameVerse release key stored in the four repository secrets documented in `mobileapp/README.md`, so new APKs install over existing ones as normal updates. Builds without those secrets (pull requests, other branches) use a short-lived signer.
 
 ## Production Checklist
 
@@ -247,8 +253,8 @@ Before directing users to a release:
 3. Set `CORS_ORIGIN` to the exact comma-separated browser origins, for example `https://game-manager-two.vercel.app`. Never use `*` with credentials.
 4. Build the web app with production `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_WS_URL` values. Confirm `/health` returns `{"status":"ok"}` after deployment.
 5. Voice uses direct peer-to-peer WebRTC with public STUN discovery and requires microphone permission in the browser or mobile WebView.
-6. Configure the four stable Android signing secrets from `mobileapp/README.md`. Ephemeral-signed CI APKs are installable but cannot upgrade one another.
-7. Confirm both GitHub Actions workflows pass. `CI` runs all unit/build jobs plus the Dockerized REST/Socket.IO runtime E2E suite; `Mobile APK` builds and attaches the commit APK to a prerelease.
+6. Keep the four Android signing secrets from `mobileapp/README.md` configured, and keep an offline backup of the keystore: losing it means installed apps can no longer be updated in place.
+7. Confirm both GitHub Actions workflows pass. `CI` runs all unit/build jobs plus the Dockerized REST/Socket.IO runtime E2E suite; `Mobile APK` builds the APK, attaches it to the commit prerelease and refreshes `mobile-latest`.
 
 The currently hosted Vercel/Render instances must be redeployed before they represent this worktree; inspecting the live URLs alone only verifies the previous release.
 

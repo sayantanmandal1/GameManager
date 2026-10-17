@@ -64,7 +64,7 @@ export default function SudokuPage() {
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[minmax(0,38rem)_18rem] lg:items-start lg:justify-center">
         <section className="min-w-0">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <button onClick={() => router.push('/games')} className="text-sm font-semibold text-game-muted hover:text-white">← Games</button>
+            <button onClick={() => router.push('/games')} className="-ml-2 min-h-11 rounded-md px-2 text-sm font-semibold text-game-muted hover:bg-white/5 hover:text-white">← Games</button>
             <div className="text-center"><p className="text-xs font-bold text-game-mint">SUDOKU</p><p className="font-mono text-lg font-bold">{formatTime(elapsedSeconds)}</p></div>
             <Button variant="ghost" size="sm" onClick={togglePaused}>{isPaused ? 'Resume' : 'Pause'}</Button>
           </div>

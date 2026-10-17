@@ -150,7 +150,7 @@ export function MonopolyBoard({
         <div
           data-monopoly-board
           data-monopoly-board-shared="true"
-          className="monopoly-board relative isolate grid aspect-square overflow-hidden border border-black bg-[#cfe3cf]"
+          className="monopoly-board relative isolate grid aspect-square overflow-hidden border border-black bg-[#cfe3cf] [container-type:inline-size]"
           style={{
             gridTemplateColumns: '1.6fr repeat(9, minmax(0, 1fr)) 1.6fr',
             gridTemplateRows: '1.6fr repeat(9, minmax(0, 1fr)) 1.6fr',
@@ -222,9 +222,10 @@ export function MonopolyBoard({
                 )}
 
                 {boardPlayers.length > 0 && (
-                  <div data-token-track className="absolute inset-[8%] z-40 flex flex-wrap content-center items-center justify-center gap-1">
+                  // Up to four tokens share a 2x2 grid so crowded spaces never spill off the board edge.
+                  <div data-token-track className={`absolute inset-[8%] z-40 grid content-center place-items-center ${boardPlayers.length > 1 ? 'grid-cols-2 [&>*:last-child:nth-child(odd)]:col-span-2' : 'grid-cols-1'} ${isPreview ? 'gap-1' : 'gap-[clamp(1px,0.55cqw,4px)]'}`}>
                     {boardPlayers.map((player) => (
-                      <PlayerToken key={player.id} player={player} reduceMotion={!!reduceMotion} compact={isPreview} />
+                      <PlayerToken key={player.id} player={player} reduceMotion={!!reduceMotion} compact={isPreview} crowded={boardPlayers.length > 1} />
                     ))}
                   </div>
                 )}
@@ -267,7 +268,7 @@ export function MonopolyBoard({
       </div>
 
       {showAttribution && (
-        <p className="mt-3 text-center text-[10px] font-medium leading-relaxed text-[#cbc0ad]" data-monopoly-attribution>
+        <p className="mt-3 text-center text-[11px] font-medium leading-relaxed text-[#cbc0ad]" data-monopoly-attribution>
           MONOPOLY names, board artwork, trade dress, and Mr. Monopoly character are owned by Hasbro and reproduced under permission represented by the project owner.
         </p>
       )}
@@ -310,12 +311,17 @@ function BuildingPieces({ count, side }: Readonly<{ count: number; side: BoardSi
   );
 }
 
-function PlayerToken({ player, reduceMotion, compact }: Readonly<{ player: MonopolyPlayer; reduceMotion: boolean; compact: boolean }>) {
+// Live tokens scale with the board (a CSS size container) rather than the
+// viewport, so they stay inside spaces on small phone and landscape boards.
+const LIVE_TOKEN_CLASS = 'h-[clamp(16px,6cqw,32px)] w-[clamp(16px,6cqw,32px)] border-[length:clamp(2px,0.42cqw,3px)] text-[length:clamp(9px,3cqw,16px)]';
+const CROWDED_TOKEN_CLASS = 'h-[clamp(12px,4.4cqw,32px)] w-[clamp(12px,4.4cqw,32px)] border-[length:clamp(1.5px,0.42cqw,3px)] text-[length:clamp(7px,2.2cqw,16px)]';
+
+function PlayerToken({ player, reduceMotion, compact, crowded }: Readonly<{ player: MonopolyPlayer; reduceMotion: boolean; compact: boolean; crowded: boolean }>) {
   return (
     <motion.span
       layoutId={`monopoly-token-${player.id}`}
       transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 430, damping: 28, mass: 0.72 }}
-      className={`relative inline-flex shrink-0 items-center justify-center rounded-full bg-[#bdc3c4] font-black text-black shadow-[0_2px_0_#555,0_5px_8px_rgba(0,0,0,0.65)] ${compact ? 'h-5 w-5 border-2 text-[10px]' : 'h-[18px] w-[18px] border-2 text-[8px] sm:h-8 sm:w-8 sm:border-[3px] sm:text-base'}`}
+      className={`relative inline-flex shrink-0 items-center justify-center rounded-full bg-[#bdc3c4] font-black text-black shadow-[0_2px_0_#555,0_5px_8px_rgba(0,0,0,0.65)] ${compact ? 'h-5 w-5 border-2 text-[10px]' : crowded ? CROWDED_TOKEN_CLASS : LIVE_TOKEN_CLASS}`}
       style={{
         borderColor: player.originalColor,
         backgroundImage: 'linear-gradient(145deg, #ffffff 0%, #9da6a8 42%, #eef1f0 67%, #62696b 100%)',

@@ -155,7 +155,7 @@ export default function OfflineBingoPage() {
         <div className="flex items-center justify-between mb-6">
           <button
             onClick={() => router.push('/games/bingo')}
-            className="text-sm text-white/40 hover:text-white transition-colors"
+            className="-ml-2 inline-flex min-h-11 items-center rounded-md px-2 text-sm text-white/60 transition-colors hover:bg-white/5 hover:text-white"
           >
             ← Back
           </button>

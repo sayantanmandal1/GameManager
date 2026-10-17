@@ -45,6 +45,7 @@ function CardBack({ width, dark }: Readonly<{ width: number; dark: boolean }>) {
         }}
       >
         <span
+          aria-hidden="true"
           className="font-black italic text-white"
           style={{ fontSize: width * 0.3, textShadow: '1px 1px 0 rgba(0,0,0,0.4)' }}
         >
@@ -98,13 +99,13 @@ export function UnoCard({
     >
       <span
         className="absolute font-black text-white"
-        style={{ top: height * 0.05, left: width * 0.1, fontSize: width * 0.2 }}
+        style={{ top: height * 0.05, left: width * 0.1, fontSize: width * 0.2, textShadow: '0 0 2px rgba(0,0,0,0.85), 1px 1px 0 rgba(0,0,0,0.7)' }}
       >
         {corner}
       </span>
       <span
         className="absolute rotate-180 font-black text-white"
-        style={{ bottom: height * 0.05, right: width * 0.1, fontSize: width * 0.2 }}
+        style={{ bottom: height * 0.05, right: width * 0.1, fontSize: width * 0.2, textShadow: '0 0 2px rgba(0,0,0,0.85), 1px 1px 0 rgba(0,0,0,0.7)' }}
       >
         {corner}
       </span>
@@ -138,7 +139,7 @@ export function UnoCard({
           style={{
             transform: 'translate(-50%,-50%)',
             fontSize: overlay.length > 2 ? width * 0.26 : width * 0.34,
-            textShadow: '1.5px 1.5px 0 rgba(0,0,0,0.55)',
+            textShadow: '0 0 3px rgba(0,0,0,0.8), 1.5px 1.5px 0 rgba(0,0,0,0.7)',
           }}
         >
           {overlay}

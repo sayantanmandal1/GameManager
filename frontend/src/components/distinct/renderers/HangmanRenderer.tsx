@@ -81,7 +81,7 @@ function GuessList({ label, letters, correct }: Readonly<{
 }>) {
   return (
     <section className="min-h-20 border border-white/10 bg-black/10 p-3 text-left" aria-label={label}>
-      <p className="text-[10px] font-bold uppercase text-white/40">{label}</p>
+      <p className="text-[11px] font-bold uppercase text-white/60">{label}</p>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {letters.map((letter) => (
           <span
@@ -91,7 +91,7 @@ function GuessList({ label, letters, correct }: Readonly<{
             {letter}
           </span>
         ))}
-        {letters.length === 0 && <span className="text-xs text-white/30">None yet</span>}
+        {letters.length === 0 && <span className="text-xs text-white/55">None yet</span>}
       </div>
     </section>
   );

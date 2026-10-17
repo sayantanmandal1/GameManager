@@ -35,9 +35,9 @@ export function EuchreRenderer({ view, disabled, onAction }: Props) {
   };
   let tableCenter = (
     <div className="text-center">
-      <div className="mb-2 flex items-center justify-center gap-3"><span className="text-[10px] font-bold uppercase text-white/45">Upcard</span><CardFace card={view.upcard} size="mini" /></div>
+      <div className="mb-2 flex items-center justify-center gap-3"><span className="text-[11px] font-bold uppercase text-white/70">Upcard</span><CardFace card={view.upcard} size="mini" /></div>
       {discarding && <p className="text-xs text-white/65">Dealer chooses one card to discard</p>}
-      {playing && <div className="flex min-h-20 flex-wrap justify-center gap-2" aria-label="Current trick">{view.trick.map((entry) => <div key={`${entry.playerId}-${entry.card.id}`} className="text-center"><CardFace card={entry.card} size="mini" /><p className="mt-1 max-w-14 truncate text-[10px] text-white/45">{name(entry.playerId)}</p></div>)}{view.trick.length === 0 && <p className="self-center text-xs text-white/40">Awaiting lead</p>}</div>}
+      {playing && <div className="flex min-h-20 flex-wrap justify-center gap-2" aria-label="Current trick">{view.trick.map((entry) => <div key={`${entry.playerId}-${entry.card.id}`} className="text-center"><CardFace card={entry.card} size="mini" /><p className="mt-1 max-w-14 truncate text-[11px] text-white/70">{name(entry.playerId)}</p></div>)}{view.trick.length === 0 && <p className="self-center text-xs text-white/70">Awaiting lead</p>}</div>}
     </div>
   );
   if (view.phase === 'hand_complete' && view.lastHand) {
@@ -45,7 +45,7 @@ export function EuchreRenderer({ view, disabled, onAction }: Props) {
   } else if (view.phase === 'bidding') {
     tableCenter = (
       <div className="rounded-xl border border-white/12 bg-[#0c2b23]/95 p-3 text-center shadow-xl">
-        <div className="flex items-center justify-center gap-3"><span className="text-[10px] font-bold uppercase text-white/45">Upcard</span><CardFace card={view.upcard} size="mini" /></div>
+        <div className="flex items-center justify-center gap-3"><span className="text-[11px] font-bold uppercase text-white/70">Upcard</span><CardFace card={view.upcard} size="mini" /></div>
         {view.canAct && <>
           <label className="inline-flex min-h-10 items-center gap-2 text-sm"><input type="checkbox" checked={alone} onChange={(event) => setAlone(event.target.checked)} /> Go alone</label>
           <div className="mt-3 flex flex-wrap justify-center gap-2">
@@ -66,12 +66,12 @@ export function EuchreRenderer({ view, disabled, onAction }: Props) {
         topRail={<div className="flex gap-2"><Team label="Team 1" score={view.teamScores[0]} tricks={view.tricksWon[0]} /><Team label="Team 2" score={view.teamScores[1]} tricks={view.tricksWon[1]} /></div>}
         center={tableCenter}
         hand={<PlayingCardHand cards={view.yourHand} legalCardIds={handLegalIds} active={handActive} disabled={disabled} onPlay={playFromHand} />}
-        bottomRail={<div className="flex flex-wrap justify-center gap-3 text-[10px] font-bold uppercase text-white/50"><span>Hand {view.handNumber}</span><span>Dealer {name(view.dealerId)}</span><span>{view.trumpSuit ? `Trump ${SUIT_LABEL[view.trumpSuit]}` : `Bidding round ${view.biddingRound}`}</span>{view.alone && <span className="text-[#e8c663]">Lone hand</span>}</div>}
+        bottomRail={<div className="flex flex-wrap justify-center gap-3 text-[11px] font-bold uppercase text-white/70"><span>Hand {view.handNumber}</span><span>Dealer {name(view.dealerId)}</span><span>{view.trumpSuit ? `Trump ${SUIT_LABEL[view.trumpSuit]}` : `Bidding round ${view.biddingRound}`}</span>{view.alone && <span className="text-[#e8c663]">Lone hand</span>}</div>}
       />
     </div>
   );
 }
 
 function Team({ label, score, tricks }: Readonly<{ label: string; score: number; tricks: number }>) {
-  return <div className="min-w-24 rounded-full border border-white/15 bg-[#0c2b23]/95 px-3 py-1 text-center shadow-lg"><p className="text-[9px] font-bold uppercase text-white/45">{label}</p><p className="text-sm font-black">{score} <span className="text-[9px] text-white/45">· {tricks} tricks</span></p></div>;
+  return <div className="min-w-24 rounded-xl border border-white/15 bg-[#0c2b23]/95 px-3 py-1 text-center shadow-lg"><p className="text-[11px] font-bold uppercase text-white/70">{label}</p><p className="text-sm font-black">{score} <span className="text-[11px] text-white/70">· {tricks} tricks</span></p></div>;
 }

@@ -64,9 +64,9 @@ describe('GameChat Component', () => {
     expect(screen.getByText('Chat')).toBeInTheDocument();
   });
 
-  it('should show "Click to chat…" when no messages', () => {
+  it('should show "Tap to chat…" when no messages', () => {
     render(<GameChat lobbyCode="123456" />);
-    expect(screen.getByText('Click to chat…')).toBeInTheDocument();
+    expect(screen.getByText('Tap to chat…')).toBeInTheDocument();
   });
 
   it('should expand when clicked', () => {

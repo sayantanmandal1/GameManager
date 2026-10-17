@@ -224,7 +224,7 @@ describe('BridgeRenderer', () => {
     expect(screen.getByLabelText('A of hearts')).not.toBeInstanceOf(HTMLButtonElement);
     fireEvent.click(screen.getByRole('button', { name: 'Choose Clubs' }));
     expect(screen.getByRole('button', { name: '1♣' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Back' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Back to suits' })).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: '1♣' }));
     fireEvent.click(screen.getByRole('button', { name: 'Pass' }));
     expect(onAction).toHaveBeenNthCalledWith(1, {
@@ -232,6 +232,70 @@ describe('BridgeRenderer', () => {
       call: { type: 'bid', level: 1, strain: 'clubs' },
     });
     expect(onAction).toHaveBeenNthCalledWith(2, { type: 'bridge_call', call: { type: 'pass' } });
+  });
+
+  it('returns to suits without submitting a call and supports choosing another suit', () => {
+    const onAction = jest.fn();
+    render(<BridgeRenderer view={view({
+      mode: 'home', phase: 'auction', dealNumber: 1, legalModes: [],
+      legalBids: [{ level: 1, strain: 'clubs' }, { level: 2, strain: 'hearts' }],
+      canPass: true,
+    })} disabled={false} onAction={onAction} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Choose Clubs' }));
+    const back = screen.getByRole('button', { name: 'Back to suits' });
+    expect(back).toHaveClass('h-11', 'w-11');
+    fireEvent.click(back);
+    expect(screen.getByRole('button', { name: 'Choose Hearts' })).toBeEnabled();
+    expect(screen.queryByLabelText('Contract levels')).not.toBeInTheDocument();
+    expect(onAction).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Choose Hearts' }));
+    fireEvent.click(screen.getByRole('button', { name: '2♥' }));
+    expect(onAction).toHaveBeenCalledWith({
+      type: 'bridge_call', call: { type: 'bid', level: 2, strain: 'hearts' },
+    });
+  });
+
+  it('switches to the stacked phone layout so seats, calls and the hand never overlap', () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = jest.fn().mockImplementation((query: string) => ({
+      matches: true,
+      media: query,
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+    })) as unknown as typeof window.matchMedia;
+    try {
+      const { container } = render(<BridgeRenderer view={view({
+        mode: 'home', phase: 'auction', dealNumber: 1, legalModes: [],
+        legalBids: [{ level: 1, strain: 'clubs' }], yourHand: [aceHearts],
+      })} disabled={false} onAction={jest.fn()} />);
+
+      expect(screen.getByRole('region', { name: 'Card table' })).toHaveAttribute('data-card-table-layout', 'compact');
+      expect(screen.getByLabelText('Opponents')).toBeInTheDocument();
+      expect(container.querySelector('[data-card-table-center]')).toContainElement(screen.getByLabelText('Bridge auction'));
+      expect(container.querySelector('[data-card-table-hand]')).toContainElement(screen.getByLabelText('A of hearts'));
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
+  it('offers reachable scroll controls for cards beyond the visible hand', () => {
+    render(<BridgeRenderer view={view({
+      mode: 'home', phase: 'auction', legalModes: [], yourHand: [aceHearts, aceSpades, aceClubs, aceDiamonds],
+    })} disabled={false} onAction={jest.fn()} />);
+    const scroller = screen.getByRole('region', { name: 'My hand scroll area' });
+    Object.defineProperty(scroller, 'clientWidth', { value: 200, configurable: true });
+    Object.defineProperty(scroller, 'scrollWidth', { value: 500, configurable: true });
+    scroller.scrollBy = jest.fn();
+    fireEvent.scroll(scroller);
+    expect(screen.getByRole('button', { name: 'Previous cards' })).toBeDisabled();
+    const next = screen.getByRole('button', { name: 'Next cards' });
+    expect(next).toHaveClass('h-11', 'w-11');
+    fireEvent.click(next);
+    expect(scroller.scrollBy).toHaveBeenCalledWith({ left: 160, behavior: 'auto' });
+    fireEvent.scroll(scroller, { target: { scrollLeft: 160 } });
+    fireEvent.click(screen.getByRole('button', { name: 'Previous cards' }));
+    expect(scroller.scrollBy).toHaveBeenLastCalledWith({ left: -160, behavior: 'auto' });
   });
 
   it('lets the latest caller undo before another call is made', () => {

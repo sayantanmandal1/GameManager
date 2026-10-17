@@ -19,7 +19,7 @@ export function SudokuBoard({
 }: SudokuBoardProps) {
   const selectedValue = selected === null ? 0 : values[selected];
   return (
-    <div className="relative aspect-square w-full max-w-[38rem] overflow-hidden rounded-md border-2 border-[#c9d8d2] bg-[#f4f1e8] shadow-2xl shadow-black/25">
+    <div data-fit-board className="relative aspect-square w-full max-w-[38rem] overflow-hidden rounded-md border-2 border-[#c9d8d2] bg-[#f4f1e8] shadow-2xl shadow-black/25">
       <div role="grid" aria-label="Sudoku board" className="grid h-full w-full grid-cols-9">
         {values.map((value, index) => {
           const row = Math.floor(index / 9);

@@ -6,7 +6,7 @@ interface Props {
   readonly disabled?: boolean;
   readonly onClick?: () => void;
   readonly label?: string;
-  readonly size?: 'micro' | 'mini' | 'regular';
+  readonly size?: 'micro' | 'mini' | 'regular' | 'fluid';
   readonly className?: string;
 }
 
@@ -30,6 +30,7 @@ export function CardFace({
   let dimensions = 'h-24 w-16';
   if (size === 'mini') dimensions = 'h-[4.5rem] w-12';
   else if (size === 'micro') dimensions = 'h-12 w-8';
+  else if (size === 'fluid') dimensions = 'aspect-[2/3] w-full';
   const classes = `group relative flex ${dimensions} shrink-0 overflow-hidden rounded-lg border border-black/15 bg-[#fffdf7] text-left font-black shadow-[0_8px_18px_rgba(0,0,0,0.28)] transition ${red ? 'text-[#c52f3d]' : 'text-[#17231f]'} ${selected ? 'outline outline-4 outline-[#f3cf64]' : ''} disabled:cursor-not-allowed disabled:opacity-45 ${className}`;
   const glyph = SUIT_GLYPHS[card.suit];
   let cornerSize = 'text-sm';
@@ -41,7 +42,18 @@ export function CardFace({
     cornerSize = 'text-[8px]';
     centerSize = 'text-base';
   }
-  const content = (
+  // Phone hands: one large index plus a suit mark, sized to stay legible at ~44px wide.
+  const content = size === 'fluid'
+    ? (
+      <>
+        <span className="absolute left-1 top-1 flex flex-col items-center text-sm leading-none">
+          <span>{card.rank}</span><span>{glyph}</span>
+        </span>
+        <span className="absolute inset-x-0 bottom-1 text-center text-xl leading-none">{glyph}</span>
+        <span className="pointer-events-none absolute inset-[3px] rounded-[5px] border border-black/[0.06]" />
+      </>
+    )
+    : (
     <>
       <span className={`absolute left-1.5 top-1 flex flex-col items-center leading-none ${cornerSize}`}>
         <span>{card.rank}</span><span>{glyph}</span>
@@ -52,7 +64,7 @@ export function CardFace({
       </span>
       <span className="pointer-events-none absolute inset-[3px] rounded-[5px] border border-black/[0.06]" />
     </>
-  );
+    );
   return onClick
     ? <button type="button" className={`${classes} enabled:hover:-translate-y-2 enabled:hover:shadow-[0_14px_24px_rgba(0,0,0,0.4)]`} disabled={disabled} onClick={onClick} aria-pressed={selected} aria-label={label ?? `${card.rank} of ${card.suit}`}>{content}</button>
     : <span className={classes} aria-label={label ?? `${card.rank} of ${card.suit}`}>{content}</span>;

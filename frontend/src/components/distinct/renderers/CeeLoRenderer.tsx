@@ -11,7 +11,7 @@ function RollDisplay({ roll, label }: Readonly<{ roll: CeeLoRoll | null; label: 
     { key: 'center', value: roll.dice[1] },
     { key: 'right', value: roll.dice[2] },
   ] : [];
-  return <div className="text-center"><p className="mb-2 text-xs font-bold text-white/45">{label}</p><div className="flex min-h-16 justify-center gap-2">{roll ? slots.map((slot) => <span key={slot.key} className="flex h-16 w-16 items-center justify-center border border-black/20 bg-[#f5f1e7] text-3xl font-black text-[#29281d] shadow-lg">{slot.value}</span>) : <span className="py-5 text-white/35">Waiting</span>}</div>{roll && <p className="mt-2 text-sm font-bold capitalize text-[#f3d45a]">{roll.category.replaceAll('_', ' ')}</p>}</div>;
+  return <div className="text-center"><p className="mb-2 text-xs font-bold text-white/65">{label}</p><div className="flex min-h-16 justify-center gap-2">{roll ? slots.map((slot) => <span key={slot.key} className="flex h-16 w-16 items-center justify-center border border-black/20 bg-[#f5f1e7] text-3xl font-black text-[#29281d] shadow-lg">{slot.value}</span>) : <span className="py-5 text-white/60">Waiting</span>}</div>{roll && <p className="mt-2 text-sm font-bold capitalize text-[#f3d45a]">{roll.category.replaceAll('_', ' ')}</p>}</div>;
 }
 
 export function CeeLoRenderer({ view, disabled, onAction }: Readonly<Props>) {

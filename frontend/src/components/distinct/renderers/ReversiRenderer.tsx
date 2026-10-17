@@ -10,7 +10,7 @@ export function ReversiRenderer({ view, disabled, onMove }: ReversiRendererProps
   const legalMoves = new Set(view.legalMoves);
 
   return (
-    <div className="w-full max-w-[38rem]">
+    <div data-fit-board className="w-full max-w-[38rem]">
       <div className="mb-3 flex items-center justify-center gap-5 text-sm font-bold text-white/80">
         <span className="flex items-center gap-2"><span className="h-4 w-4 rounded-full bg-[#101512] ring-1 ring-white/35" />{view.scores.black}</span>
         <span className="text-xs text-game-muted">DISCS</span>

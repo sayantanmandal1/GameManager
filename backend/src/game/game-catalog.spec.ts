@@ -102,4 +102,22 @@ describe('game catalog', () => {
   it('returns the count from the REST controller', () => {
     expect(new GameCatalogController(registry).getCatalog()).toEqual({ games, total: 46 });
   });
+
+  // Mirrors mobileapp/src/services/catalog.ts. Installed Android apps skip any
+  // entry that fails these checks, so a violation would hide a game there.
+  it('keeps every entry within the Android app catalog contract', () => {
+    for (const game of games) {
+      expect(game.key).toMatch(/^[a-z0-9-]{1,40}$/);
+      expect(game.name.length).toBeGreaterThan(0);
+      expect(game.name.length).toBeLessThanOrEqual(60);
+      expect(game.mark.length).toBeGreaterThan(0);
+      expect(game.mark.length).toBeLessThanOrEqual(8);
+      expect(game.description.length).toBeLessThanOrEqual(300);
+      expect(game.route).toMatch(/^\/games\/[a-z0-9/-]+$/);
+      expect(game.accent).toMatch(/^#[0-9a-f]{6}$/i);
+      expect(game.surface).toMatch(/^#[0-9a-f]{6}$/i);
+      expect(Number.isInteger(game.minPlayers) && game.minPlayers >= 1).toBe(true);
+      expect(Number.isInteger(game.maxPlayers) && game.maxPlayers <= 16).toBe(true);
+    }
+  });
 });

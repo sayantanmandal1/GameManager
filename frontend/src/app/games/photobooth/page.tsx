@@ -108,7 +108,7 @@ export default function PhotoboothLandingPage() {
 
         <button
           onClick={() => router.push('/games')}
-          className="mt-8 text-sm text-zinc-400 transition hover:text-zinc-600"
+          className="mt-8 inline-flex min-h-11 items-center rounded-md px-3 text-sm text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-700"
         >
           {S.landing.back}
         </button>

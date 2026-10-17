@@ -171,7 +171,7 @@ export default function PhotoboothPlayClient({ code }: Props) {
         <div className="mb-6 flex items-center justify-between">
           <button
             onClick={handleBackToLobby}
-            className="text-sm text-zinc-400 transition hover:text-zinc-600"
+            className="-ml-2 inline-flex min-h-11 items-center rounded-md px-2 text-sm text-zinc-500 transition hover:bg-white/60 hover:text-zinc-700"
           >
             ← {S.review.backToLobby}
           </button>

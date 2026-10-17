@@ -94,7 +94,7 @@ export function WrongwayRenderer({ view, disabled, onAction }: WrongwayRendererP
 
       <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_15rem]">
         <div className="min-w-0 rounded-md border border-[#1b3356] bg-[#08142d] p-2">
-          <div className="mx-auto w-full max-w-[23rem]">
+          <div data-fit-board className="mx-auto w-full max-w-[23rem]">
             <div
               aria-label="Wrongway board"
               className="relative aspect-square w-full overflow-hidden rounded-md border border-[#2a4467] bg-[#08142d]"

@@ -70,10 +70,10 @@ export function LudoPlayerPanel({
                   {player.username}
                 </span>
                 {isMe && (
-                  <span className="text-[10px] text-white/30">(you)</span>
+                  <span className="shrink-0 text-[11px] font-semibold text-white/65">(you)</span>
                 )}
                 {player.isBot && (
-                  <span className="text-[10px] px-1 py-0.5 bg-white/[0.06] rounded text-white/40">
+                  <span className="shrink-0 rounded bg-white/[0.06] px-1 py-0.5 text-[11px] text-white/60">
                     🤖
                   </span>
                 )}
@@ -82,17 +82,17 @@ export function LudoPlayerPanel({
               {/* Token progress */}
               <div className="mt-1 flex flex-wrap items-center gap-1.5">
                 {tokensInBase > 0 && (
-                  <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px] text-game-muted">
+                  <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[11px] text-game-muted">
                     Base {tokensInBase}
                   </span>
                 )}
                 {tokensActive > 0 && (
-                  <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px] text-game-muted">
+                  <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[11px] text-game-muted">
                     Track {tokensActive}
                   </span>
                 )}
                 {tokensHome > 0 && (
-                  <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px] text-white">
+                  <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[11px] text-white">
                     Home {tokensHome}
                   </span>
                 )}

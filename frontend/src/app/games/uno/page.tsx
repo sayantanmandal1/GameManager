@@ -242,7 +242,7 @@ export default function UnoLandingPage() {
         )}
 
         <div className="mt-6 text-center">
-          <button onClick={() => router.push('/games')} className="text-sm text-white/40 transition-colors hover:text-white">
+          <button onClick={() => router.push('/games')} className="inline-flex min-h-11 items-center rounded-md px-3 text-sm text-white/70 transition-colors hover:bg-white/5 hover:text-white">
             {S.landing.back}
           </button>
         </div>

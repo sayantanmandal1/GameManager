@@ -5,6 +5,7 @@ import type {
   PhotoboothFilter,
 } from '@/shared';
 import { LAYOUT_META, FILTER_STYLES, THEME_DOWNLOAD } from './themes';
+import { saveFileWithNativeApp } from '@/lib/nativeApp';
 
 export interface ComposeArgs {
   slots: PhotoboothSlot[];
@@ -120,11 +121,25 @@ function triggerDownload(href: string, filename: string): void {
   a.remove();
 }
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+
 /** Compose and download the strip as a lossless PNG. */
 export async function downloadStripPng(args: ComposeArgs): Promise<boolean> {
   const canvas = await composeStrip(args);
   if (!canvas) return false;
-  triggerDownload(canvas.toDataURL('image/png'), `photobooth-${Date.now()}.png`);
+  const dataUrl = canvas.toDataURL('image/png');
+  const filename = `photobooth-${Date.now()}.png`;
+  if (saveFileWithNativeApp({ filename, mimeType: 'image/png', base64: dataUrl.split(',')[1] ?? '' })) {
+    return true;
+  }
+  triggerDownload(dataUrl, filename);
   return true;
 }
 
@@ -141,9 +156,13 @@ export async function downloadStripPdf(args: ComposeArgs): Promise<boolean> {
   const jpeg = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i += 1) jpeg[i] = bin.charCodeAt(i);
 
-  const blob = jpegToPdf(jpeg, canvas.width, canvas.height);
-  const url = URL.createObjectURL(blob);
-  triggerDownload(url, `photobooth-${Date.now()}.pdf`);
+  const pdf = jpegToPdf(jpeg, canvas.width, canvas.height);
+  const filename = `photobooth-${Date.now()}.pdf`;
+  if (saveFileWithNativeApp({ filename, mimeType: 'application/pdf', base64: bytesToBase64(pdf) })) {
+    return true;
+  }
+  const url = URL.createObjectURL(new Blob([pdf], { type: 'application/pdf' }));
+  triggerDownload(url, filename);
   setTimeout(() => URL.revokeObjectURL(url), 4000);
   return true;
 }
@@ -152,7 +171,7 @@ export async function downloadStripPdf(args: ComposeArgs): Promise<boolean> {
  * Build a minimal, valid single-image PDF (PDF 1.3) with the JPEG embedded as a
  * DCTDecode XObject. Byte offsets for the xref table are tracked exactly.
  */
-function jpegToPdf(jpeg: Uint8Array, w: number, h: number): Blob {
+function jpegToPdf(jpeg: Uint8Array, w: number, h: number): Uint8Array<ArrayBuffer> {
   const parts: Array<string | Uint8Array> = [];
   const offsets: number[] = [];
   let length = 0;
@@ -213,5 +232,5 @@ function jpegToPdf(jpeg: Uint8Array, w: number, h: number): Blob {
       pos += chunk.length;
     }
   }
-  return new Blob([out], { type: 'application/pdf' });
+  return out;
 }

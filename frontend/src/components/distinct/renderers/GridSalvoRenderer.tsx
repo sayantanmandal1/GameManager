@@ -41,7 +41,7 @@ export function GridSalvoRenderer({ view, disabled, onAction }: Props) {
   };
 
   const renderGrid = (kind: 'own' | 'target') => (
-    <div role="grid" aria-label={kind === 'own' ? 'Your ocean grid' : 'Opponent ocean grid'} className="grid aspect-square grid-cols-10 overflow-hidden border border-white/20 bg-[#0e2630]">
+    <div role="grid" data-fit-board aria-label={kind === 'own' ? 'Your ocean grid' : 'Opponent ocean grid'} className="grid aspect-square grid-cols-10 overflow-hidden border border-white/20 bg-[#0e2630]">
       {Array.from({ length: 100 }, (_, cell) => {
         const value = kind === 'own' ? view.yourOcean[cell] : view.opponentOcean[cell];
         const localShip = kind === 'own' && localCells.has(cell);

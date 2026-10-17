@@ -24,6 +24,7 @@ import {
 } from '@/shared';
 import { getSocket } from '@/lib/socket';
 import { DISTINCT_GAME_UI } from '@/lib/distinctGames';
+import { copyText } from '@/lib/nativeApp';
 
 const LEGACY_GAME_NAMES: Partial<Record<GameType, string>> = {
   [GameType.BINGO]: 'Bingo',
@@ -156,7 +157,7 @@ export default function LobbyPage() {
   const gameName = getGameName(lobby);
 
   const copyCode = async () => {
-    await navigator.clipboard.writeText(code);
+    if (!(await copyText(code))) return;
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

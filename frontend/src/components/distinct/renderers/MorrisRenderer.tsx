@@ -30,17 +30,30 @@ export function MorrisRenderer({ view, disabled, onAction }: Readonly<Props>) {
   const instruction = view.phase === 'placement' ? 'Place a stone' : morrisMoveInstruction(view);
   return (
     <div className="w-full max-w-[39rem]">
-      <div className="relative mx-auto aspect-square w-full max-w-[36rem] border border-white/10 bg-[#d9c18e] shadow-2xl" aria-label="Nine Men's Morris board">
+      <div data-fit-board className="relative mx-auto aspect-square w-full max-w-[36rem] border border-white/10 bg-[#d9c18e] shadow-2xl" aria-label="Nine Men's Morris board">
         <svg aria-hidden="true" viewBox="0 0 100 100" className="absolute inset-0 h-full w-full stroke-[#352b1c]" fill="none" strokeWidth="1.2"><rect x="5" y="5" width="90" height="90" /><rect x="20" y="20" width="60" height="60" /><rect x="35" y="35" width="30" height="30" /><path d="M50 5V35 M50 65V95 M5 50H35 M65 50H95" /></svg>
         {view.board.map((owner, node) => {
           const [left, top] = POSITIONS[node];
           const ownerIndex = view.players.findIndex((player) => player.id === owner);
           const nodeKey = `morris-node-${node + 1}`;
           const ownerName = owner ? view.players[ownerIndex]?.name : null;
-          return <button key={nodeKey} type="button" disabled={disabled || !view.canAct || !legalNode(node)} onClick={() => selectNode(node)} aria-label={`Node ${node + 1}, ${ownerName ?? 'empty'}`} aria-pressed={selectedFrom === node} className={`absolute h-[clamp(1.4rem,5vw,2.5rem)] w-[clamp(1.4rem,5vw,2.5rem)] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 shadow-lg ${morrisNodeTone(ownerIndex, legalDestinations.includes(node))} ${selectedFrom === node ? 'outline outline-4 outline-[#f16b76]' : ''} disabled:opacity-100`} style={{ left: `${left}%`, top: `${top}%` }} />;
+          return (
+            <button
+              key={nodeKey}
+              type="button"
+              disabled={disabled || !view.canAct || !legalNode(node)}
+              onClick={() => selectNode(node)}
+              aria-label={`Node ${node + 1}, ${ownerName ?? 'empty'}`}
+              aria-pressed={selectedFrom === node}
+              className="absolute flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full disabled:cursor-default"
+              style={{ left: `${left}%`, top: `${top}%` }}
+            >
+              <span aria-hidden="true" className={`h-[clamp(1.6rem,6.5vw,2.5rem)] w-[clamp(1.6rem,6.5vw,2.5rem)] rounded-full border-2 shadow-lg ${morrisNodeTone(ownerIndex, legalDestinations.includes(node))} ${selectedFrom === node ? 'outline outline-4 outline-[#f16b76]' : ''}`} />
+            </button>
+          );
         })}
       </div>
-      <p className="mt-4 text-center text-sm text-white/55">{instruction}</p>
+      <p className="mt-4 text-center text-sm text-white/75">{instruction}</p>
     </div>
   );
 }

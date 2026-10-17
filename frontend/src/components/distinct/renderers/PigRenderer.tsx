@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/Button';
+import { PlayerName } from '@/components/ui/PlayerName';
 import type { PigAction, PigPlayerView } from '@/shared';
 
 interface PigRendererProps {
@@ -22,7 +23,7 @@ export function PigRenderer({ view, disabled, onAction }: PigRendererProps) {
       <div className="grid grid-cols-2 gap-3">
         {view.players.map((player) => (
           <div key={player.id} className={`border-b-4 px-3 py-4 ${player.id === view.currentTurnId && view.phase === 'playing' ? 'border-[#f09b57] bg-white/5' : 'border-white/10'}`}>
-            <p className="truncate text-sm font-bold text-game-muted">{player.name}{player.id === view.youId ? ' (you)' : ''}</p>
+            <PlayerName name={player.name} isYou={player.id === view.youId} className="text-sm font-bold text-game-muted" />
             <p className="mt-1 text-4xl font-black text-white">{view.scores[player.id]}</p>
             <p className="text-xs text-game-muted">of {view.targetScore}</p>
           </div>

@@ -30,5 +30,5 @@ export function SevensRenderer({ view, disabled, onAction }: Props) {
 function SuitRow({ suit, low, high }: Readonly<{ suit: CardSuit; low: CardRank | null; high: CardRank | null }>) {
   const active = low && high ? RANKS.slice(RANKS.indexOf(low), RANKS.indexOf(high) + 1) : [];
   const red = suit === 'diamonds' || suit === 'hearts';
-  return <div className="flex min-h-10 items-center gap-2"><span className={`w-7 text-xl ${red ? 'text-red-300' : 'text-white'}`}>{SUIT_SYMBOL[suit]}</span><div className="flex flex-wrap gap-1">{active.length > 0 ? active.map((rank) => <span key={rank} className="flex h-8 w-8 items-center justify-center border border-white/15 bg-black/15 text-xs font-bold">{rank}</span>) : <span className="text-sm text-white/30">Closed</span>}</div></div>;
+  return <div className="flex min-h-10 items-center gap-2"><span className={`w-7 text-xl ${red ? 'text-red-300' : 'text-white'}`}>{SUIT_SYMBOL[suit]}</span><div className="flex flex-wrap gap-1">{active.length > 0 ? active.map((rank) => <span key={rank} className="flex h-8 w-8 items-center justify-center border border-white/15 bg-black/15 text-xs font-bold">{rank}</span>) : <span className="text-sm text-white/60">Closed</span>}</div></div>;
 }

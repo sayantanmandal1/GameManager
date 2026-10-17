@@ -6,6 +6,7 @@ import { TicTacToeBoard } from '@/components/tictactoe/TicTacToeBoard';
 import { GameChat } from '@/components/chat/GameChat';
 import { VoiceChat } from '@/components/voice/VoiceChat';
 import { Button } from '@/components/ui/Button';
+import { PlayerName } from '@/components/ui/PlayerName';
 import { RematchButton } from '@/components/lobby/RematchButton';
 import { useAuthStore } from '@/stores/authStore';
 import { useTicTacToeStore } from '@/stores/tictactoeStore';
@@ -84,7 +85,7 @@ export default function TicTacToePlayClient({ code }: { code: string }) {
       <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <section className="flex min-w-0 flex-col items-center">
           <div className="mb-5 flex w-full max-w-[34rem] items-center justify-between gap-4">
-            <button onClick={backToLobby} className="text-sm font-semibold text-game-muted hover:text-white">← Lobby</button>
+            <button onClick={backToLobby} className="-ml-2 min-h-11 rounded-md px-2 text-sm font-semibold text-game-muted hover:bg-white/5 hover:text-white">← Lobby</button>
             <div className="text-center">
               <p className="text-xs font-bold text-[#d7a7ff]">{view.mode === TicTacToeMode.LIMITED ? 'THREE-PIECE' : 'CLASSIC'}</p>
               <p className="mt-1 text-sm text-game-muted">Room {code}</p>
@@ -96,7 +97,7 @@ export default function TicTacToePlayClient({ code }: { code: string }) {
             {view.players.map((player) => (
               <div key={player.id} className={`rounded-lg border p-3 ${player.id === view.currentTurnId && !finished ? 'border-game-mint bg-game-mint/10' : 'border-white/10 bg-white/[0.03]'}`}>
                 <span className={`text-2xl font-black ${player.mark === 'X' ? 'text-[#ff795f]' : 'text-game-mint'}`}>{player.mark}</span>
-                <p className="mt-1 truncate text-sm font-semibold">{player.name}{player.id === view.youId ? ' (you)' : ''}</p>
+                <PlayerName name={player.name} isYou={player.id === view.youId} className="mt-1 text-sm font-semibold" />
               </div>
             ))}
           </div>

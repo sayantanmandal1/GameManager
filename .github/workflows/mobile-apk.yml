@@ -13,6 +13,10 @@ jobs:
     name: Build Android APK
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    outputs:
+      short_sha: ${{ steps.apk.outputs.short_sha }}
+      sha256: ${{ steps.apk.outputs.sha256 }}
+      signing_mode: ${{ steps.signing.outputs.mode }}
 
     steps:
       - name: Check out repository
@@ -160,6 +164,7 @@ jobs:
           test -s "$output_path"
           echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
           echo "path=$output_path" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(sha256sum "$output_path" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -176,6 +181,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           APK_PATH: ${{ steps.apk.outputs.path }}
           SHORT_SHA: ${{ steps.apk.outputs.short_sha }}
+          APK_SHA256: ${{ steps.apk.outputs.sha256 }}
         run: |
           set -euo pipefail
           tag="mobile-${GITHUB_SHA}"
@@ -187,6 +193,84 @@ jobs:
             gh release create "$tag" "${APK_PATH}#${asset_name}" \
               --target "$GITHUB_SHA" \
               --title "GameVerse Android ${SHORT_SHA}" \
-              --notes "Automated installable Android APK for commit ${GITHUB_SHA}. Signing mode: ${{ steps.signing.outputs.mode }}." \
+              --notes "Automated installable Android APK for commit ${GITHUB_SHA}. Signing mode: ${{ steps.signing.outputs.mode }}. SHA-256: ${APK_SHA256}." \
               --prerelease
           fi
+
+  # The website's download page links to releases/latest/download/GameVerse.apk,
+  # so master builds refresh one rolling release with a stable asset name. This
+  # is a separate serialized job so every commit still builds its own APK.
+  publish-latest:
+    name: Publish latest Android release
+    needs: android-apk
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: mobile-apk-latest-release
+      cancel-in-progress: false
+
+    steps:
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: GameVerse-APK-${{ needs.android-apk.outputs.short_sha }}
+          path: apk
+
+      - name: Publish latest Android release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHORT_SHA: ${{ needs.android-apk.outputs.short_sha }}
+          APK_SHA256: ${{ needs.android-apk.outputs.sha256 }}
+          VERSION_NAME: 1.0.${{ github.run_number }}
+          SIGNING_MODE: ${{ needs.android-apk.outputs.signing_mode }}
+        run: |
+          set -euo pipefail
+          tag='mobile-latest'
+          apk_path="apk/GameVerse-${SHORT_SHA}.apk"
+          echo "${APK_SHA256}  ${apk_path}" | sha256sum --check --strict
+
+          current_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" --jq '.object.sha' 2>/dev/null || true)"
+          if [[ ! "$current_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            current_sha=''
+          fi
+          # Runs can finish out of order; never replace a newer stable APK.
+          if [ -n "$current_sha" ] && [ "$current_sha" != "$GITHUB_SHA" ]; then
+            relation="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${current_sha}...${GITHUB_SHA}" --jq '.status')"
+            if [ "$relation" = 'behind' ]; then
+              echo "Skipping: ${tag} already points to newer commit ${current_sha}."
+              exit 0
+            fi
+          fi
+
+          stable_dir="$(mktemp -d)"
+          cp "$apk_path" "${stable_dir}/GameVerse.apk"
+          cp "$apk_path" "${stable_dir}/GameVerse-incoming.apk"
+          title="GameVerse for Android ${VERSION_NAME}"
+          notes="$(printf 'Install the latest GameVerse Android app.\n\nVersion: %s\nCommit: %s\nSHA-256: %s\nSigning: %s\nMinimum Android: 7.0 (API 24)\n' "$VERSION_NAME" "$GITHUB_SHA" "$APK_SHA256" "$SIGNING_MODE")"
+
+          if [ -n "$current_sha" ]; then
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/${tag}" \
+              -f sha="$GITHUB_SHA" -F force=true >/dev/null
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref="refs/tags/${tag}" -f sha="$GITHUB_SHA" >/dev/null
+          fi
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release edit "$tag" --title "$title" --notes "$notes" --prerelease=false --latest
+            gh release delete-asset "$tag" GameVerse-incoming.apk --yes >/dev/null 2>&1 || true
+            gh release upload "$tag" "${stable_dir}/GameVerse-incoming.apk"
+            incoming_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" --jq '.assets[] | select(.name == "GameVerse-incoming.apk") | .id')"
+            test -n "$incoming_id"
+            gh release delete-asset "$tag" GameVerse.apk --yes >/dev/null 2>&1 || true
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/assets/${incoming_id}" \
+              -f name=GameVerse.apk -f label=GameVerse.apk >/dev/null
+          else
+            gh release create "$tag" "${stable_dir}/GameVerse.apk" --title "$title" --notes "$notes" --latest
+          fi
+
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" \
+            --jq '.assets[] | "\(.name) \(.size) bytes"'

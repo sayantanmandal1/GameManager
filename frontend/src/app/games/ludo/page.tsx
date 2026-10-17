@@ -118,7 +118,7 @@ export default function LudoEntryPage() {
         <div className="mt-6 text-center">
           <button
             onClick={() => router.push('/games')}
-            className="text-sm text-white/40 hover:text-white transition-colors"
+            className="inline-flex min-h-11 items-center rounded-md px-3 text-sm text-white/70 transition-colors hover:bg-white/5 hover:text-white"
           >
             ← Back to Games
           </button>

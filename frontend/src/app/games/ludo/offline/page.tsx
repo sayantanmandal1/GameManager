@@ -256,7 +256,7 @@ export default function OfflineLudoPage() {
         <div className="max-w-md w-full">
           <button
             onClick={() => router.push('/games/ludo')}
-            className="text-sm text-white/40 hover:text-white transition-colors mb-6 block"
+            className="-ml-2 mb-6 flex min-h-11 w-fit items-center rounded-md px-2 text-sm text-white/60 transition-colors hover:bg-white/5 hover:text-white"
           >
             ← Back
           </button>
@@ -312,7 +312,7 @@ export default function OfflineLudoPage() {
         <div className="flex items-center justify-between mb-4">
           <button
             onClick={() => router.push('/games/ludo')}
-            className="text-sm text-white/40 hover:text-white transition-colors"
+            className="-ml-2 inline-flex min-h-11 items-center rounded-md px-2 text-sm text-white/60 transition-colors hover:bg-white/5 hover:text-white"
           >
             ← Back
           </button>

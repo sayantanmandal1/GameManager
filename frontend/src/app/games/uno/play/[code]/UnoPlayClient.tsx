@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useUnoStore } from '@/stores/unoStore';
 import { useSocket } from '@/hooks/useSocket';
 import { useUnoSocket } from '@/hooks/useUnoSocket';
+import { useCompactLayout } from '@/hooks/useCompactLayout';
 import { getSocket } from '@/lib/socket';
 import { GameChat } from '@/components/chat/GameChat';
 import { VoiceChat } from '@/components/voice/VoiceChat';
@@ -79,6 +80,7 @@ export default function UnoPlayClient({ code }: Props) {
   const [wildCardId, setWildCardId] = useState<string | null>(null);
   const [confirmQuit, setConfirmQuit] = useState(false);
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
+  const compact = useCompactLayout();
 
   useEffect(() => {
     if (hasHydrated && !isAuthenticated) router.push('/');
@@ -258,36 +260,41 @@ export default function UnoPlayClient({ code }: Props) {
       }`}
     >
       {/* Header */}
-      <div className="mx-auto mb-3 flex w-full max-w-[96rem] items-center justify-between gap-3 px-1">
-        <button onClick={handleBackToLobby} className="text-sm text-white/40 transition hover:text-white">
+      <div className="mx-auto mb-2 flex w-full max-w-[96rem] items-center justify-between gap-3 px-1 sm:mb-3">
+        <button onClick={handleBackToLobby} className="-ml-2 min-h-11 rounded-md px-2 text-sm text-white/70 transition hover:bg-white/5 hover:text-white lg:min-h-0">
           ← {S.over.backToLobby}
         </button>
         <div className="flex items-center gap-2">
-          <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white/70">
+          <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white/80">
             {MODE_LABEL[view.mode]}
           </span>
           {isSpectator && (
-            <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/70">
+            <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/80">
               {S.hud.spectating}
             </span>
           )}
         </div>
-        <span className="font-mono text-sm tracking-widest text-white/40">#{code}</span>
+        <span className="font-mono text-sm tracking-widest text-white/60">#{code}</span>
       </div>
 
       <div className="mx-auto grid w-full max-w-[96rem] gap-4 xl:grid-cols-[minmax(0,1fr)_19rem]">
         <section
-          className={`relative flex min-h-[calc(100svh-4.75rem)] min-w-0 flex-col overflow-hidden rounded-[2rem] border shadow-2xl shadow-black/40 ${
+          className={`relative flex min-w-0 flex-col overflow-hidden border shadow-2xl shadow-black/40 ${
+            compact ? 'rounded-2xl' : 'min-h-[calc(100svh-4.75rem)] rounded-[2rem]'
+          } ${
             isDark
               ? 'border-[#6b4ca0]/35 bg-[#261a35]'
               : 'border-[#5e8c76]/40 bg-[#183d31]'
           }`}
         >
-          <div className="pointer-events-none absolute inset-5 rounded-[1.5rem] border border-white/10" />
+          <div className={`pointer-events-none absolute rounded-[1.5rem] border border-white/10 ${compact ? 'inset-2' : 'inset-5'}`} />
           <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:repeating-linear-gradient(45deg,transparent,transparent_18px,rgba(255,255,255,0.03)_19px)]" />
 
           {/* Opponent rail */}
-          <div className="relative z-10 flex min-h-28 flex-wrap items-start justify-center gap-2 px-3 pt-4 sm:gap-3">
+          <div className={compact
+            ? `relative z-10 grid gap-1.5 px-2 pt-2 ${opponents.length === 1 ? 'grid-cols-1' : opponents.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`
+            : 'relative z-10 flex min-h-28 flex-wrap items-start justify-center gap-2 px-3 pt-4 sm:gap-3'}
+          >
             {opponents.map((p) => (
               <OpponentSeat
                 key={p.id}
@@ -298,14 +305,15 @@ export default function UnoPlayClient({ code }: Props) {
                 catchable={canAct && view.catchableIds.includes(p.id)}
                 unoCallGraceMs={view.unoCallRemainingMs[p.id] ?? 0}
                 onCatch={() => catchPlayer(p.id)}
-                expanded={opponents.length === 1}
+                expanded={!compact && opponents.length === 1}
+                compact={compact}
               />
             ))}
           </div>
 
           {/* Table centre */}
-          <div className="relative z-10 flex min-h-64 flex-1 items-center justify-center px-4 py-5">
-            <TableCenter view={view} onDrawPile={() => isMyTurn && view.canDraw && draw()} />
+          <div className={`relative z-10 flex flex-1 items-center justify-center ${compact ? 'px-2 py-3' : 'min-h-64 px-4 py-5'}`}>
+            <TableCenter view={view} compact={compact} onDrawPile={() => isMyTurn && view.canDraw && draw()} />
           </div>
 
           {/* Controls + my seat */}
@@ -320,20 +328,20 @@ export default function UnoPlayClient({ code }: Props) {
             onCallUno={callUno}
           />
           {me && (
-            <div className="flex items-center gap-3 text-sm">
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm">
               {isMyTurn && <TurnTimer turnEndsAt={view.turnEndsAt} active size={30} />}
-              <span className={`font-semibold ${isMyTurn || unoGraceActive ? 'text-white' : 'text-white/50'}`}>
+              <span className={`font-semibold ${isMyTurn || unoGraceActive ? 'text-white' : 'text-white/70'}`}>
                 {statusText}
               </span>
               {view.targetScore !== null && (
-                <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-xs text-white/60">
+                <span className="rounded-full bg-white/[0.08] px-2 py-0.5 text-xs text-white/75">
                   {me.score} pts
                 </span>
               )}
               {view.canSurrender && (
                 <button
                   onClick={() => setConfirmQuit(true)}
-                  className="rounded-full border border-red-500/40 px-3 py-0.5 text-xs font-semibold text-red-300 transition hover:bg-red-500/10"
+                  className="min-h-10 rounded-full border border-red-500/50 px-4 text-xs font-semibold text-red-200 transition hover:bg-red-500/10 lg:min-h-0 lg:px-3 lg:py-0.5"
                 >
                   {S.hud.surrender}
                 </button>
@@ -370,6 +378,7 @@ export default function UnoPlayClient({ code }: Props) {
                 playableDrawnCardId={view.playableDrawnCardId}
                 onSelect={onSelectCard}
                 onJumpIn={(card) => jumpIn(card.id)}
+                compact={compact}
               />
             </div>
           )}

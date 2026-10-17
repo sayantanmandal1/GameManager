@@ -189,7 +189,7 @@ export function MonopolyRenderer({ view, disabled, onAction }: MonopolyRendererP
           <div className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(135deg,rgba(255,255,255,0.035)_25%,transparent_25%),linear-gradient(315deg,rgba(255,255,255,0.02)_25%,transparent_25%)] [background-position:0_0,24px_24px] [background-size:48px_48px]" />
 
           <div data-monopoly-board-column className="relative mx-auto max-w-[75rem]">
-            <div data-monopoly-turn-status className="mb-1 flex min-h-9 items-center justify-between gap-2 border-y border-white/10 bg-black/20 px-2 py-1.5 sm:mb-3 sm:min-h-11 sm:gap-3 sm:px-3 sm:py-2">
+            <div data-monopoly-turn-status className="mb-1 flex min-h-9 [@media(max-width:767px)_and_(max-height:600px)]:hidden items-center justify-between gap-2 border-y border-white/10 bg-black/20 px-2 py-1.5 sm:mb-3 sm:min-h-11 sm:gap-3 sm:px-3 sm:py-2">
               <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase text-[#c9a968]">{phaseLabel(view.phase)}</p>
                 <p className="truncate text-sm font-semibold sm:text-base">
@@ -308,7 +308,7 @@ export function MonopolyRenderer({ view, disabled, onAction }: MonopolyRendererP
           </div>
 
           <EventFeed events={eventFeed} />
-          <p className="border-t border-white/10 px-4 py-3 text-[9px] leading-relaxed text-[#827665]" data-monopoly-attribution data-monopoly-attribution-detail>
+          <p className="border-t border-white/10 px-4 py-3 text-[10px] leading-relaxed text-[#a09482]" data-monopoly-attribution data-monopoly-attribution-detail>
             MONOPOLY names, board artwork, trade dress, and Mr. Monopoly character belong to Hasbro and are reproduced under permission represented by the project owner.
           </p>
         </aside>
@@ -357,14 +357,22 @@ function PlayerWallet({ player, isYou, isCurrent, selected, onSelect }: Readonly
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-0.5 sm:gap-1.5">
-            <span className="truncate text-[10px] font-bold sm:text-sm">{player.name}</span>
-            {isYou && <span className="text-[7px] font-black uppercase text-[#d7b966] sm:text-[9px]">You</span>}
+            {isYou ? (
+              <>
+                {/* Phones lack room for a name plus the badge, so the chip just reads "You". */}
+                <span className="truncate text-[11px] font-black uppercase text-[#e2c674] sm:hidden">You</span>
+                <span className="hidden truncate text-sm font-bold sm:block">{player.name}</span>
+                <span className="hidden text-[10px] font-black uppercase text-[#e2c674] sm:block">You</span>
+              </>
+            ) : (
+              <span className="truncate text-[11px] font-bold sm:text-sm">{player.name}</span>
+            )}
             {player.isBot && <Bot className="h-3 w-3 shrink-0 text-[#8cc9b0] sm:h-3.5 sm:w-3.5" aria-label="Bot" />}
             {player.inJail && <LockKeyhole className="h-3 w-3 shrink-0 text-[#e8a17f] sm:hidden" aria-label={`Jail turn ${player.jailTurns}`} />}
           </span>
-          <span className="mt-0.5 flex items-center gap-1 text-[9px] text-[#c2b8a7] sm:gap-3 sm:text-[11px]">
+          <span className="mt-0.5 flex flex-wrap items-center gap-x-1 text-[11px] text-[#d6cdbd] sm:gap-x-3">
             <span className="font-black text-[#f3d27c]">${player.cash.toLocaleString()}</span>
-            <span className="hidden sm:inline">{player.properties.length} deeds</span>
+            <span className="hidden whitespace-nowrap sm:inline">{player.properties.length} deeds</span>
           </span>
         </span>
       </span>
@@ -652,9 +660,9 @@ function TradeColumn({ title, cashId, cash, setCash, jailId, jailCards, setJailC
   return (
     <fieldset className="min-w-0 border border-white/10 bg-white/[0.03] p-2">
       <legend className="px-1 text-[10px] font-black uppercase text-[#c9ad65]">{title}</legend>
-      <label htmlFor={cashId} className="mt-1 block text-[9px] uppercase text-[#8d8170]">Cash</label>
+      <label htmlFor={cashId} className="mt-1 block text-[11px] uppercase text-[#a3967f]">Cash</label>
       <input id={cashId} aria-label={cashId.includes('offered') ? 'Offered cash' : 'Requested cash'} type="number" min={0} max={MAX_TRADE_CASH} value={cash} onChange={(event) => setCash(event.target.value)} className="mt-1 h-11 w-full border border-white/10 bg-black/30 px-2 text-xs lg:h-8" />
-      <label htmlFor={jailId} className="mt-2 block text-[9px] uppercase text-[#8d8170]">Jail cards</label>
+      <label htmlFor={jailId} className="mt-2 block text-[11px] uppercase text-[#a3967f]">Jail cards</label>
       <input id={jailId} aria-label={jailId.includes('offered') ? 'Offered jail cards' : 'Requested jail cards'} type="number" min={0} max={4} value={jailCards} onChange={(event) => setJailCards(event.target.value)} className="mt-1 h-11 w-full border border-white/10 bg-black/30 px-2 text-xs lg:h-8" />
       <div className="mt-3 max-h-44 overflow-y-auto">
         {properties.length === 0 && <p className="text-[10px] text-[#786f62]">No deeds</p>}
@@ -735,8 +743,8 @@ function AuctionDecision({ view, legal, amount, setAmount, disabled, onAction }:
         <Gavel className="h-9 w-9 text-[#e0bc60]" />
       </div>
       <div className="mt-3 grid grid-cols-2 gap-3 border-y border-white/10 py-2 lg:mt-5 lg:py-4">
-        <div><p className="text-[9px] uppercase text-[#8e8271]">High bid</p><p className="text-3xl font-black text-[#f0cc6e]">${auction.highestBid}</p></div>
-        <div className="text-right"><p className="text-[9px] uppercase text-[#8e8271]">Winning bidder</p><p className="mt-1 text-sm font-bold">{playerName(view.players, auction.highestBidderId)}</p></div>
+        <div><p className="text-[11px] uppercase text-[#a3967f]">High bid</p><p className="text-3xl font-black text-[#f0cc6e]">${auction.highestBid}</p></div>
+        <div className="text-right"><p className="text-[11px] uppercase text-[#a3967f]">Winning bidder</p><p className="mt-1 text-sm font-bold">{playerName(view.players, auction.highestBidderId)}</p></div>
       </div>
       <p className="mt-3 text-xs lg:mt-4"><strong>{playerName(view.players, auction.currentBidderId)}</strong> is on the clock · {auction.activeBidderIds.length} bidders remain</p>
       <label htmlFor="monopoly-auction-amount" className="mt-3 block text-[10px] font-black uppercase text-[#a99d8a] lg:mt-4">Bid amount</label>

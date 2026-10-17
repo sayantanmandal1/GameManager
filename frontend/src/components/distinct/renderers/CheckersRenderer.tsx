@@ -31,7 +31,7 @@ export function CheckersRenderer({ view, disabled, onMove }: CheckersRendererPro
   };
 
   return (
-    <div className="w-full max-w-[38rem]">
+    <div data-fit-board className="w-full max-w-[38rem]">
       <div className="mb-3 flex h-6 items-center justify-center text-sm font-bold text-game-coral">
         {view.mandatoryCapture ? 'Capture required' : 'Diagonal move'}
       </div>

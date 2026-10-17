@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { StandardCard } from '@/shared';
+import { useCompactLayout } from '@/hooks/useCompactLayout';
 import { CardBack, CardFace } from './CardFace';
 
 export interface CardTablePlayer {
@@ -47,6 +48,22 @@ export function CardTable({
   const left = ordered[1];
   const top = ordered[2];
   const right = ordered[3];
+  const compact = useCompactLayout();
+  if (compact) {
+    return (
+      <CompactCardTable
+        you={you}
+        opponents={[left, top, right].filter((player): player is CardTablePlayer => !!player)}
+        currentTurnId={currentTurnId}
+        center={center}
+        hand={hand}
+        revealedHands={revealedHands}
+        revealedHandAction={revealedHandAction}
+        topRail={topRail}
+        bottomRail={bottomRail}
+      />
+    );
+  }
   const topHandRevealed = !!top && !!revealedHands[top.id];
   const tableHeight = expandedHandRail
     ? 'min-h-[55rem] lg:h-full lg:min-h-0'
@@ -111,6 +128,118 @@ export function CardTable({
   );
 }
 
+function CompactCardTable({
+  you,
+  opponents,
+  currentTurnId,
+  center,
+  hand,
+  revealedHands,
+  revealedHandAction,
+  topRail,
+  bottomRail,
+}: Readonly<{
+  you?: CardTablePlayer;
+  opponents: CardTablePlayer[];
+  currentTurnId: string | null;
+  center: ReactNode;
+  hand: ReactNode;
+  revealedHands: Readonly<Record<string, StandardCard[]>>;
+  revealedHandAction?: Props['revealedHandAction'];
+  topRail?: ReactNode;
+  bottomRail?: ReactNode;
+}>) {
+  const seatLabels = opponents.length === 3 ? ['Left', 'Across', 'Right'] : opponents.map(() => '');
+  const exposed = opponents.filter((player) => (revealedHands[player.id]?.length ?? 0) > 0);
+  return (
+    <section
+      aria-label="Card table"
+      data-card-table-layout="compact"
+      className="relative isolate w-full overflow-hidden rounded-2xl border border-[#d2b76f]/35 bg-[#123f33] p-1.5 shadow-[0_18px_40px_rgba(0,0,0,0.35)]"
+    >
+      <div className="pointer-events-none absolute inset-0 -z-10 opacity-25 [background-image:repeating-linear-gradient(135deg,transparent_0,transparent_20px,rgba(255,255,255,0.035)_21px)]" />
+      {topRail && <div className="flex min-w-0 flex-wrap justify-center gap-2 text-center">{topRail}</div>}
+      <div aria-label="Opponents" className={`mt-2 grid gap-1.5 ${opponents.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+        {opponents.map((player, index) => (
+          <CompactSeat
+            key={player.id}
+            player={player}
+            label={seatLabels[index]}
+            active={player.id === currentTurnId}
+            exposed={(revealedHands[player.id]?.length ?? 0) > 0}
+          />
+        ))}
+      </div>
+      {exposed.map((player) => (
+        <CompactRevealedHand
+          key={player.id}
+          player={player}
+          cards={revealedHands[player.id]}
+          action={revealedHandAction?.playerId === player.id ? revealedHandAction : undefined}
+        />
+      ))}
+      <div data-card-table-center className="my-2 flex min-h-[7.5rem] min-w-0 items-center justify-center">
+        {center}
+      </div>
+      <div data-card-table-hand className="rounded-xl border border-white/10 bg-black/20 p-1.5">
+        {you && <SeatIdentity player={you} active={you.id === currentTurnId} isYou />}
+        <div className="mt-2 min-w-0">{hand}</div>
+        {bottomRail && <div className="mt-2 flex min-w-0 flex-wrap justify-center gap-2">{bottomRail}</div>}
+      </div>
+    </section>
+  );
+}
+
+function CompactSeat({ player, label, active, exposed }: Readonly<{
+  player: CardTablePlayer;
+  label: string;
+  active: boolean;
+  exposed: boolean;
+}>) {
+  return (
+    <div
+      className={`flex min-w-0 flex-col items-center rounded-xl border px-1.5 py-1.5 text-center ${active ? 'border-[#f3d477] bg-[#f3d477]/15' : 'border-white/10 bg-black/15'}`}
+      aria-label={`${player.name}, ${label ? `${label.toLowerCase()} seat, ` : ''}${player.handCount} cards${active ? ', to play' : ''}`}
+    >
+      {label && <span className="text-[11px] font-bold uppercase text-white/60">{label}</span>}
+      <span className={`w-full truncate text-xs font-bold ${active ? 'text-[#f6df9c]' : 'text-white'}`} title={player.name}>{player.name}</span>
+      <span className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold text-white/75">
+        <span aria-hidden="true" className="inline-block h-4 w-3 rounded-[3px] border border-[#f8f2df] bg-[#173d61]" />
+        {player.handCount}{exposed ? ' · open' : ''}
+      </span>
+      {player.detail && <span className="mt-0.5 line-clamp-2 w-full break-words text-[11px] leading-tight text-white/70">{player.detail}</span>}
+    </div>
+  );
+}
+
+function CompactRevealedHand({ player, cards, action }: Readonly<{
+  player: CardTablePlayer;
+  cards: StandardCard[];
+  action?: NonNullable<Props['revealedHandAction']>;
+}>) {
+  const legal = new Set(action?.legalCardIds ?? []);
+  const sorted = [...cards].sort(compareCards);
+  return (
+    <div className="mt-2 rounded-xl border border-white/10 bg-black/15 p-2" aria-label={`${cards.length} revealed cards`}>
+      <p className="mb-1.5 truncate text-xs font-bold text-[#f6df9c]">{player.name}&apos;s open hand</p>
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(2.5rem,1fr))] gap-1">
+        {sorted.map((card) => {
+          const playable = !!action?.active && legal.has(card.id);
+          return (
+            <CardFace
+              key={card.id}
+              card={card}
+              size="fluid"
+              disabled={!!action?.disabled || !playable}
+              onClick={action?.active ? () => action.onPlay(card.id) : undefined}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function TableSeat({ player, position, active, revealedCards, revealedAction, lowered = false }: Readonly<{
   player: CardTablePlayer;
   position: 'top' | 'left' | 'right';
@@ -127,7 +256,7 @@ function TableSeat({ player, position, active, revealedCards, revealedAction, lo
   return (
     <div className={`absolute z-20 flex w-[7.2rem] flex-col items-center ${positionClass}`}>
       <SeatIdentity player={player} active={active} />
-      {player.detail && <p className="mt-1 max-w-28 truncate text-[9px] font-semibold uppercase text-white/45">{player.detail}</p>}
+      {player.detail && <p className="mt-1 max-w-28 truncate text-[11px] font-semibold uppercase text-white/70">{player.detail}</p>}
       {revealedCards
         ? <RevealedHand cards={revealedCards} action={revealedAction} />
         : <CardBackFan count={player.handCount} />}
@@ -144,7 +273,7 @@ function SeatIdentity({ player, active, isYou = false }: Readonly<{
     <div className={`flex max-w-full items-center gap-2 rounded-full border px-2.5 py-1 shadow-lg ${active ? 'border-[#f3d477] bg-[#f3d477] text-[#17231f]' : 'border-white/15 bg-[#102820]/90 text-white'}`}>
       <span className={`h-2 w-2 shrink-0 rounded-full ${active ? 'bg-[#17231f]' : 'bg-[#72d3a3]'}`} />
       <span className="truncate text-xs font-bold">{player.name}{isYou ? ' · you' : ''}</span>
-      <span className="shrink-0 text-[10px] opacity-70">{player.handCount}</span>
+      <span className="shrink-0 text-[11px] opacity-80">{player.handCount}</span>
     </div>
   );
 }
@@ -230,6 +359,26 @@ export function PlayingCardHand({
   const legal = new Set(legalCardIds);
   const selected = new Set(selectedCardIds);
   const sorted = [...cards].sort(compareCards);
+  const compact = useCompactLayout();
+  if (compact) {
+    return (
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(2.4rem,1fr))] gap-1" aria-label={ariaLabel}>
+        {sorted.map((card) => {
+          const playable = active && legal.has(card.id);
+          return (
+            <CardFace
+              key={card.id}
+              card={card}
+              size="fluid"
+              selected={selected.has(card.id)}
+              disabled={disabled || !playable}
+              onClick={active ? () => onPlay(card.id) : undefined}
+            />
+          );
+        })}
+      </div>
+    );
+  }
   return (
     <div className="flex min-h-24 w-max min-w-full items-end justify-center px-7 pt-2" aria-label={ariaLabel}>
       {sorted.map((card, index) => {

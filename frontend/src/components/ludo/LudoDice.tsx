@@ -92,7 +92,7 @@ export function LudoDice({
             isSix={!isRolling && visibleDice === 6}
           />
         ) : (
-          <div className="w-20 h-20 rounded-2xl bg-white/[0.04] border-2 border-dashed border-white/[0.12] flex items-center justify-center text-white/20 text-2xl">
+          <div className="w-20 h-20 rounded-2xl bg-white/[0.04] border-2 border-dashed border-white/[0.18] flex items-center justify-center text-white/55 text-2xl">
             ?
           </div>
         )}

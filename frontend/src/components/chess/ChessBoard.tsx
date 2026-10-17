@@ -186,6 +186,7 @@ export function ChessBoard({
           onSquareClick={handleSquareClick}
           arePiecesDraggable={canInteract}
           customBoardStyle={{ borderRadius: '8px' }}
+          customNotationStyle={{ fontSize: 'clamp(11px, 3vw, 14px)', fontWeight: 700 }}
         />
       )}
 

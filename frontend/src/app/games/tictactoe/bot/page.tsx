@@ -69,7 +69,7 @@ function BotGame() {
     <main className="min-h-screen bg-[#111a17] px-4 py-6 text-white">
       <div className="mx-auto flex max-w-3xl flex-col items-center">
         <div className="mb-6 flex w-full max-w-[34rem] items-center justify-between gap-4">
-          <button onClick={() => router.push('/games/tictactoe')} className="text-sm font-semibold text-game-muted hover:text-white">← Modes</button>
+          <button onClick={() => router.push('/games/tictactoe')} className="-ml-2 min-h-11 rounded-md px-2 text-sm font-semibold text-game-muted hover:bg-white/5 hover:text-white">← Modes</button>
           <div className="text-center">
             <p className="text-xs font-bold text-[#d7a7ff]">BOT MATCH</p>
             <h1 className="mt-1 text-xl font-bold">{mode === TicTacToeMode.LIMITED ? 'Three-piece' : 'Classic'}</h1>

@@ -24,6 +24,7 @@ export function TicTacToeBoard({
     <div
       role="grid"
       aria-label="Tic Tac Toe board"
+      data-fit-board
       className="grid aspect-square w-full max-w-[34rem] grid-cols-3 gap-2 rounded-lg bg-[#0d1715] p-2 shadow-2xl shadow-black/35 sm:gap-3 sm:p-3"
     >
       {board.map((mark, index) => {
@@ -45,7 +46,7 @@ export function TicTacToeBoard({
                   : 'border-white/10 bg-[#1b2925] hover:border-white/25 hover:bg-[#22332e]'
             } ${mark ? MARK_STYLES[mark] : 'text-transparent'}`}
           >
-            {mark ?? '·'}
+            {mark ?? ''}
           </button>
         );
       })}

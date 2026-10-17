@@ -6,6 +6,7 @@ import { ConnectFourBoard } from '@/components/connectfour/ConnectFourBoard';
 import { GameChat } from '@/components/chat/GameChat';
 import { VoiceChat } from '@/components/voice/VoiceChat';
 import { Button } from '@/components/ui/Button';
+import { PlayerName } from '@/components/ui/PlayerName';
 import { RematchButton } from '@/components/lobby/RematchButton';
 import { useAuthStore } from '@/stores/authStore';
 import { useConnectFourStore } from '@/stores/connectfourStore';
@@ -60,7 +61,7 @@ export default function ConnectFourPlayClient({ code }: { code: string }) {
       <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <section className="flex min-w-0 flex-col items-center">
           <div className="mb-4 flex w-full max-w-[43rem] items-center justify-between gap-3">
-            <button onClick={backToLobby} className="text-sm font-semibold text-game-muted hover:text-white">← Lobby</button>
+            <button onClick={backToLobby} className="-ml-2 min-h-11 rounded-md px-2 text-sm font-semibold text-game-muted hover:bg-white/5 hover:text-white">← Lobby</button>
             <div className="text-center"><p className="text-xs font-bold text-game-sun">CONNECT FOUR</p><p className="text-sm text-game-muted">Room {code}</p></div>
             <Button variant="ghost" size="sm" onClick={() => setConfirmSurrender(true)}>Resign</Button>
           </div>
@@ -68,7 +69,7 @@ export default function ConnectFourPlayClient({ code }: { code: string }) {
             {view.players.map((player) => (
               <div key={player.id} className={`flex items-center gap-3 rounded-lg border p-3 ${player.id === view.currentTurnId && !finished ? 'border-white/35 bg-white/5' : 'border-white/10'}`}>
                 <span className={`h-7 w-7 rounded-full ${player.disc === 'red' ? 'bg-[#f35f4a]' : 'bg-game-sun'}`} />
-                <p className="min-w-0 truncate text-sm font-semibold">{player.name}{player.id === view.youId ? ' (you)' : ''}</p>
+                <PlayerName name={player.name} isYou={player.id === view.youId} className="text-sm font-semibold" />
               </div>
             ))}
           </div>

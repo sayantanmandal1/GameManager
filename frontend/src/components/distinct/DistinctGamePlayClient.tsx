@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
+import { PlayerName } from '@/components/ui/PlayerName';
 import { GameChat } from '@/components/chat/GameChat';
 import { VoiceChat } from '@/components/voice/VoiceChat';
 import { RematchButton } from '@/components/lobby/RematchButton';
@@ -93,19 +94,19 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
   };
 
   return (
-    <main data-monopoly-play-shell={isMonopoly ? 'true' : undefined} className={`min-h-screen text-white ${isBridge ? 'px-4 py-4 sm:px-6 lg:h-dvh lg:overflow-hidden lg:py-2' : isMonopoly ? 'px-0 py-0 sm:px-6 sm:py-3' : 'px-4 py-4 sm:px-6'}`} style={{ backgroundColor: ui.surface }}>
+    <main data-monopoly-play-shell={isMonopoly ? 'true' : undefined} className={`min-h-screen text-white ${isBridge ? 'px-3 py-3 sm:px-6 sm:py-4 lg:h-dvh lg:overflow-hidden lg:py-2' : isMonopoly ? 'px-0 py-0 sm:px-6 sm:py-3' : 'px-3 py-3 sm:px-6 sm:py-4'}`} style={{ backgroundColor: ui.surface }}>
       <div className={`mx-auto grid gap-5 ${gameLayoutClass}`}>
         <section className={`flex min-w-0 flex-col items-center ${isBridge ? 'lg:h-full lg:min-h-0' : ''}`}>
-          <div data-monopoly-game-header={isMonopoly ? 'true' : undefined} className={`flex w-full items-center justify-between gap-3 border-white/10 ${isMonopoly ? 'mb-0 max-w-[112rem] border-x-0 border-b border-t-0 bg-black/20 px-2 py-1.5 sm:mb-2 sm:border sm:px-3 sm:py-2' : `max-w-[52rem] border-b ${isBridge ? 'mb-2 pb-2' : 'mb-4 pb-4'}`}`}>
-            <button type="button" onClick={leaveTable} className="text-sm font-semibold text-game-muted hover:text-white">{finished ? 'Lobby' : 'Exit table'}</button>
-            <div className="text-center"><p className="text-xs font-bold" style={{ color: ui.accent }}>{ui.name.toUpperCase()}</p><p className={`${isMonopoly ? 'text-[10px] uppercase' : 'text-sm'} text-game-muted`}>Room {code}</p></div>
-            {!isBridge && <Button variant="ghost" size="sm" onClick={() => setConfirmSurrender(true)}>Resign</Button>}
+          <div data-monopoly-game-header={isMonopoly ? 'true' : undefined} className={`flex w-full items-center justify-between gap-3 border-white/10 ${isMonopoly ? 'mb-0 max-w-[112rem] border-x-0 border-b border-t-0 bg-black/20 px-2 py-1.5 sm:mb-2 sm:border sm:px-3 sm:py-2' : `max-w-[52rem] border-b ${isBridge ? 'mb-2 pb-2' : 'mb-3 pb-3 sm:mb-4 sm:pb-4'}`}`}>
+            <button type="button" onClick={leaveTable} className="-ml-2 min-h-11 rounded-md px-2 text-sm font-semibold text-game-muted hover:bg-white/5 hover:text-white lg:min-h-0">{finished ? 'Lobby' : 'Exit table'}</button>
+            <div className="min-w-0 text-center"><p className="truncate text-xs font-bold" style={{ color: ui.accent }}>{ui.name.toUpperCase()}</p><p className={`${isMonopoly ? 'text-[11px] uppercase' : 'text-sm'} text-game-muted`}>Room {code}</p></div>
+            {!isBridge && <Button variant="ghost" size="sm" className="-mr-2 min-h-11 lg:min-h-9" onClick={() => setConfirmSurrender(true)}>Resign</Button>}
           </div>
 
-          {!hasIntegratedCardTable && <div className="mb-4 grid w-full max-w-[52rem] grid-cols-2 gap-3">
+          {!hasIntegratedCardTable && <div aria-label="Players" className="mb-3 flex w-full max-w-[52rem] gap-2 overflow-x-auto pb-1 [scrollbar-width:none] sm:mb-4 sm:grid sm:grid-cols-2 sm:gap-3 sm:overflow-visible sm:pb-0">
             {view.players.map((player) => (
-              <div key={player.id} className={`border-b-2 px-3 py-2 ${player.id === currentTurnId && !finished ? 'border-white/55 bg-white/5' : 'border-white/10'}`}>
-                <p className="truncate text-sm font-semibold">{player.name}{player.id === yourPlayerId ? ' (you)' : ''}</p>
+              <div key={player.id} className={`min-w-[8.5rem] flex-1 shrink-0 border-b-2 px-3 py-2 sm:min-w-0 ${player.id === currentTurnId && !finished ? 'border-white/55 bg-white/5' : 'border-white/10'}`}>
+                <PlayerName name={player.name} isYou={player.id === yourPlayerId} className="text-sm font-semibold" />
               </div>
             ))}
           </div>}
@@ -114,7 +115,7 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
             <DistinctGameRenderer gameKey={gameKey} view={view} disabled={finished} onAction={act} />
           </div>
 
-          <div data-monopoly-game-status={isMonopoly ? 'true' : undefined} className={isBridge ? 'mt-1 min-h-6 text-center' : isMonopoly ? 'mt-2 min-h-7 text-center' : 'mt-5 min-h-16 text-center'}>
+          <div data-monopoly-game-status={isMonopoly ? 'true' : undefined} className={isBridge ? 'mt-1 min-h-6 text-center' : isMonopoly ? 'mt-2 min-h-7 text-center' : 'mt-3 min-h-10 text-center sm:mt-5 sm:min-h-16'}>
             {!isMonopoly && <p className={statusClass}>{statusText}</p>}
             {error && <p role="alert" className="mt-1 text-sm text-red-300">{error}</p>}
             {finished && <RematchButton lobbyCode={code} className="mt-4" />}

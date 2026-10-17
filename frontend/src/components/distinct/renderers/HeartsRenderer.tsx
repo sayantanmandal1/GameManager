@@ -36,21 +36,25 @@ export function HeartsRenderer({ view, disabled, onAction }: Readonly<Props>) {
         youId={view.youId}
         currentTurnId={view.currentTurnId}
         topRail={(
-          <div className="rounded-full border border-white/15 bg-[#0c2b23]/95 px-4 py-1 text-center shadow-lg" aria-label="Hearts scores">
-            <p className="text-[9px] font-bold uppercase text-white/45">Round {view.roundNumber}</p>
-            <p className="text-xs font-black">{view.players.map((player) => `${player.name} ${player.score}`).join(' · ')}</p>
+          <div className="max-w-full rounded-xl border border-white/15 bg-[#0c2b23]/95 px-3 py-1.5 text-center shadow-lg" aria-label="Hearts scores">
+            <p className="text-[11px] font-bold uppercase text-white/65">Round {view.roundNumber}</p>
+            <p className="flex flex-wrap justify-center gap-x-3 gap-y-0.5 text-xs font-black">
+              {view.players.map((player) => (
+                <span key={player.id} className="max-w-[9rem] truncate">{player.name} <span className="text-[#f6df9c]">{player.score}</span></span>
+              ))}
+            </p>
           </div>
         )}
         center={view.phase === 'passing' ? (
           <div className="rounded-xl border border-white/12 bg-[#0c2b23]/95 p-4 text-center shadow-xl">
-            <p className="text-xs font-bold uppercase text-white/50">Pass {view.passDirection}</p>
-            <p className="mt-1 text-sm text-white/65">Choose exactly three cards</p>
+            <p className="text-xs font-bold uppercase text-white/70">Pass {view.passDirection}</p>
+            <p className="mt-1 text-sm text-white/75">Choose exactly three cards</p>
             <Button className="mt-3" disabled={disabled || !view.canAct || selected.length !== 3} onClick={() => onAction({ type: 'pass_cards', cardIds: selected })}>Pass selected cards</Button>
           </div>
         ) : (
           <div className="flex min-h-24 flex-wrap items-center justify-center gap-2" aria-label="Current trick">
-            {view.trick.map((entry) => <div key={`${entry.playerId}-${entry.card.id}`} className="text-center"><CardFace card={entry.card} size="mini" label={`${name(entry.playerId)} played ${entry.card.rank} of ${entry.card.suit}`} /><p className="mt-1 max-w-14 truncate text-[10px] text-white/45">{name(entry.playerId)}</p></div>)}
-            {view.trick.length === 0 && <p className="text-xs text-white/40">Awaiting lead</p>}
+            {view.trick.map((entry) => <div key={`${entry.playerId}-${entry.card.id}`} className="text-center"><CardFace card={entry.card} size="mini" label={`${name(entry.playerId)} played ${entry.card.rank} of ${entry.card.suit}`} /><p className="mt-1 max-w-14 truncate text-[11px] text-white/70">{name(entry.playerId)}</p></div>)}
+            {view.trick.length === 0 && <p className="text-sm text-white/65">Awaiting lead</p>}
           </div>
         )}
         hand={(
@@ -63,7 +67,7 @@ export function HeartsRenderer({ view, disabled, onAction }: Readonly<Props>) {
             onPlay={(cardId) => canPlay ? onAction({ type: 'play_card', cardId }) : toggle(cardId)}
           />
         )}
-        bottomRail={<p className="text-[10px] font-bold uppercase text-white/50">Round {view.roundNumber} · {view.passDirection} pass · Hearts {view.heartsBroken ? 'broken' : 'unbroken'}</p>}
+        bottomRail={<p className="text-[11px] font-bold uppercase text-white/70">Round {view.roundNumber} · {view.passDirection} pass · Hearts {view.heartsBroken ? 'broken' : 'unbroken'}</p>}
       />
     </div>
   );

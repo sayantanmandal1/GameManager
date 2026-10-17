@@ -37,7 +37,7 @@ export default function ConnectFourBotPage() {
     <main className="min-h-screen bg-[#111923] px-4 py-5 text-white">
       <div className="mx-auto flex max-w-3xl flex-col items-center">
         <div className="mb-5 flex w-full max-w-[43rem] items-center justify-between gap-4">
-          <button onClick={() => router.push('/games/connectfour')} className="text-sm font-semibold text-game-muted hover:text-white">← Modes</button>
+          <button onClick={() => router.push('/games/connectfour')} className="-ml-2 min-h-11 rounded-md px-2 text-sm font-semibold text-game-muted hover:bg-white/5 hover:text-white">← Modes</button>
           <div className="text-center"><p className="text-xs font-bold text-game-sun">BOT MATCH</p><h1 className="text-xl font-bold">Connect Four</h1></div>
           <Button variant="ghost" size="sm" onClick={restart}>Restart</Button>
         </div>

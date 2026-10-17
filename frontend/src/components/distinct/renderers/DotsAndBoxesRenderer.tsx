@@ -13,7 +13,7 @@ export function DotsAndBoxesRenderer({ view, disabled, onDraw }: DotsAndBoxesRen
   const colors = ['#ef6a67', '#65c9d4'];
 
   return (
-    <div className="grid aspect-square w-full max-w-[38rem] grid-cols-[repeat(9,minmax(0,1fr))] grid-rows-[repeat(9,minmax(0,1fr))] rounded-lg bg-[#efe9da] p-3 shadow-2xl shadow-black/30">
+    <div data-fit-board className="grid aspect-square w-full max-w-[38rem] grid-cols-[repeat(9,minmax(0,1fr))] grid-rows-[repeat(9,minmax(0,1fr))] rounded-lg bg-[#efe9da] p-3 shadow-2xl shadow-black/30">
       {Array.from({ length: 81 }, (_, index) => {
         const gridRow = Math.floor(index / 9);
         const gridColumn = index % 9;
@@ -26,7 +26,9 @@ export function DotsAndBoxesRenderer({ view, disabled, onDraw }: DotsAndBoxesRen
           const drawn = view.horizontalEdges[row][column];
           const enabled = view.canAct && legal.has(`horizontal:${row}:${column}`) && !disabled;
           return (
-            <button key={index} type="button" disabled={!enabled} onClick={() => onDraw({ orientation: 'horizontal', row, column })} aria-label={`Draw horizontal edge ${row + 1}, ${column + 1}`} className={`my-auto h-2 w-full rounded-sm disabled:cursor-default ${drawn ? 'bg-[#18201c]' : 'bg-black/10 enabled:hover:bg-[#65c9d4]'}`} />
+            <button key={index} type="button" disabled={!enabled} onClick={() => onDraw({ orientation: 'horizontal', row, column })} aria-label={`Draw horizontal edge ${row + 1}, ${column + 1}`} className="flex h-full w-full items-center disabled:cursor-default enabled:hover:[&>span]:bg-[#65c9d4]">
+              <span aria-hidden="true" className={`h-2 w-full rounded-sm ${drawn ? 'bg-[#18201c]' : enabled ? 'bg-[#18201c]/20' : 'bg-black/10'}`} />
+            </button>
           );
         }
         if (gridColumn % 2 === 0) {
@@ -35,7 +37,9 @@ export function DotsAndBoxesRenderer({ view, disabled, onDraw }: DotsAndBoxesRen
           const drawn = view.verticalEdges[row][column];
           const enabled = view.canAct && legal.has(`vertical:${row}:${column}`) && !disabled;
           return (
-            <button key={index} type="button" disabled={!enabled} onClick={() => onDraw({ orientation: 'vertical', row, column })} aria-label={`Draw vertical edge ${row + 1}, ${column + 1}`} className={`mx-auto h-full w-2 rounded-sm disabled:cursor-default ${drawn ? 'bg-[#18201c]' : 'bg-black/10 enabled:hover:bg-[#65c9d4]'}`} />
+            <button key={index} type="button" disabled={!enabled} onClick={() => onDraw({ orientation: 'vertical', row, column })} aria-label={`Draw vertical edge ${row + 1}, ${column + 1}`} className="flex h-full w-full justify-center disabled:cursor-default enabled:hover:[&>span]:bg-[#65c9d4]">
+              <span aria-hidden="true" className={`h-full w-2 rounded-sm ${drawn ? 'bg-[#18201c]' : enabled ? 'bg-[#18201c]/20' : 'bg-black/10'}`} />
+            </button>
           );
         }
         const row = (gridRow - 1) / 2;

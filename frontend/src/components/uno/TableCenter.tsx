@@ -9,14 +9,18 @@ import { unoStrings as S } from './strings';
 interface TableCenterProps {
   view: UnoPlayerView;
   onDrawPile: () => void;
+  /** Phone layout: smaller piles so the hand stays on the first screen. */
+  compact?: boolean;
 }
 
-export function TableCenter({ view, onDrawPile }: TableCenterProps) {
+export function TableCenter({ view, onDrawPile, compact = false }: TableCenterProps) {
   const color = UNO_COLOR_HEX[view.activeColor];
   const canDraw = view.canDraw;
+  const pileWidth = compact ? 60 : 78;
+  const topWidth = compact ? 68 : 88;
 
   return (
-    <div className="flex flex-col items-center gap-5">
+    <div className={`flex flex-col items-center ${compact ? 'gap-2.5' : 'gap-5'}`}>
       {/* Round + direction + stacking */}
       <div className="flex flex-wrap items-center justify-center gap-2 text-xs font-semibold text-white/70">
         <span className="rounded-full bg-black/25 px-3 py-1">{S.hud.round(view.roundNumber)}</span>
@@ -30,23 +34,23 @@ export function TableCenter({ view, onDrawPile }: TableCenterProps) {
           {view.direction === 1 ? '↻' : '↺'}
         </motion.span>
         {view.stacking && (
-          <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide">
+          <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] uppercase tracking-wide">
             {S.hud.stackingBadge}
           </span>
         )}
         {view.mode === 'flip' && (
-          <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide">
+          <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] uppercase tracking-wide">
             {view.side === 'dark' ? '\uD83C\uDF19 Dark' : '\u2600 Light'}
           </span>
         )}
         {view.mercyLimit && (
-          <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-red-300">
+          <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-[11px] uppercase tracking-wide text-red-300">
             No Mercy
           </span>
         )}
       </div>
 
-      <div className="flex items-center gap-9 sm:gap-12">
+      <div className={`flex items-center ${compact ? 'gap-7' : 'gap-9 sm:gap-12'}`}>
         {/* Draw pile */}
         <div className="flex flex-col items-center gap-2">
           <button
@@ -57,12 +61,12 @@ export function TableCenter({ view, onDrawPile }: TableCenterProps) {
             aria-label={S.hud.drawPile}
           >
             <div className="absolute left-1 top-1 opacity-60">
-              <UnoCard faceDown width={78} side={view.side} />
+              <UnoCard faceDown width={pileWidth} side={view.side} />
             </div>
             <div className="absolute left-0.5 top-0.5 opacity-80">
-              <UnoCard faceDown width={78} side={view.side} />
+              <UnoCard faceDown width={pileWidth} side={view.side} />
             </div>
-            <UnoCard faceDown width={78} side={view.side} />
+            <UnoCard faceDown width={pileWidth} side={view.side} />
             <span className="absolute -bottom-1 -right-1 rounded-full bg-black/80 px-1.5 text-[11px] font-bold text-white ring-1 ring-white/20">
               {view.drawPileCount}
             </span>
@@ -71,7 +75,7 @@ export function TableCenter({ view, onDrawPile }: TableCenterProps) {
             <motion.span
               animate={{ opacity: [0.4, 1, 0.4] }}
               transition={{ repeat: Infinity, duration: 1.4 }}
-              className="text-[11px] font-semibold text-white/70"
+              className="text-xs font-semibold text-white/80"
             >
               {S.hud.draw}
             </motion.span>
@@ -93,7 +97,7 @@ export function TableCenter({ view, onDrawPile }: TableCenterProps) {
                 transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                 className="relative"
               >
-                <UnoCard card={view.topCard} width={88} side={view.side} />
+                <UnoCard card={view.topCard} width={topWidth} side={view.side} />
               </motion.div>
             )}
           </AnimatePresence>
@@ -116,7 +120,7 @@ export function TableCenter({ view, onDrawPile }: TableCenterProps) {
 
       {/* Active colour chip */}
       <div className="flex items-center gap-2">
-        <span className="text-[11px] uppercase tracking-wider text-white/40">Colour</span>
+        <span className="text-[11px] uppercase tracking-wider text-white/70">Colour</span>
         <span
           className="h-5 w-5 rounded-full ring-2 ring-white/60"
           style={{ background: color.bg }}

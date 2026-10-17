@@ -15,6 +15,8 @@ interface PlayerHandProps {
   playableDrawnCardId: string | null;
   onSelect: (card: UnoCardT) => void;
   onJumpIn: (card: UnoCardT) => void;
+  /** Phone layout: slightly smaller cards and tighter spacing. */
+  compact?: boolean;
 }
 
 const COLOR_ORDER: Record<string, number> = {
@@ -49,6 +51,7 @@ export function PlayerHand({
   playableDrawnCardId,
   onSelect,
   onJumpIn,
+  compact = false,
 }: PlayerHandProps) {
   const sorted = useMemo(() => {
     return [...hand].sort((a, b) => {
@@ -65,11 +68,12 @@ export function PlayerHand({
   const legal = useMemo(() => new Set(legalCardIds), [legalCardIds]);
   const jumps = useMemo(() => new Set(jumpInIds), [jumpInIds]);
   const count = sorted.length;
-  const width = count > 14 ? 58 : count > 10 ? 64 : 72;
+  let width = count > 14 ? 58 : count > 10 ? 64 : 72;
+  if (compact) width = count > 10 ? 52 : 58;
 
   return (
-    <div className="w-full overflow-x-auto px-3 pb-3 pt-4 [scrollbar-width:thin]">
-      <div className="mx-auto flex w-max min-w-full items-end justify-center gap-2">
+    <div className={`w-full overflow-x-auto pb-3 [scrollbar-width:thin] ${compact ? 'px-2 pt-3' : 'px-3 pt-4'}`}>
+      <div className={`mx-auto flex w-max min-w-full items-end justify-center ${compact ? 'gap-1.5' : 'gap-2'}`}>
         <AnimatePresence initial={false}>
         {sorted.map((card) => {
           const isLegal = isMyTurn && legal.has(card.id);

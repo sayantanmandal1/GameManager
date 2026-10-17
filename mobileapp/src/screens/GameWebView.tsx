@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   BackHandler,
   Linking,
-  PermissionsAndroid,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import type { WebViewNavigation } from 'react-native-webview';
@@ -17,6 +18,13 @@ import { WEB_ORIGIN, WEB_URL } from '../config';
 import { colors } from '../theme';
 import type { GuestSession, WebDestination } from '../types';
 import { isGuestSession } from '../services/auth';
+import { MAX_SAVE_BASE64_LENGTH, parseSaveFileRequest, shareGeneratedFile } from '../services/nativeFiles';
+
+/** Bumped whenever the native bridge gains capabilities the website can use. */
+const NATIVE_BRIDGE_VERSION = 2;
+const NATIVE_CAPABILITIES = ['save-file'] as const;
+const HEADER_HEIGHT = 52;
+const MAX_AUTH_MESSAGE_LENGTH = 12_000;
 
 interface GameWebViewProps {
   readonly destination: WebDestination;
@@ -27,19 +35,16 @@ interface GameWebViewProps {
 
 export function GameWebView({ destination, session, onSessionChange, onClose }: GameWebViewProps) {
   const webView = useRef<WebView>(null);
+  const { width, height } = useWindowDimensions();
+  const landscape = width > height;
+  const headerHeight = landscape ? 0 : HEADER_HEIGHT;
   const [canGoBack, setCanGoBack] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [sharing, setSharing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const uri = useMemo(() => `${WEB_URL}${safeRoute(destination.route)}`, [destination.route]);
   const authScript = useMemo(() => createAuthInjection(session), [session]);
   const authFallbackScript = useMemo(() => createAuthFallbackInjection(session), [session]);
-
-  useEffect(() => {
-    if (Platform.OS !== 'android') return;
-    PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO).catch(
-      () => undefined,
-    );
-  }, []);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -63,12 +68,27 @@ export function GameWebView({ destination, session, onSessionChange, onClose }: 
     return false;
   };
 
-  const handleMessage = (raw: string) => {
-    if (raw.length > 12_000) return;
+  const shareFile = async (payload: unknown) => {
+    const request = parseSaveFileRequest(payload);
+    if (!request || sharing) return;
+    setSharing(true);
     try {
-      const message = JSON.parse(raw) as { type?: unknown; session?: unknown };
-      if (message.type === 'auth-session' && isGuestSession(message.session)) {
+      await shareGeneratedFile(request);
+    } catch (error) {
+      Alert.alert('Could not save the file', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const handleMessage = (raw: string) => {
+    if (raw.length > MAX_SAVE_BASE64_LENGTH + 2_000) return;
+    try {
+      const message = JSON.parse(raw) as { type?: unknown; session?: unknown; file?: unknown };
+      if (message.type === 'auth-session' && raw.length <= MAX_AUTH_MESSAGE_LENGTH && isGuestSession(message.session)) {
         void onSessionChange(message.session);
+      } else if (message.type === 'save-file') {
+        void shareFile(message.file);
       }
     } catch {
       // Ignore non-JSON messages from game pages.
@@ -76,23 +96,27 @@ export function GameWebView({ destination, session, onSessionChange, onClose }: 
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <View style={styles.header}>
-        <Pressable onPress={onClose} style={styles.iconButton} accessibilityLabel="Close game">
-          <Text style={styles.icon}>×</Text>
-        </Pressable>
-        <View style={styles.titleWrap}>
-          <Text numberOfLines={1} style={styles.title}>{destination.title}</Text>
-          <Text style={styles.crossplay}>LIVE CROSSPLAY</Text>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'right', 'bottom', 'left']}>
+      <StatusBar style="light" hidden={landscape} />
+      {!landscape && (
+        <View style={styles.header}>
+          <Pressable onPress={onClose} style={styles.iconButton} accessibilityRole="button" accessibilityLabel="Close game">
+            <Text style={styles.icon}>×</Text>
+          </Pressable>
+          <View style={styles.titleWrap}>
+            <Text numberOfLines={1} style={styles.title}>{destination.title}</Text>
+            <Text style={styles.crossplay}>LIVE CROSSPLAY</Text>
+          </View>
+          <Pressable
+            onPress={() => webView.current?.reload()}
+            style={styles.iconButton}
+            accessibilityRole="button"
+            accessibilityLabel="Reload game"
+          >
+            <Text style={styles.reload}>↻</Text>
+          </Pressable>
         </View>
-        <Pressable
-          onPress={() => webView.current?.reload()}
-          style={styles.iconButton}
-          accessibilityLabel="Reload game"
-        >
-          <Text style={styles.reload}>↻</Text>
-        </Pressable>
-      </View>
+      )}
 
       <WebView
         ref={webView}
@@ -100,6 +124,8 @@ export function GameWebView({ destination, session, onSessionChange, onClose }: 
         style={styles.webView}
         injectedJavaScriptBeforeContentLoaded={authScript}
         injectedJavaScript={authFallbackScript}
+        applicationNameForUserAgent={`GameVerseApp/${NATIVE_BRIDGE_VERSION}`}
+        textZoom={100}
         javaScriptEnabled
         domStorageEnabled
         sharedCookiesEnabled={false}
@@ -112,7 +138,11 @@ export function GameWebView({ destination, session, onSessionChange, onClose }: 
         originWhitelist={[`${WEB_ORIGIN}/*`]}
         onShouldStartLoadWithRequest={allowNavigation}
         onNavigationStateChange={handleNavigation}
-        onMessage={(event) => handleMessage(event.nativeEvent.data)}
+        onMessage={(event) => {
+          // Only the trusted GameVerse origin may use the native bridge.
+          if (!event.nativeEvent.url?.startsWith(WEB_ORIGIN)) return;
+          handleMessage(event.nativeEvent.data);
+        }}
         onLoadStart={() => {
           setLoading(true);
           setLoadError(null);
@@ -122,21 +152,31 @@ export function GameWebView({ destination, session, onSessionChange, onClose }: 
           setLoading(false);
           setLoadError('The game page could not be loaded.');
         }}
+        onRenderProcessGone={() => webView.current?.reload()}
         renderError={() => <View />}
       />
 
       {loading && (
-        <View style={styles.overlay} pointerEvents="none">
+        <View style={[styles.overlay, { top: headerHeight }]} pointerEvents="none">
           <ActivityIndicator color={colors.mint} size="large" />
           <Text style={styles.loadingText}>Opening table…</Text>
         </View>
       )}
+      {sharing && (
+        <View style={[styles.overlay, styles.sharingOverlay, { top: headerHeight }]} pointerEvents="none">
+          <ActivityIndicator color={colors.mint} size="large" />
+          <Text style={styles.loadingText}>Preparing your file…</Text>
+        </View>
+      )}
       {loadError && (
-        <View style={styles.errorOverlay}>
+        <View style={[styles.errorOverlay, { top: headerHeight }]}>
           <Text style={styles.errorTitle}>Connection problem</Text>
           <Text style={styles.errorText}>{loadError}</Text>
-          <Pressable onPress={() => webView.current?.reload()} style={styles.retryButton}>
+          <Pressable onPress={() => webView.current?.reload()} style={styles.retryButton} accessibilityRole="button">
             <Text style={styles.retryText}>Try again</Text>
+          </Pressable>
+          <Pressable onPress={onClose} style={styles.secondaryButton} accessibilityRole="button">
+            <Text style={styles.secondaryText}>Back to games</Text>
           </Pressable>
         </View>
       )}
@@ -146,9 +186,11 @@ export function GameWebView({ destination, session, onSessionChange, onClose }: 
 
 function createAuthInjection(session: GuestSession): string {
   const storageValue = serializedWebSession(session);
+  const native = { platform: 'android', bridge: NATIVE_BRIDGE_VERSION, capabilities: NATIVE_CAPABILITIES };
   return `
     (function () {
       try {
+        window.__GAMEVERSE_NATIVE__ = ${JSON.stringify(native)};
         window.localStorage.setItem('auth-storage', ${JSON.stringify(storageValue)});
       } catch (_) {}
     })();
@@ -192,19 +234,22 @@ function safeRoute(route: string): string {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
-  header: { height: 58, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.background, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10 },
-  iconButton: { width: 42, height: 42, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
+  header: { height: HEADER_HEIGHT, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.background, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 },
+  iconButton: { width: 44, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   icon: { color: colors.text, fontSize: 30, lineHeight: 32, fontWeight: '400' },
   reload: { color: colors.text, fontSize: 24, fontWeight: '700' },
   titleWrap: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
   title: { color: colors.text, fontSize: 15, fontWeight: '800' },
-  crossplay: { color: colors.mint, fontSize: 8, fontWeight: '900', marginTop: 2 },
+  crossplay: { color: colors.mint, fontSize: 10, fontWeight: '900', marginTop: 1, letterSpacing: 0.6 },
   webView: { flex: 1, backgroundColor: colors.background },
-  overlay: { position: 'absolute', top: 58, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
+  overlay: { position: 'absolute', right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
+  sharingOverlay: { backgroundColor: 'rgba(16, 19, 16, 0.82)' },
   loadingText: { color: colors.muted, marginTop: 12, fontSize: 14 },
-  errorOverlay: { position: 'absolute', top: 58, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', padding: 32, backgroundColor: colors.background },
+  errorOverlay: { position: 'absolute', right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', padding: 32, backgroundColor: colors.background },
   errorTitle: { color: colors.text, fontSize: 24, fontWeight: '900' },
   errorText: { color: colors.muted, fontSize: 15, textAlign: 'center', marginTop: 8 },
-  retryButton: { minHeight: 48, minWidth: 130, borderRadius: 10, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
+  retryButton: { minHeight: 48, minWidth: 150, borderRadius: 10, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center', marginTop: 20, paddingHorizontal: 18 },
   retryText: { color: '#17201a', fontWeight: '900' },
+  secondaryButton: { minHeight: 48, minWidth: 150, borderRadius: 10, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', marginTop: 10, paddingHorizontal: 18 },
+  secondaryText: { color: colors.text, fontWeight: '800' },
 });

@@ -165,7 +165,7 @@ function BridgePreview() {
       <div className="absolute inset-x-2 bottom-2 flex items-end justify-center">
         {hand.map((card, index) => <PreviewCard key={card} card={card} className={index === 0 ? '' : '-ml-3'} />)}
       </div>
-      <span className="absolute bottom-[5.7rem] left-1/2 -translate-x-1/2 rounded-full bg-[#ead17e] px-3 py-1 text-[10px] font-black text-[#1d2a24]">3NT · NET +120</span>
+      <span className="absolute bottom-[5.7rem] left-1/2 -translate-x-1/2 rounded-full bg-[#ead17e] px-3 py-1 text-[11px] font-black text-[#1d2a24]">3NT · NET +120</span>
     </div>
   );
 }
