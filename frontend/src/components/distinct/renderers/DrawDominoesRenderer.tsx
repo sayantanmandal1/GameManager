@@ -8,7 +8,7 @@ interface Props { view: DrawDominoesPlayerView; disabled: boolean; onAction: (ac
 
 function DominoTile({ domino, selected, onClick, disabled }: { domino: Domino; selected?: boolean; onClick?: () => void; disabled?: boolean }) {
   const content = <><span>{domino.a}</span><span className="h-px w-full bg-current/30" /><span>{domino.b}</span></>;
-  const classes = `flex h-24 w-12 flex-col items-center justify-around border bg-[#f4f1e8] px-2 text-xl font-black text-[#242725] shadow-lg ${selected ? 'outline outline-4 outline-[#f0eee5]' : ''}`;
+  const classes = `flex h-24 w-12 flex-col items-center justify-around rounded-xl border bg-[#f4f1e8] px-2 text-xl font-bold text-[#242725] shadow-lg ${selected ? 'outline outline-4 outline-game-blue' : ''}`;
   return onClick ? <button type="button" disabled={disabled} onClick={onClick} aria-pressed={selected} aria-label={`Domino ${domino.a}-${domino.b}`} className={`${classes} disabled:opacity-45`}>{content}</button> : <span className={classes} aria-label={`Domino ${domino.a}-${domino.b}`}>{content}</span>;
 }
 
@@ -34,8 +34,8 @@ export function DrawDominoesRenderer({ view, disabled, onAction }: Props) {
       </div>
       {selected && legal && (
         <div className="mt-5 flex flex-wrap justify-center gap-2" role="group" aria-label="Domino orientation and end">
-          {legal.ends.map((value) => <button key={value} type="button" aria-pressed={end === value} onClick={() => setEnd(value)} className={`min-h-10 border px-3 font-bold capitalize ${end === value ? 'border-white bg-white text-[#252a2c]' : 'border-white/15 text-white'}`}>{value}</button>)}
-          <button type="button" aria-pressed={flip} onClick={() => setFlip((value) => !value)} className={`min-h-10 border px-3 font-bold ${flip ? 'border-white bg-white text-[#252a2c]' : 'border-white/15 text-white'}`}>Flip</button>
+          {legal.ends.map((value) => <button key={value} type="button" aria-pressed={end === value} onClick={() => setEnd(value)} className={`game-choice capitalize ${end === value ? 'border-game-blue bg-game-blue text-game-bg' : 'text-game-text'}`}>{value}</button>)}
+          <button type="button" aria-pressed={flip} onClick={() => setFlip((value) => !value)} className={`game-choice ${flip ? 'border-game-blue bg-game-blue text-game-bg' : 'text-game-text'}`}>Flip</button>
         </div>
       )}
       <div className="mt-5 flex justify-center gap-3"><Button disabled={disabled || !selected || !legal?.ends.includes(end)} onClick={play}>Play domino</Button><Button variant="secondary" disabled={disabled || !view.canDraw} onClick={() => onAction({ type: 'draw_domino' })}>Draw</Button></div>

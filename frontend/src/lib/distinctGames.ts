@@ -257,11 +257,11 @@ export const DISTINCT_GAME_UI: Record<DistinctGameKey, DistinctGameUiDefinition>
   bluff: {
     name: 'Bluff',
     eyebrow: 'I DOUBT IT',
-    headline: 'The rank is fixed. The truth is optional.',
-    description: 'Commit one to four cards face down, survive the challenge window, and shed the final claim honestly enough.',
+    headline: 'Choose the rank. Keep them guessing.',
+    description: 'Play one to four cards face down, keep the round’s rank, or pass. Call a bluff to check only the latest play.',
     accent: '#e68aa6',
     surface: '#33212a',
-    prompt: 'Make, accept, or challenge the claim',
+    prompt: 'Play the round’s rank, pass, or call a bluff',
   },
   sevens: {
     name: 'Sevens',

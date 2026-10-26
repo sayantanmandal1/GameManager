@@ -7,6 +7,7 @@ import confetti from 'canvas-confetti';
 import { BingoBoard } from '@/components/bingo/BingoBoard';
 import { NumberDisplay } from '@/components/bingo/NumberDisplay';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import { VoiceChat } from '@/components/voice/VoiceChat';
 import { GameChat } from '@/components/chat/GameChat';
 import { RematchButton } from '@/components/lobby/RematchButton';
@@ -105,12 +106,12 @@ function BingoPlayContent() {
     : undefined;
 
   return (
-    <main className="min-h-screen bg-[#0e1c26] p-4 md:p-8">
+    <main className="tabletop-scene min-h-screen p-4 md:p-8">
       <div className="mx-auto max-w-6xl">
 
         {/* ──────── SETUP PHASE ──────── */}
         {isSetupPhase && (
-          <div className="mx-auto max-w-2xl rounded-lg border border-game-blue/20 bg-[#142838] p-5 text-center shadow-2xl shadow-black/20 sm:p-8">
+          <div className="premium-panel mx-auto max-w-2xl p-5 text-center sm:p-8">
             <motion.h1
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -186,23 +187,11 @@ function BingoPlayContent() {
 
         {/* ──────── WINNER OVERLAY ──────── */}
         {result && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-          >
-            <motion.div
-              initial={{ y: 50, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-              className="max-w-sm rounded-lg border border-white/12 bg-[#172c3b] p-8 text-center"
-            >
+          <Modal isOpen onClose={handleBackToLobby} title={result.winnerId === user?.id ? 'YOU WON!' : 'Game Over'} dismissible={false}>
+            <div className="text-center">
               <div className="text-6xl mb-4">
                 {result.winnerId === user?.id ? '🏆' : '😢'}
               </div>
-              <h2 className="text-3xl font-black text-white mb-2">
-                {result.winnerId === user?.id ? 'YOU WON!' : 'Game Over'}
-              </h2>
               <p className="text-lg text-white/40 mb-1">
                 <span className="text-white font-bold">{result.winnerName}</span> completed BINGO!
               </p>
@@ -211,14 +200,14 @@ function BingoPlayContent() {
                   ? 'Amazing strategy! You outsmarted your opponent.'
                   : 'Better luck next time — every loss is a lesson.'}
               </p>
-              <div className="flex gap-3 justify-center">
+              <div className="flex flex-wrap justify-center gap-3">
                 <RematchButton lobbyCode={lobbyCode} />
                 <Button onClick={handleBackToLobby}>
                   🔄 Back to Lobby
                 </Button>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </Modal>
         )}
       </div>
     </main>

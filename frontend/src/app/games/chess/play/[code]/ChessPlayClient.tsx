@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import { RematchButton } from '@/components/lobby/RematchButton';
 import { Card } from '@/components/ui/Card';
 import { VoiceChat } from '@/components/voice/VoiceChat';
@@ -172,7 +172,7 @@ export default function ChessPlayClient({ code }: ChessPlayClientProps) {
   const lastTickAt = clocks?.lastTickAt ?? Date.now();
 
   return (
-    <main className="min-h-screen bg-[#161813] p-3 sm:p-4 md:p-6">
+    <main className="tabletop-scene min-h-screen p-3 sm:p-4 md:p-6">
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-5 lg:grid-cols-12">
         {/* Board column */}
         <div className="flex flex-col items-center gap-3 lg:col-span-8">
@@ -253,23 +253,9 @@ export default function ChessPlayClient({ code }: ChessPlayClientProps) {
         onCancel={handleCancelPromotion}
       />
 
-      <AnimatePresence>
         {result && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="chess-gameover-title"
-          >
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-              className="mx-4 max-w-md rounded-lg border border-white/12 bg-[#25271f] p-8 text-center"
-            >
+          <Modal isOpen onClose={handleBackToLobby} title={result.result === '1/2-1/2' ? chessStrings.gameOver.draw : role === 'spectator' ? chessStrings.gameOver.spectatorEnded : result.winnerId === user?.id ? chessStrings.gameOver.win : chessStrings.gameOver.loss} dismissible={false}>
+            <div className="text-center">
               <div className="text-6xl mb-4">
                 {result.result === '1/2-1/2'
                   ? '🤝'
@@ -277,28 +263,18 @@ export default function ChessPlayClient({ code }: ChessPlayClientProps) {
                   ? '🎮'
                   : (result.winnerId === user?.id ? '🏆' : '🪦')}
               </div>
-              <h2 id="chess-gameover-title" className="text-3xl font-black text-white mb-2">
-                {result.result === '1/2-1/2'
-                  ? chessStrings.gameOver.draw
-                  : role === 'spectator'
-                  ? chessStrings.gameOver.spectatorEnded
-                  : result.winnerId === user?.id
-                  ? chessStrings.gameOver.win
-                  : chessStrings.gameOver.loss}
-              </h2>
               <p className="text-white/60 mb-4">
                 {chessStrings.gameOver.termination[result.termination]}
               </p>
-              <div className="flex justify-center gap-3">
+              <div className="flex flex-wrap justify-center gap-3">
                 {role !== 'spectator' && <RematchButton lobbyCode={code} />}
                 <Button onClick={handleBackToLobby}>
                   {chessStrings.gameOver.returnToLobby}
                 </Button>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </Modal>
         )}
-      </AnimatePresence>
     </main>
   );
 }

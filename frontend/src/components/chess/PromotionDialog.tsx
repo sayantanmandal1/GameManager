@@ -67,10 +67,10 @@ export function PromotionDialog({ open, color, onPick, onCancel }: PromotionDial
       data-testid="promotion-dialog"
       data-color={color ?? ''}
       onKeyDown={handleKeyDown}
-      className="rounded-xl p-4 bg-stone-900 text-white border border-white/10 backdrop:bg-black/60"
+      className="premium-panel max-w-[calc(100vw-2rem)] p-6 text-game-text backdrop:bg-black/65 backdrop:backdrop-blur-md"
     >
       <h2 className="text-sm font-semibold mb-3">{chessStrings.promotion.title}</h2>
-      <div className="flex gap-2" role="group" aria-label={chessStrings.promotion.title}>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" role="group" aria-label={chessStrings.promotion.title}>
         {PIECES.map((p) => (
           <button
             key={p.key}
@@ -78,7 +78,7 @@ export function PromotionDialog({ open, color, onPick, onCancel }: PromotionDial
             ref={p.key === 'q' ? queenRef : undefined}
             onClick={() => onPick(p.key)}
             aria-label={p.label}
-            className="px-4 py-3 rounded-lg bg-white/[0.06] hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-amber-400"
+            className="min-h-11 rounded-xl border border-white/10 bg-white/5 px-4 py-3 transition-colors hover:bg-white/10 active:bg-white/15"
           >
             {p.label}
           </button>

@@ -20,7 +20,7 @@ export function BourreRenderer({ view, disabled, onAction }: Props) {
 
   return (
     <div className="w-full max-w-[56rem]">
-      <div className="grid grid-cols-3 border-y border-white/12 text-center">
+      <div className="grid grid-cols-3 divide-x divide-white/10 rounded-2xl bg-white/[0.035] text-center">
         <Stat label="Hand" value={String(view.handNumber)} />
         <Stat label="Pot" value={String(view.pot)} />
         <Stat label="Trump" value={view.trumpSuit.toUpperCase()} />
@@ -31,7 +31,7 @@ export function BourreRenderer({ view, disabled, onAction }: Props) {
       </div>
       <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {view.players.map((player) => (
-          <div key={player.id} className="border-b border-white/12 px-2 py-2">
+          <div key={player.id} className="rounded-xl border border-white/10 px-3 py-3">
             <p className="font-bold">{player.name}{player.id === view.youId ? ' (you)' : ''}</p>
             <p className="text-xs text-white/50">{player.score} pts · {player.tricksWon} tricks · {player.decision}</p>
           </div>
@@ -73,5 +73,5 @@ export function BourreRenderer({ view, disabled, onAction }: Props) {
 }
 
 function Stat({ label, value }: Readonly<{ label: string; value: string }>) {
-  return <div className="px-2 py-3"><p className="text-xs uppercase text-white/40">{label}</p><p className="mt-1 font-black">{value}</p></div>;
+  return <div className="px-2 py-3"><p className="eyebrow">{label}</p><p className="mt-1 font-semibold">{value}</p></div>;
 }

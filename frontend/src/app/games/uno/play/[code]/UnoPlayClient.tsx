@@ -11,6 +11,8 @@ import { useCompactLayout } from '@/hooks/useCompactLayout';
 import { getSocket } from '@/lib/socket';
 import { GameChat } from '@/components/chat/GameChat';
 import { VoiceChat } from '@/components/voice/VoiceChat';
+import { Modal } from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
 import {
   LOBBY_EVENTS,
   UnoPhase,
@@ -392,7 +394,7 @@ export default function UnoPlayClient({ code }: Props) {
 
       {/* Colour picker */}
       <ColorPicker
-        open={wildCardId !== null || view.canChooseOpeningColor || view.canChooseRouletteColor}
+        open={!confirmQuit && (wildCardId !== null || view.canChooseOpeningColor || view.canChooseRouletteColor)}
         side={view.side}
         onPick={view.canChooseOpeningColor
           ? chooseOpeningColor
@@ -410,12 +412,7 @@ export default function UnoPlayClient({ code }: Props) {
       />
 
       {/* Seven-0 swap target picker */}
-      <AnimatePresence>
-        {view.awaitingSevenTarget && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="relative rounded-lg border border-white/10 bg-[#111] p-6 shadow-2xl">
-              <h3 className="mb-4 text-center text-lg font-bold text-white">{S.hud.chooseSwap}</h3>
+      <Modal isOpen={view.awaitingSevenTarget} onClose={handleBackToLobby} title={S.hud.chooseSwap} dismissible={false}>
               <div className="flex flex-col gap-2">
                 {swapTargets.map((p) => (
                   <button
@@ -428,38 +425,28 @@ export default function UnoPlayClient({ code }: Props) {
                   </button>
                 ))}
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      </Modal>
 
       {/* Surrender confirm */}
-      <AnimatePresence>
-        {confirmQuit && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setConfirmQuit(false)} />
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="relative w-full max-w-sm rounded-lg border border-white/10 bg-[#111] p-6 text-center shadow-2xl">
+      <Modal isOpen={confirmQuit} onClose={() => setConfirmQuit(false)} title={S.hud.surrenderTitle}>
+            <div className="text-center">
               <div className="mb-2 text-4xl">🏳️</div>
-              <h3 className="text-lg font-bold text-white">{S.hud.surrenderTitle}</h3>
               <p className="mt-1 text-sm text-white/60">{S.hud.surrenderBody}</p>
               <div className="mt-5 flex justify-center gap-3">
-                <button onClick={() => setConfirmQuit(false)} className="rounded-full border border-white/15 px-5 py-2 text-sm font-semibold text-white hover:bg-white/5">
+                <Button variant="secondary" onClick={() => setConfirmQuit(false)}>
                   {S.hud.surrenderNo}
-                </button>
-                <button
+                </Button>
+                <Button variant="danger"
                   onClick={() => {
                     surrender();
                     setConfirmQuit(false);
                   }}
-                  className="rounded-full bg-red-500 px-5 py-2 text-sm font-bold text-white hover:bg-red-400"
                 >
                   {S.hud.surrenderYes}
-                </button>
+                </Button>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </div>
+      </Modal>
 
       {/* Scoreboards */}
       {matchResult && (

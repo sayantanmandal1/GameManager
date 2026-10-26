@@ -32,8 +32,8 @@ export function LiarsDiceRenderer({ view, disabled, onAction }: Props) {
       </div>
       {view.canAct && (
         <div className="mx-auto mt-7 grid max-w-lg grid-cols-2 gap-3">
-          <label className="text-sm text-white/60">Quantity<input type="number" min={1} max={view.totalDice} value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} className="mt-1 min-h-11 w-full border border-white/15 bg-black/25 px-3 text-white" /></label>
-          <label className="text-sm text-white/60">Face<select value={face} onChange={(event) => setFace(Number(event.target.value))} className="mt-1 min-h-11 w-full border border-white/15 bg-black/25 px-3 text-white">{[1, 2, 3, 4, 5, 6].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+          <label className="text-sm text-game-muted">Quantity<input type="number" min={1} max={view.totalDice} value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} className="game-field mt-1" /></label>
+          <label className="text-sm text-game-muted">Face<select value={face} onChange={(event) => setFace(Number(event.target.value))} className="game-field mt-1">{[1, 2, 3, 4, 5, 6].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
           <Button disabled={disabled || !bidValid} onClick={() => onAction({ type: 'bid', quantity, face })}>Raise bid</Button>
           <Button variant="danger" disabled={disabled || !view.currentBid} onClick={() => onAction({ type: 'challenge' })}>Challenge</Button>
         </div>

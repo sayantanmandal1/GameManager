@@ -33,7 +33,8 @@ describe('ColorPicker', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'Choose the opening color' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Close color picker' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Close dialog' })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Choose the opening color' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Surrender match' }));
     expect(onSurrender).toHaveBeenCalledTimes(1);
   });

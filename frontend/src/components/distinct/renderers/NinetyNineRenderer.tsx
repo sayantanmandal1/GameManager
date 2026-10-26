@@ -12,8 +12,8 @@ export function NinetyNineRenderer({ view, disabled, onAction }: Props) {
   const legalValues = new Map(view.legalPlays.map((entry) => [entry.cardId, entry.values]));
   return (
     <div className="w-full max-w-[52rem]">
-      <div className="border-y border-white/12 py-5 text-center">
-        <p className="text-xs font-bold uppercase text-white/45">Running total</p>
+      <div className="rounded-2xl bg-white/[0.035] py-5 text-center">
+        <p className="eyebrow">Running total</p>
         <p className="mt-1 text-6xl font-black tabular-nums">{view.total}</p>
         <p className="mt-2 text-xs text-white/45">Direction {view.direction === 1 ? 'clockwise' : 'counter-clockwise'} · Hand {view.handNumber}</p>
       </div>
@@ -21,7 +21,7 @@ export function NinetyNineRenderer({ view, disabled, onAction }: Props) {
       <div className="mt-7 flex flex-wrap justify-center gap-4" aria-label="Your private hand">
         {view.yourHand.map((card) => {
           const values = legalValues.get(card.id) ?? [];
-          return <div key={card.id} className="text-center"><CardFace card={card} /><div className="mt-2 flex min-h-9 justify-center gap-1">{values.map((value) => <button key={value} type="button" disabled={disabled || !view.canAct} onClick={() => onAction({ type: 'play_ninety_nine', cardId: card.id, chosenValue: value })} className="min-h-9 min-w-10 border border-white/15 bg-black/20 px-2 text-xs font-bold hover:border-white/40 disabled:opacity-30">{labelValue(card.rank, value)}</button>)}</div></div>;
+          return <div key={card.id} className="text-center"><CardFace card={card} /><div className="mt-2 flex min-h-11 justify-center gap-1">{values.map((value) => <button key={value} type="button" disabled={disabled || !view.canAct} onClick={() => onAction({ type: 'play_ninety_nine', cardId: card.id, chosenValue: value })} className="game-choice min-w-11 px-2 text-xs hover:border-white/40 disabled:opacity-30">{labelValue(card.rank, value)}</button>)}</div></div>;
         })}
       </div>
       {view.mustConcede && <div className="mt-4 text-center"><Button variant="danger" disabled={disabled} onClick={() => onAction({ type: 'concede_ninety_nine' })}>Lose a token</Button></div>}

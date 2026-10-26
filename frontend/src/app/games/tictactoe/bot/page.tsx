@@ -66,9 +66,9 @@ function BotGame() {
 
   const humanMustMove = mode === TicTacToeMode.LIMITED && game.board.filter((cell) => cell === 'X').length >= 3;
   return (
-    <main className="min-h-screen bg-[#111a17] px-4 py-6 text-white">
+    <main className="tabletop-scene min-h-screen px-4 py-6 text-game-text">
       <div className="mx-auto flex max-w-3xl flex-col items-center">
-        <div className="mb-6 flex w-full max-w-[34rem] items-center justify-between gap-4">
+        <div className="glass-chrome mb-6 flex w-full max-w-[34rem] items-center justify-between gap-4 rounded-2xl border border-white/10 p-3">
           <button onClick={() => router.push('/games/tictactoe')} className="-ml-2 min-h-11 rounded-md px-2 text-sm font-semibold text-game-muted hover:bg-white/5 hover:text-white">← Modes</button>
           <div className="text-center">
             <p className="text-xs font-bold text-[#d7a7ff]">BOT MATCH</p>
@@ -78,11 +78,11 @@ function BotGame() {
         </div>
 
         <div className="mb-4 grid w-full max-w-[34rem] grid-cols-2 gap-3">
-          <div className={`rounded-lg border p-3 ${game.currentTurnId === 'human' ? 'border-[#ff795f] bg-[#ff795f]/10' : 'border-white/10'}`}>
+          <div className={`rounded-2xl border p-3 ${game.currentTurnId === 'human' ? 'border-[#ff795f] bg-[#ff795f]/10' : 'border-white/10 bg-game-card'}`}>
             <span className="text-2xl font-black text-[#ff795f]">X</span>
             <p className="text-sm font-semibold">You</p>
           </div>
-          <div className={`rounded-lg border p-3 ${game.currentTurnId === 'bot' ? 'border-game-mint bg-game-mint/10' : 'border-white/10'}`}>
+          <div className={`rounded-2xl border p-3 ${game.currentTurnId === 'bot' ? 'border-game-mint bg-game-mint/10' : 'border-white/10 bg-game-card'}`}>
             <span className="text-2xl font-black text-game-mint">O</span>
             <p className="text-sm font-semibold">Bot</p>
           </div>
@@ -114,5 +114,5 @@ function BotGame() {
 }
 
 export default function TicTacToeBotPage() {
-  return <Suspense fallback={<main className="min-h-screen bg-[#111a17]" />}><BotGame /></Suspense>;
+  return <Suspense fallback={<main className="tabletop-scene min-h-screen" />}><BotGame /></Suspense>;
 }

@@ -1521,18 +1521,63 @@ async function verifyDistinctGames(
     },
     {
       gameKey: 'bluff',
+      playerCount: 3,
       expectedMaxPlayers: 8,
-      action: (view) => ({ type: 'bluff_play', cardIds: [view.yourHand[0].id] }),
+      action: (view) => ({ type: 'bluff_play', cardIds: [view.yourHand[0].id], rank: '5' }),
       assertInitial: (alphaView, betaView) => {
-        assert.equal(alphaView.yourHand.length, 26);
-        assert.equal(betaView.yourHand.length, 26);
+        assert.equal(alphaView.yourHand.length, 18);
+        assert.equal(betaView.yourHand.length, 17);
+        assert.equal(alphaView.claimRank, null);
+        const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+        const order = alphaView.yourHand.map((card) => ranks.indexOf(card.rank));
+        assert.deepEqual(order, [...order].sort((a, b) => a - b));
         assert.equal(JSON.stringify(betaView).includes(alphaView.yourHand[0].id), false);
       },
       assertTransition: (view) => {
-        assert.equal(view.phase, 'challenge');
+        assert.equal(view.phase, 'claiming');
         assert.equal(view.pendingClaim.count, 1);
-        assert.equal(view.pendingClaim.rank, 'A');
+        assert.equal(view.pendingClaim.rank, '5');
+        assert.equal(view.canPass, true);
         assert.equal(Object.prototype.hasOwnProperty.call(view.pendingClaim, 'cardIds'), false);
+      },
+      afterTransition: async ({ initialState, lobby, activeClients }) => {
+        const [first, second, third] = activeClients;
+        const send = (client, action, predicate) => emitDistinctActionAndWait(
+          client.socket, client.socket,
+          { gameId: initialState.gameId, lobbyCode: lobby.code, action },
+          (payload) => payload.gameId === initialState.gameId && predicate(payload.view),
+        );
+        await send(second, { type: 'bluff_pass' }, (view) => view.consecutivePasses === 1);
+        await send(third, { type: 'bluff_pass' }, (view) => view.consecutivePasses === 2);
+        const firstView = (await requestGameState(first.socket, lobby.code, 'distinct:state')).view;
+        const repeated = await send(first, {
+          type: 'bluff_play', rank: '5', cardIds: [firstView.yourHand[0].id],
+        }, (view) => view.pileCount === 2);
+        assert.equal(repeated.view.consecutivePasses, 0);
+        await send(second, { type: 'bluff_pass' }, (view) => view.consecutivePasses === 1);
+        await send(third, { type: 'bluff_pass' }, (view) => view.consecutivePasses === 2);
+        const cleared = await send(first, { type: 'bluff_pass' }, (view) => view.discardedCount === 2);
+        assert.equal(cleared.view.pileCount, 0);
+        assert.equal(cleared.view.claimRank, null);
+        assert.equal(cleared.view.currentTurnId, second.user.id);
+        const secondView = (await requestGameState(second.socket, lobby.code, 'distinct:state')).view;
+        await send(second, {
+          type: 'bluff_play', rank: 'Q', cardIds: [secondView.yourHand[0].id],
+        }, (view) => view.pileCount === 1);
+        const thirdView = (await requestGameState(third.socket, lobby.code, 'distinct:state')).view;
+        const lie = thirdView.yourHand.find((card) => card.rank !== 'Q');
+        assert(lie);
+        await send(third, {
+          type: 'bluff_play', rank: 'Q', cardIds: [lie.id],
+        }, (view) => view.pileCount === 2);
+        const caught = await send(first, { type: 'bluff_challenge' }, (view) => !!view.lastReveal);
+        assert.deepEqual(caught.view.lastReveal.cards, [lie]);
+        assert.equal(caught.view.lastReveal.collectorId, third.user.id);
+        assert.equal(caught.view.lastReveal.truthful, false);
+        assert.equal(caught.view.currentTurnId, first.user.id);
+        assert.equal(caught.view.claimRank, null);
+        assert.equal(caught.view.discardedCount, 2);
+        assert.equal(caught.view.players.find((player) => player.id === third.user.id).handCount, thirdView.yourHand.length + 1);
       },
     },
     {

@@ -12,6 +12,8 @@ The website and native app share a graphite-and-pearl visual system with restrai
 - Native design tokens: `mobileapp/src/theme.ts`.
 - Motion respects the system reduced-motion preference. Web chrome also supports reduced transparency and increased contrast.
 - Shared dialogs support Escape, focus containment/restoration, and keyboard-accessible dismissal.
+- Gameplay chrome uses the same surface hierarchy across the 38 distinct-game tables, legacy online games, and offline/bot modes. Felt, wood, neon boards, suit colors, and the light Photobooth workspace intentionally retain their identities.
+- Mandatory game decisions and completion dialogs trap keyboard focus without offering an invalid dismissal. Cancellable dialogs retain Escape, backdrop dismissal, and focus restoration.
 - No runtime design-skill dependency or externally downloaded fonts are required.
 
 ## Supported Games
@@ -53,7 +55,7 @@ The website and native app share a graphite-and-pearl visual system with restrai
 | Memory Match | 2–4 | One 24-tile field, extra turns on matches, visible mismatch acknowledgment, and pair scoring. |
 | Contract Bridge | 4 | Rubber, Duplicate, and custom Home scoring with complete auction, dummy control, trick play, session scoring, and chosen partnerships. |
 | Bourré | 2–7 | Strict Louisiana obligations, dealer decisions, redraws, cinch play, split pots, and bourré matching. |
-| Bluff | 2–8 | Face-down claims, forced rank sequence, challenges, pile collection, and private card identities. |
+| Bluff | 2–8 | Chosen-rank rounds, turn-by-turn passing, latest-play challenges, pile collection, and sorted private hands. |
 | Sevens | 3–8 | Mandatory seven-of-hearts opening, adjacent suit building, forced passes, and cumulative rounds. |
 | Ninety-Nine | 2–8 | Three-card hands, standard special-rank values, token loss, elimination, and automatic redraws. |
 | Euchre | 4 | Two-round trump auction, bowers, lone hands, dealer discard, selected partnerships, and play to ten. |
@@ -66,6 +68,15 @@ The website and native app share a graphite-and-pearl visual system with restrai
 | Wrongway | 2 | Neon 9×9 pawn race with straight jumps, blocked-jump diagonals, ten walls each, and guaranteed open routes. |
 
 The library contains **46 implemented games**: the original eight plus 38 separately registered multiplayer rules engines. Global six-digit room joining works across the library, and every multiplayer completion screen offers unanimous in-room rematch without repeating lobby ready/start steps. Bridge, Hearts, Spades, Euchre, and Whist use one responsive felt table with three hidden opponent hands and the local hand face-up. Bridge, Spades, Euchre, and Whist require players to choose balanced two-versus-two partnerships in the lobby before the host can start.
+
+### Bluff table rules
+
+- This table uses a chosen-rank, passing house variant, not the forced A-to-K sequence. The opening player chooses any rank and plays one to four cards face down. The actual cards need not match.
+- Later players may play one to four cards claiming that same rank or pass. A pass skips only one turn; every new play resets the consecutive-pass count. The last claimant can play again when the turn returns.
+- Any other player can challenge the latest claim until another play or pile clearance. Only the latest cards are checked. A lying claimant takes the whole table pile; otherwise the challenger does. The challenge winner starts a fresh round with any rank.
+- A full circle of consecutive passes, including the latest claimant, removes the table pile from play. The player after the latest claimant starts the next round.
+- Playing the last cards opens a final challenge window. Every opponent gets a turn to let the claim stand; a truthful challenged final claim wins, but a caught bluff takes the pile and play continues.
+- Private hands are sorted by rank (A, 2 through K), then suit. Cleared cards never return to a later challenge pile.
 
 ### Bridge Home Rules
 

@@ -35,7 +35,7 @@ export function YachtRenderer({ view, disabled, onAction }: Props) {
           {YACHT_CATEGORIES.map((category) => {
             const used = yourCard?.[category];
             const possible = view.possibleScores[category];
-            return <button key={category} type="button" disabled={disabled || !view.canAct || possible === undefined || used !== null} onClick={() => onAction({ type: 'score_category', category })} className="min-h-14 border border-white/12 bg-white/5 px-2 py-2 text-left disabled:opacity-50"><span className="block text-xs font-bold text-white/60">{LABELS[category]}</span><span className="text-xl font-black text-white">{used ?? possible ?? '-'}</span></button>;
+            return <button key={category} type="button" disabled={disabled || !view.canAct || possible === undefined || used !== null} onClick={() => onAction({ type: 'score_category', category })} className="min-h-14 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-3 text-left transition-colors enabled:hover:bg-white/10 disabled:opacity-50"><span className="block text-xs font-medium text-game-muted">{LABELS[category]}</span><span className="text-xl font-semibold text-white">{used ?? possible ?? '-'}</span></button>;
           })}
         </div>
       </section>

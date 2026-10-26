@@ -1,6 +1,7 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { Modal } from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
 import type { UnoPlayerPublic, UnoRoundResult } from '@/shared';
 import { unoStrings as S } from './strings';
 import { RematchButton } from '@/components/lobby/RematchButton';
@@ -28,18 +29,10 @@ export function Scoreboard({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
-      <motion.div
-        initial={{ scale: 0.9, y: 24, opacity: 0 }}
-        animate={{ scale: 1, y: 0, opacity: 1 }}
-        className="relative w-full max-w-sm rounded-3xl border border-white/10 bg-[#121212] p-6 text-center shadow-2xl"
-      >
+    <Modal isOpen onClose={onBackToLobby} title={isMatch ? S.over.matchTitle : S.over.roundTitle} dismissible={false}>
+      <div className="text-center">
         <div className="mb-1 text-5xl">{isMatch ? '🏆' : '🎉'}</div>
-        <h2 className="text-xl font-black text-white">
-          {isMatch ? S.over.matchTitle : S.over.roundTitle}
-        </h2>
-        <p className="mt-1 text-sm text-white/60">
+        <p className="mt-3 text-sm text-game-muted">
           {isMatch
             ? result.reason === 'lastStanding'
               ? S.over.lastStanding(nameOf(result.roundWinnerId))
@@ -67,29 +60,27 @@ export function Scoreboard({
         </div>
 
         {isMatch ? (
-          <div className="mt-6 flex justify-center gap-3">
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
             <RematchButton lobbyCode={lobbyCode} />
             {onPlayAgain && (
-              <button
+              <Button
                 onClick={onPlayAgain}
-                className="rounded-full bg-white px-5 py-2 text-sm font-bold text-black hover:bg-white/90"
               >
                 {S.over.playAgain}
-              </button>
+              </Button>
             )}
-            <button
+            <Button variant="secondary"
               onClick={onBackToLobby}
-              className="rounded-full border border-white/15 px-5 py-2 text-sm font-semibold text-white hover:bg-white/5"
             >
               {S.over.backToLobby}
-            </button>
+            </Button>
           </div>
         ) : (
           <p className="mt-6 animate-pulse text-xs font-semibold uppercase tracking-widest text-white/40">
             {S.over.nextRound}
           </p>
         )}
-      </motion.div>
-    </div>
+      </div>
+    </Modal>
   );
 }

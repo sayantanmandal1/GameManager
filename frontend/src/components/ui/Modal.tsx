@@ -9,10 +9,11 @@ interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title?: string;
+  dismissible?: boolean;
   children: React.ReactNode;
 }
 
-export function Modal({ isOpen, onClose, title, children }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, dismissible = true }: ModalProps) {
   const titleId = useId();
   const panel = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
@@ -30,7 +31,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
       (panel.current?.querySelector<HTMLElement>('[autofocus]') ?? focusable()[0] ?? panel.current)?.focus();
     }
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && dismissible) {
         event.preventDefault();
         close.current();
       }
@@ -55,7 +56,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
       document.removeEventListener('keydown', handleKey);
       if (previousFocus instanceof HTMLElement) previousFocus.focus();
     };
-  }, [isOpen]);
+  }, [isOpen, dismissible]);
 
   if (typeof document === 'undefined') return null;
 
@@ -74,7 +75,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
             exit={{ opacity: 0 }}
             aria-hidden="true"
             className="absolute inset-0 bg-black/65 backdrop-blur-md"
-            onClick={onClose}
+            onClick={dismissible ? onClose : undefined}
           />
 
           <motion.div
@@ -87,11 +88,11 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
             initial={{ opacity: 0, scale: 0.97, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: 12 }}
-            className="premium-panel relative max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto p-6 pt-16 shadow-2xl sm:p-8 sm:pt-16"
+            className={`premium-panel relative max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto p-6 shadow-2xl sm:p-8 ${dismissible ? 'pt-16 sm:pt-16' : ''}`}
           >
-            <button type="button" onClick={onClose} aria-label="Close dialog" className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-white/5 text-game-muted transition-colors hover:bg-white/10 hover:text-white">
+            {dismissible && <button type="button" onClick={onClose} aria-label="Close dialog" className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-white/5 text-game-muted transition-colors hover:bg-white/10 hover:text-white">
               <X className="h-5 w-5" aria-hidden="true" />
-            </button>
+            </button>}
             {title && (
               <h2 id={titleId} className="mb-6 text-2xl font-semibold text-white">{title}</h2>
             )}

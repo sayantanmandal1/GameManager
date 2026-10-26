@@ -2,13 +2,14 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { LudoBoard } from '@/components/ludo/LudoBoard';
 import { LudoDice } from '@/components/ludo/LudoDice';
 import { LudoPlayerPanel } from '@/components/ludo/LudoPlayerPanel';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { Modal } from '@/components/ui/Modal';
 import {
   playDiceRoll,
   playTokenMove,
@@ -252,7 +253,7 @@ export default function OfflineLudoPage() {
   // Setup screen — must be AFTER all hooks
   if (!config) {
     return (
-      <main className="min-h-screen flex items-center justify-center p-6">
+      <main className="tabletop-scene flex min-h-screen items-center justify-center p-6">
         <div className="max-w-md w-full">
           <button
             onClick={() => router.push('/games/ludo')}
@@ -261,7 +262,7 @@ export default function OfflineLudoPage() {
             ← Back
           </button>
           <h1 className="text-3xl font-black text-white mb-2 text-center">🎲 Offline Ludo</h1>
-          <p className="text-white/40 text-center mb-8">
+          <p className="mb-8 text-center text-game-muted">
             Play against AI bots
           </p>
 
@@ -281,7 +282,7 @@ export default function OfflineLudoPage() {
                 <h3 className="font-bold text-white text-lg mb-1">
                   {count} Players
                 </h3>
-                <p className="text-sm text-white/40">
+                <p className="text-sm text-game-muted">
                   You + {count - 1} Bot{count > 2 ? 's' : ''}
                 </p>
               </Card>
@@ -306,10 +307,10 @@ export default function OfflineLudoPage() {
   const isFinished = view.phase === LudoGamePhase.FINISHED;
 
   return (
-    <main className="min-h-screen p-4 md:p-6">
+    <main className="tabletop-scene min-h-screen p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="glass-chrome mb-4 flex items-center justify-between rounded-2xl border border-white/10 p-3">
           <button
             onClick={() => router.push('/games/ludo')}
             className="-ml-2 inline-flex min-h-11 items-center rounded-md px-2 text-sm text-white/60 transition-colors hover:bg-white/5 hover:text-white"
@@ -395,67 +396,36 @@ export default function OfflineLudoPage() {
       </div>
 
       {/* Leave confirmation modal */}
-      <AnimatePresence>
-        {showLeaveConfirm && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center"
-          >
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              className="bg-white/[0.06] backdrop-blur-2xl border border-white/[0.1] rounded-2xl p-6 text-center max-w-sm mx-4 shadow-2xl"
-            >
+      <Modal isOpen={showLeaveConfirm} onClose={() => setShowLeaveConfirm(false)} title="Leave Game?">
+            <div className="text-center">
               <div className="text-4xl mb-3">⚠️</div>
-              <h3 className="text-xl font-bold text-white mb-2">Leave Game?</h3>
-              <p className="text-white/40 text-sm mb-5">
+              <p className="mb-5 text-sm text-game-muted">
                 Leaving will end the current game. Your progress will be lost.
               </p>
               <div className="flex gap-3 justify-center">
                 <Button
-                  className="bg-white/[0.05] border border-white/[0.08] text-white/50 hover:text-white"
+                  variant="secondary"
                   onClick={() => setShowLeaveConfirm(false)}
                 >
                   Cancel
                 </Button>
                 <Button
-                  className="bg-white hover:bg-white/90 text-black"
+                  variant="danger"
                   onClick={handleSurrenderAndLeave}
                 >
                   Leave Game
                 </Button>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </div>
+      </Modal>
 
       {/* Winner overlay */}
-      <AnimatePresence>
         {isFinished && winner && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center"
-          >
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-              className="bg-white/[0.06] backdrop-blur-2xl border border-white/[0.1] rounded-2xl p-8 text-center max-w-md mx-4 shadow-2xl"
-            >
+          <Modal isOpen onClose={handleNewGame} title={winner === humanId ? 'You Win!' : `${state.players[winner]?.username} Wins!`} dismissible={false}>
+            <div className="text-center">
               <div className="text-6xl mb-4">
                 {winner === humanId ? '🏆' : '🎮'}
               </div>
-              <h2 className="text-3xl font-black text-white mb-2">
-                {winner === humanId
-                  ? 'You Win!'
-                  : `${state.players[winner]?.username} Wins!`}
-              </h2>
 
               <div className="mt-4 space-y-1">
                 {view.rankings.map((pid, idx) => (
@@ -477,10 +447,9 @@ export default function OfflineLudoPage() {
                   Back
                 </Button>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </Modal>
         )}
-      </AnimatePresence>
     </main>
   );
 }

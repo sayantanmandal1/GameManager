@@ -39,17 +39,18 @@ describe('first card batch renderers', () => {
       gameKey: 'bluff', players: players.map((player) => ({ ...player, handCount: 2 })),
       youId: 'a', yourHand: [aceHearts, kingClubs], pileCount: 0, currentTurnId: 'a', claimRank: 'A',
       pendingClaim: null, lastReveal: null, phase: 'claiming', winnerId: null,
-      canAct: true, canClaim: true, canAccept: false, canChallenge: false,
+      consecutivePasses: 0, discardedCount: 0,
+      canAct: true, canClaim: true, canPass: false, canAccept: false, canChallenge: false,
     };
     const { rerender } = render(<BluffRenderer view={base} disabled={false} onAction={claim} />);
     fireEvent.click(screen.getByRole('button', { name: 'A of hearts' }));
     fireEvent.click(screen.getByRole('button', { name: 'K of clubs' }));
     fireEvent.click(screen.getByRole('button', { name: 'Claim 2 × A' }));
-    expect(claim).toHaveBeenCalledWith({ type: 'bluff_play', cardIds: [aceHearts.id, kingClubs.id] });
+    expect(claim).toHaveBeenCalledWith({ type: 'bluff_play', cardIds: [aceHearts.id, kingClubs.id], rank: 'A' });
 
     const challenge = jest.fn();
     rerender(<BluffRenderer view={{ ...base, phase: 'challenge', canClaim: false, canChallenge: true, pendingClaim: { playerId: 'b', count: 2, rank: 'A' } }} disabled={false} onAction={challenge} />);
-    fireEvent.click(screen.getByRole('button', { name: 'I doubt it' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Call bluff' }));
     expect(challenge).toHaveBeenCalledWith({ type: 'bluff_challenge' });
   });
 

@@ -6,6 +6,7 @@ import { ConnectFourBoard } from '@/components/connectfour/ConnectFourBoard';
 import { GameChat } from '@/components/chat/GameChat';
 import { VoiceChat } from '@/components/voice/VoiceChat';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import { PlayerName } from '@/components/ui/PlayerName';
 import { RematchButton } from '@/components/lobby/RematchButton';
 import { useAuthStore } from '@/stores/authStore';
@@ -57,17 +58,17 @@ export default function ConnectFourPlayClient({ code }: { code: string }) {
   const finished = view.phase === ConnectFourPhase.FINISHED || !!result;
 
   return (
-    <main className="min-h-screen bg-[#111923] px-4 py-4 text-white sm:px-6">
+    <main className="tabletop-scene min-h-screen px-4 py-4 text-game-text sm:px-6">
       <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <section className="flex min-w-0 flex-col items-center">
-          <div className="mb-4 flex w-full max-w-[43rem] items-center justify-between gap-3">
+          <div className="glass-chrome mb-4 flex w-full max-w-[43rem] items-center justify-between gap-3 rounded-2xl border border-white/10 p-3">
             <button onClick={backToLobby} className="-ml-2 min-h-11 rounded-md px-2 text-sm font-semibold text-game-muted hover:bg-white/5 hover:text-white">← Lobby</button>
             <div className="text-center"><p className="text-xs font-bold text-game-sun">CONNECT FOUR</p><p className="text-sm text-game-muted">Room {code}</p></div>
             <Button variant="ghost" size="sm" onClick={() => setConfirmSurrender(true)}>Resign</Button>
           </div>
           <div className="mb-3 grid w-full max-w-[43rem] grid-cols-2 gap-3">
             {view.players.map((player) => (
-              <div key={player.id} className={`flex items-center gap-3 rounded-lg border p-3 ${player.id === view.currentTurnId && !finished ? 'border-white/35 bg-white/5' : 'border-white/10'}`}>
+              <div key={player.id} className={`flex items-center gap-3 rounded-2xl border bg-game-card p-3 ${player.id === view.currentTurnId && !finished ? 'border-game-blue/40' : 'border-white/10'}`}>
                 <span className={`h-7 w-7 rounded-full ${player.disc === 'red' ? 'bg-[#f35f4a]' : 'bg-game-sun'}`} />
                 <PlayerName name={player.name} isYou={player.id === view.youId} className="text-sm font-semibold" />
               </div>
@@ -90,15 +91,10 @@ export default function ConnectFourPlayClient({ code }: { code: string }) {
         <aside className="space-y-4"><VoiceChat roomId={code} /><GameChat lobbyCode={code} /></aside>
       </div>
 
-      {confirmSurrender && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-          <div className="w-full max-w-sm rounded-lg border border-white/12 bg-[#1c1f1b] p-6 text-center">
-            <h2 className="text-xl font-bold">Resign this match?</h2>
+      <Modal isOpen={confirmSurrender} onClose={() => setConfirmSurrender(false)} title="Resign this match?">
             <p className="mt-2 text-sm text-game-muted">Your opponent will be awarded the win.</p>
             <div className="mt-5 flex justify-center gap-3"><Button variant="secondary" onClick={() => setConfirmSurrender(false)}>Cancel</Button><Button variant="danger" onClick={() => { surrender(); setConfirmSurrender(false); }}>Resign</Button></div>
-          </div>
-        </div>
-      )}
+      </Modal>
     </main>
   );
 }

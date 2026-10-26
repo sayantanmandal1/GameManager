@@ -85,4 +85,18 @@ describe('Modal Component', () => {
     expect(screen.getByRole('button', { name: 'Open' })).toHaveFocus();
     expect(document.body.style.overflow).toBe(originalOverflow);
   });
+
+  it('keeps mandatory game choices open while preserving keyboard focus', async () => {
+    const user = userEvent.setup();
+    const onClose = jest.fn();
+    render(<Modal isOpen onClose={onClose} title="Choose a color" dismissible={false}><button>Red</button><button>Blue</button></Modal>);
+    expect(screen.queryByRole('button', { name: 'Close dialog' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Red' })).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(onClose).not.toHaveBeenCalled();
+    await user.tab({ shift: true });
+    expect(screen.getByRole('button', { name: 'Blue' })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Red' })).toHaveFocus();
+  });
 });

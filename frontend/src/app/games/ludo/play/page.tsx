@@ -13,6 +13,7 @@ import { RematchButton } from '@/components/lobby/RematchButton';
 import { VoiceChat } from '@/components/voice/VoiceChat';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { Modal } from '@/components/ui/Modal';
 import { useAuthStore } from '@/stores/authStore';
 import { useLudoStore } from '@/stores/ludoStore';
 import { useSocket } from '@/hooks/useSocket';
@@ -186,28 +187,12 @@ function LudoPlayContent() {
       </div>
 
       {/* Winner overlay */}
-      <AnimatePresence>
         {isFinished && result && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center"
-          >
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-              className="mx-4 max-w-md rounded-lg border border-white/12 bg-[#202820] p-8 text-center"
-            >
+          <Modal isOpen onClose={handleBackToLobby} title={result.winnerId === user?.id ? 'You Win!' : `${result.winnerName} Wins!`} dismissible={false}>
+            <div className="text-center">
               <div className="text-6xl mb-4">
                 {result.winnerId === user?.id ? '🏆' : '🎮'}
               </div>
-              <h2 className="text-3xl font-black text-white mb-2">
-                {result.winnerId === user?.id
-                  ? 'You Win!'
-                  : `${result.winnerName} Wins!`}
-              </h2>
 
               {/* Rankings */}
               <div className="mt-4 space-y-1">
@@ -224,14 +209,13 @@ function LudoPlayContent() {
                 ))}
               </div>
 
-              <div className="mt-6 flex justify-center gap-3">
+              <div className="mt-6 flex flex-wrap justify-center gap-3">
                 <RematchButton lobbyCode={lobbyCode} />
                 <Button onClick={handleBackToLobby}>Back to Lobby</Button>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </Modal>
         )}
-      </AnimatePresence>
     </main>
   );
 }

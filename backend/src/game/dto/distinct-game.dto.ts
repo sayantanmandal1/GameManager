@@ -136,7 +136,7 @@ export class DistinctActionPayloadDto {
     'bridge_request_undo', 'bridge_respond_undo', 'bridge_cancel_undo',
     'bridge_surrender_vote', 'next_bridge_deal',
     'bourre_decide', 'play_bourre_card', 'next_bourre_hand',
-    'bluff_play', 'bluff_accept', 'bluff_challenge',
+    'bluff_play', 'bluff_pass', 'bluff_accept', 'bluff_challenge',
     'play_sevens_card', 'pass_sevens', 'next_sevens_round',
     'play_ninety_nine', 'concede_ninety_nine',
     'euchre_call', 'euchre_discard', 'play_euchre_card', 'next_euchre_hand',

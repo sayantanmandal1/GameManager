@@ -1395,13 +1395,15 @@ export interface BourrePlayerView {
 }
 
 export type BluffAction =
-  | { type: 'bluff_play'; cardIds: string[] }
+  | { type: 'bluff_play'; cardIds: string[]; rank: CardRank }
+  | { type: 'bluff_pass' }
   | { type: 'bluff_accept' }
   | { type: 'bluff_challenge' };
 export interface BluffReveal { claimantId: string; challengerId: string; cards: StandardCard[]; truthful: boolean; collectorId: string }
 export interface BluffGameState {
   players: DistinctPlayer[]; hands: Record<string, StandardCard[]>; pile: StandardCard[];
-  currentTurnId: string; claimRank: CardRank; pendingClaim: { playerId: string; cardIds: string[]; count: number } | null;
+  currentTurnId: string; claimRank: CardRank | null; pendingClaim: { playerId: string; cardIds: string[]; count: number } | null;
+  consecutivePasses: number; discardedCount: number;
   lastReveal: BluffReveal | null; phase: 'claiming' | 'challenge' | 'finished';
   winnerId: string | null; isDraw: false; finishReason: 'empty_hand' | 'surrender' | null;
 }
@@ -1409,9 +1411,10 @@ export interface BluffResult { gameKey: 'bluff'; winnerId: string; isDraw: false
 export interface BluffPlayerView {
   gameKey: 'bluff'; players: Array<DistinctPlayer & { handCount: number }>;
   youId: string; yourHand: StandardCard[]; pileCount: number; currentTurnId: string;
-  claimRank: CardRank; pendingClaim: { playerId: string; count: number; rank: CardRank } | null;
+  claimRank: CardRank | null; pendingClaim: { playerId: string; count: number; rank: CardRank } | null;
+  consecutivePasses: number; discardedCount: number;
   lastReveal: BluffReveal | null; phase: BluffGameState['phase']; winnerId: string | null;
-  canAct: boolean; canClaim: boolean; canAccept: boolean; canChallenge: boolean;
+  canAct: boolean; canClaim: boolean; canPass: boolean; canAccept: boolean; canChallenge: boolean;
 }
 
 export type SevensAction =

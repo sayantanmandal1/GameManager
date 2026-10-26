@@ -31,7 +31,7 @@ export function CardFace({
   if (size === 'mini') dimensions = 'h-[4.5rem] w-12';
   else if (size === 'micro') dimensions = 'h-12 w-8';
   else if (size === 'fluid') dimensions = 'aspect-[2/3] w-full';
-  const classes = `group relative flex ${dimensions} shrink-0 overflow-hidden rounded-lg border border-black/15 bg-[#fffdf7] text-left font-black shadow-[0_8px_18px_rgba(0,0,0,0.28)] transition ${red ? 'text-[#c52f3d]' : 'text-[#17231f]'} ${selected ? 'outline outline-4 outline-[#f3cf64]' : ''} disabled:cursor-not-allowed disabled:opacity-45 ${className}`;
+  const classes = `group relative flex ${dimensions} shrink-0 overflow-hidden rounded-xl border border-black/15 bg-[#fffdf7] text-left font-bold shadow-[0_5px_12px_rgba(0,0,0,0.2)] transition-[transform,box-shadow] ${red ? 'text-[#c52f3d]' : 'text-[#17231f]'} ${selected ? 'outline outline-4 outline-game-blue' : ''} disabled:cursor-not-allowed disabled:opacity-45 ${className}`;
   const glyph = SUIT_GLYPHS[card.suit];
   let cornerSize = 'text-sm';
   let centerSize = 'text-4xl';
@@ -66,7 +66,7 @@ export function CardFace({
     </>
     );
   return onClick
-    ? <button type="button" className={`${classes} enabled:hover:-translate-y-2 enabled:hover:shadow-[0_14px_24px_rgba(0,0,0,0.4)]`} disabled={disabled} onClick={onClick} aria-pressed={selected} aria-label={label ?? `${card.rank} of ${card.suit}`}>{content}</button>
+    ? <button type="button" className={`${classes} enabled:hover:-translate-y-1 enabled:active:translate-y-0 enabled:active:shadow-none`} disabled={disabled} onClick={onClick} aria-pressed={selected} aria-label={label ?? `${card.rank} of ${card.suit}`}>{content}</button>
     : <span className={classes} aria-label={label ?? `${card.rank} of ${card.suit}`}>{content}</span>;
 }
 

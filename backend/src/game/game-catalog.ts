@@ -321,7 +321,7 @@ const DISTINCT_PRESENTATION = {
   bluff: {
     name: 'Bluff',
     mark: '!?',
-    description: 'Lay cards face down, follow the rank cycle, and decide when to challenge.',
+    description: 'Choose a rank for the round, play face down or pass, and challenge the latest claim.',
     accent: '#e68aa6',
     surface: '#33212a',
   },

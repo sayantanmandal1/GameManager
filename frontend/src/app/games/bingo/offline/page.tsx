@@ -2,10 +2,10 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { BingoBoard } from '@/components/bingo/BingoBoard';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import type { BingoBoard as BingoBoardType, BingoCell } from '@/shared';
 import { BINGO_BOARD_SIZE, BINGO_TOTAL_NUMBERS } from '@/shared';
 
@@ -150,9 +150,9 @@ export default function OfflineBingoPage() {
   const allNumbers = Array.from({ length: BINGO_TOTAL_NUMBERS }, (_, i) => i + 1);
 
   return (
-    <main className="min-h-screen p-4 md:p-8">
+    <main className="tabletop-scene min-h-screen p-4 md:p-8">
       <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
+        <div className="glass-chrome mb-6 flex items-center justify-between rounded-2xl border border-white/10 p-3">
           <button
             onClick={() => router.push('/games/bingo')}
             className="-ml-2 inline-flex min-h-11 items-center rounded-md px-2 text-sm text-white/60 transition-colors hover:bg-white/5 hover:text-white"
@@ -168,7 +168,7 @@ export default function OfflineBingoPage() {
         {phase === 'setup' && (
           <div className="text-center">
             <h1 className="text-2xl font-black text-white mb-2">Set Up Your Board</h1>
-            <p className="text-white/40 mb-4">
+            <p className="mb-4 text-game-muted">
               Click an empty cell to place{' '}
               <span className="text-white font-bold">{nextPlaceNumber}</span>
             </p>
@@ -222,7 +222,7 @@ export default function OfflineBingoPage() {
               <BingoBoard board={myBoard} disabled label="Your Board" />
 
               {/* Number picker */}
-              <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+              <div className="premium-panel p-4">
                 <h3 className="text-xs text-white/40 uppercase tracking-wider mb-3 text-center">
                   Choose a Number
                 </h3>
@@ -257,16 +257,9 @@ export default function OfflineBingoPage() {
 
         {/* Winner overlay */}
         {winner && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-          >
-            <div className="text-center p-8 bg-white/[0.03] border border-white/[0.06] rounded-2xl max-w-sm">
+          <Modal isOpen onClose={handleNewGame} title={winner === 'you' ? 'YOU WON!' : 'Bot Wins!'} dismissible={false}>
+            <div className="text-center">
               <div className="text-6xl mb-4">{winner === 'you' ? '🏆' : '🤖'}</div>
-              <h2 className="text-3xl font-black text-white mb-2">
-                {winner === 'you' ? 'YOU WON!' : 'Bot Wins!'}
-              </h2>
               <div className="flex gap-3 justify-center mt-6">
                 <Button onClick={handleNewGame}>Play Again</Button>
                 <Button variant="secondary" onClick={() => router.push('/games/bingo')}>
@@ -274,7 +267,7 @@ export default function OfflineBingoPage() {
                 </Button>
               </div>
             </div>
-          </motion.div>
+          </Modal>
         )}
       </div>
     </main>

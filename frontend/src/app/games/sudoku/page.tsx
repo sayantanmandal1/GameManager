@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import { SudokuBoard } from '@/components/sudoku/SudokuBoard';
 import { useSudokuStore, type SudokuDifficulty } from '@/stores/sudokuStore';
 
@@ -125,16 +126,13 @@ export default function SudokuPage() {
         </aside>
       </div>
 
-      {isComplete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-          <div className="premium-panel w-full max-w-sm border-game-mint/30 p-8 text-center shadow-2xl">
-            <p className="text-sm font-bold text-game-mint">PUZZLE COMPLETE</p>
+      <Modal isOpen={isComplete} onClose={() => newGame(difficulty)} title="Puzzle complete" dismissible={false}>
+          <div className="text-center">
             <h2 className="mt-2 text-3xl font-black">{formatTime(elapsedSeconds)}</h2>
             <p className="mt-2 text-sm text-game-muted">{mistakes} mistake{mistakes === 1 ? '' : 's'} · {difficulty}</p>
             <Button className="mt-6" onClick={() => newGame(difficulty)}>Next puzzle</Button>
           </div>
-        </div>
-      )}
+      </Modal>
     </main>
   );
 }

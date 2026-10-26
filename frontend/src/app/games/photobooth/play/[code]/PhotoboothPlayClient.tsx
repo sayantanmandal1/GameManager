@@ -165,17 +165,17 @@ export default function PhotoboothPlayClient({ code }: Props) {
   const previewTheme = isHost ? localTheme : view.theme;
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-gradient-to-br from-rose-100 via-pink-50 to-amber-50 px-4 py-6 text-zinc-700">
+    <main className="relative min-h-screen overflow-hidden bg-[#faf8f6] px-4 py-6 text-zinc-700">
       <div className="mx-auto max-w-5xl">
         {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-200/80 bg-white/85 p-3 shadow-sm backdrop-blur-xl">
           <button
             onClick={handleBackToLobby}
             className="-ml-2 inline-flex min-h-11 items-center rounded-md px-2 text-sm text-zinc-500 transition hover:bg-white/60 hover:text-zinc-700"
           >
             ← {S.review.backToLobby}
           </button>
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-zinc-400">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-zinc-600">
             <PhaseDot active={view.phase === PhotoboothPhase.SETUP} label="Setup" />
             <span>·</span>
             <PhaseDot active={view.phase === PhotoboothPhase.CAPTURE} label="Capture" />
@@ -274,13 +274,9 @@ export default function PhotoboothPlayClient({ code }: Props) {
                 </div>
               ) : (
                 <div className="flex h-full flex-col items-center justify-center rounded-3xl bg-white/60 p-10 text-center shadow-sm backdrop-blur">
-                  <motion.span
-                    animate={{ scale: [1, 1.15, 1] }}
-                    transition={{ repeat: Infinity, duration: 2 }}
-                    className="mb-4 text-5xl"
-                  >
+                  <span className="mb-4 text-5xl">
                     💞
-                  </motion.span>
+                  </span>
                   <h2 className="font-serif text-2xl font-bold text-rose-500">
                     {S.setup.waitingTitle}
                   </h2>

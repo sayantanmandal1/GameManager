@@ -21,8 +21,8 @@ export function GoFishRenderer({ view, disabled, onAction }: Props) {
       </div>
       {view.canAct && (
         <div className="mx-auto mt-6 grid max-w-xl gap-3 sm:grid-cols-[1fr_1fr_auto]">
-          <label className="text-sm text-white/60">Player<select value={selectedTarget ?? ''} onChange={(event) => setTarget(event.target.value)} className="mt-1 min-h-11 w-full border border-white/15 bg-black/25 px-3 text-white">{view.legalTargets.map((id) => <option key={id} value={id}>{view.players.find((player) => player.id === id)?.name}</option>)}</select></label>
-          <label className="text-sm text-white/60">Rank<select value={selectedRank ?? ''} onChange={(event) => setRank(event.target.value as CardRank)} className="mt-1 min-h-11 w-full border border-white/15 bg-black/25 px-3 text-white">{view.legalRanks.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+          <label className="text-sm text-game-muted">Player<select value={selectedTarget ?? ''} onChange={(event) => setTarget(event.target.value)} className="game-field mt-1">{view.legalTargets.map((id) => <option key={id} value={id}>{view.players.find((player) => player.id === id)?.name}</option>)}</select></label>
+          <label className="text-sm text-game-muted">Rank<select value={selectedRank ?? ''} onChange={(event) => setRank(event.target.value as CardRank)} className="game-field mt-1">{view.legalRanks.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
           <Button className="self-end" disabled={disabled || !selectedRank || !selectedTarget} onClick={() => selectedRank && selectedTarget && onAction({ type: 'ask', targetPlayerId: selectedTarget, rank: selectedRank })}>Ask</Button>
         </div>
       )}

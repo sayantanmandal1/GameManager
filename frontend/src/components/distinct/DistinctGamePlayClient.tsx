@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
@@ -95,10 +95,10 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
   };
 
   return (
-    <main data-monopoly-play-shell={isMonopoly ? 'true' : undefined} className={`min-h-screen text-white ${isBridge ? 'px-3 py-3 sm:px-6 sm:py-4 lg:h-dvh lg:overflow-hidden lg:py-2' : isMonopoly ? 'px-0 py-0 sm:px-6 sm:py-3' : 'px-3 py-3 sm:px-6 sm:py-4'}`} style={{ backgroundColor: ui.surface }}>
+    <main data-monopoly-play-shell={isMonopoly ? 'true' : undefined} className={`game-play-shell min-h-screen text-game-text ${isBridge ? 'px-3 py-3 sm:px-6 sm:py-4 lg:h-dvh lg:overflow-hidden lg:py-2' : isMonopoly ? 'px-0 py-0 sm:px-6 sm:py-3' : 'px-3 py-3 sm:px-6 sm:py-4'}`} style={{ '--table-accent': ui.accent } as CSSProperties}>
       <div className={`mx-auto grid gap-5 ${gameLayoutClass}`}>
         <section className={`flex min-w-0 flex-col items-center ${isBridge ? 'lg:h-full lg:min-h-0' : ''}`}>
-          <div data-monopoly-game-header={isMonopoly ? 'true' : undefined} className={`flex w-full items-center justify-between gap-3 border-white/10 ${isMonopoly ? 'mb-0 max-w-[112rem] border-x-0 border-b border-t-0 bg-black/20 px-2 py-1.5 sm:mb-2 sm:border sm:px-3 sm:py-2' : `max-w-[52rem] border-b ${isBridge ? 'mb-2 pb-2' : 'mb-3 pb-3 sm:mb-4 sm:pb-4'}`}`}>
+          <div data-monopoly-game-header={isMonopoly ? 'true' : undefined} className={`glass-chrome flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 ${isMonopoly ? 'mb-0 max-w-[112rem] px-2 py-1.5 sm:mb-2 sm:px-3 sm:py-2' : `max-w-[56rem] px-3 py-2 ${isBridge ? 'mb-2' : 'mb-3 sm:mb-4'}`}`}>
             <button type="button" onClick={leaveTable} className="-ml-2 min-h-11 rounded-md px-2 text-sm font-semibold text-game-muted hover:bg-white/5 hover:text-white lg:min-h-0">{finished ? 'Lobby' : 'Exit table'}</button>
             <div className="min-w-0 text-center"><p className="truncate text-xs font-bold" style={{ color: ui.accent }}>{ui.name.toUpperCase()}</p><p className={`${isMonopoly ? 'text-[11px] uppercase' : 'text-sm'} text-game-muted`}>Room {code}</p></div>
             {!isBridge && <Button variant="ghost" size="sm" className="-mr-2 min-h-11 lg:min-h-9" onClick={() => setConfirmSurrender(true)}>Resign</Button>}
@@ -106,13 +106,13 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
 
           {!hasIntegratedCardTable && <div aria-label="Players" className="mb-3 flex w-full max-w-[52rem] gap-2 overflow-x-auto pb-1 [scrollbar-width:none] sm:mb-4 sm:grid sm:grid-cols-2 sm:gap-3 sm:overflow-visible sm:pb-0">
             {view.players.map((player) => (
-              <div key={player.id} className={`min-w-[8.5rem] flex-1 shrink-0 border-b-2 px-3 py-2 sm:min-w-0 ${player.id === currentTurnId && !finished ? 'border-white/55 bg-white/5' : 'border-white/10'}`}>
+              <div key={player.id} className={`min-w-[8.5rem] flex-1 shrink-0 rounded-2xl border px-4 py-3 sm:min-w-0 ${player.id === currentTurnId && !finished ? 'border-game-blue/40 bg-game-blue/10' : 'border-white/10 bg-game-card'}`}>
                 <PlayerName name={player.name} isYou={player.id === yourPlayerId} className="text-sm font-semibold" />
               </div>
             ))}
           </div>}
 
-          <div className={isBridge ? 'flex min-h-0 w-full flex-1 justify-center' : 'contents'}>
+          <div className={isBridge ? 'flex min-h-0 w-full flex-1 justify-center' : hasIntegratedCardTable || gameKey === 'bluff' ? 'contents' : 'premium-panel flex w-full min-w-0 justify-center p-3 sm:p-5'}>
             <DistinctGameRenderer gameKey={gameKey} view={view} disabled={finished} onAction={act} />
           </div>
 

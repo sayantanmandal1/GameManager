@@ -66,7 +66,7 @@ export function HangmanRenderer({ view, disabled, onAction }: Props) {
       {view.canAct && (
         <form className="mx-auto mt-6 flex max-w-lg gap-2" onSubmit={(event) => { event.preventDefault(); submit(); }}>
           <label htmlFor="hangman-entry" className="sr-only">{view.phase === 'setup' ? 'Secret phrase' : 'Letter or full phrase'}</label>
-          <input id="hangman-entry" value={entry} onChange={(event) => setEntry(event.target.value.replace(/[^A-Za-z ]/g, '').slice(0, 40))} maxLength={40} autoComplete="off" className="min-w-0 flex-1 border border-white/15 bg-black/25 px-4 py-2.5 text-white outline-none focus:ring-2 focus:ring-white/30" placeholder={view.phase === 'setup' ? 'Secret phrase' : 'Letter or full phrase'} />
+          <input id="hangman-entry" value={entry} onChange={(event) => setEntry(event.target.value.replace(/[^A-Za-z ]/g, '').slice(0, 40))} maxLength={40} autoComplete="off" className="game-field min-w-0 flex-1 py-2.5" placeholder={view.phase === 'setup' ? 'Secret phrase' : 'Letter or full phrase'} />
           <Button type="submit" disabled={disabled || entry.trim().length === 0}>{view.phase === 'setup' ? 'Lock phrase' : 'Guess'}</Button>
         </form>
       )}
@@ -80,7 +80,7 @@ function GuessList({ label, letters, correct }: Readonly<{
   correct: boolean;
 }>) {
   return (
-    <section className="min-h-20 border border-white/10 bg-black/10 p-3 text-left" aria-label={label}>
+    <section className="min-h-20 rounded-2xl border border-white/10 bg-white/[0.025] p-4 text-left" aria-label={label}>
       <p className="text-[11px] font-bold uppercase text-white/60">{label}</p>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {letters.map((letter) => (

@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import type {
   BridgeAction,
   BridgeCall,
@@ -286,10 +287,7 @@ export function BridgeRenderer({ view, disabled, onAction }: Props) {
         )}
       />
 
-      {confirmSurrender && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/75 p-3">
-          <div role="dialog" aria-modal="true" aria-labelledby="bridge-surrender-heading" className="max-h-[calc(100dvh-1.5rem)] w-full max-w-sm overflow-y-auto rounded-lg border border-white/12 bg-[#1c1f1b] p-4 text-center shadow-2xl sm:p-6">
-            <h2 id="bridge-surrender-heading" className="text-xl font-bold">Confirm deal surrender?</h2>
+      <Modal isOpen={confirmSurrender} onClose={() => setConfirmSurrender(false)} title="Confirm deal surrender?">
             <p className="mt-2 text-sm text-white/70">
               {view.phase === 'auction'
                 ? 'Your partner must accept. The opponents receive exactly 100 points and your team receives 0, regardless of any calls.'
@@ -307,9 +305,7 @@ export function BridgeRenderer({ view, disabled, onAction }: Props) {
                 Confirm surrender
               </Button>
             </div>
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {view.dealHistory.length > 0 && (
         <details className="mt-4 min-w-0 border-y border-white/10 py-3">

@@ -6,6 +6,7 @@ import { TicTacToeBoard } from '@/components/tictactoe/TicTacToeBoard';
 import { GameChat } from '@/components/chat/GameChat';
 import { VoiceChat } from '@/components/voice/VoiceChat';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import { PlayerName } from '@/components/ui/PlayerName';
 import { RematchButton } from '@/components/lobby/RematchButton';
 import { useAuthStore } from '@/stores/authStore';
@@ -81,10 +82,10 @@ export default function TicTacToePlayClient({ code }: { code: string }) {
   const finished = view.phase === TicTacToePhase.FINISHED || !!result;
 
   return (
-    <main className="min-h-screen bg-[#111a17] px-4 py-4 text-white sm:px-6">
+    <main className="tabletop-scene min-h-screen px-4 py-4 text-game-text sm:px-6">
       <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <section className="flex min-w-0 flex-col items-center">
-          <div className="mb-5 flex w-full max-w-[34rem] items-center justify-between gap-4">
+          <div className="glass-chrome mb-5 flex w-full max-w-[34rem] items-center justify-between gap-4 rounded-2xl border border-white/10 p-3">
             <button onClick={backToLobby} className="-ml-2 min-h-11 rounded-md px-2 text-sm font-semibold text-game-muted hover:bg-white/5 hover:text-white">← Lobby</button>
             <div className="text-center">
               <p className="text-xs font-bold text-[#d7a7ff]">{view.mode === TicTacToeMode.LIMITED ? 'THREE-PIECE' : 'CLASSIC'}</p>
@@ -95,7 +96,7 @@ export default function TicTacToePlayClient({ code }: { code: string }) {
 
           <div className="mb-4 grid w-full max-w-[34rem] grid-cols-2 gap-3">
             {view.players.map((player) => (
-              <div key={player.id} className={`rounded-lg border p-3 ${player.id === view.currentTurnId && !finished ? 'border-game-mint bg-game-mint/10' : 'border-white/10 bg-white/[0.03]'}`}>
+              <div key={player.id} className={`rounded-2xl border p-3 ${player.id === view.currentTurnId && !finished ? 'border-game-mint bg-game-mint/10' : 'border-white/10 bg-game-card'}`}>
                 <span className={`text-2xl font-black ${player.mark === 'X' ? 'text-[#ff795f]' : 'text-game-mint'}`}>{player.mark}</span>
                 <PlayerName name={player.name} isYou={player.id === view.youId} className="mt-1 text-sm font-semibold" />
               </div>
@@ -129,18 +130,13 @@ export default function TicTacToePlayClient({ code }: { code: string }) {
         </aside>
       </div>
 
-      {confirmSurrender && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-          <div className="w-full max-w-sm rounded-lg border border-white/12 bg-[#1c1f1b] p-6 text-center">
-            <h2 className="text-xl font-bold">Resign this match?</h2>
+      <Modal isOpen={confirmSurrender} onClose={() => setConfirmSurrender(false)} title="Resign this match?">
             <p className="mt-2 text-sm text-game-muted">Your opponent will be awarded the win.</p>
             <div className="mt-5 flex justify-center gap-3">
               <Button variant="secondary" onClick={() => setConfirmSurrender(false)}>Cancel</Button>
               <Button variant="danger" onClick={() => { surrender(); setConfirmSurrender(false); }}>Resign</Button>
             </div>
-          </div>
-        </div>
-      )}
+      </Modal>
     </main>
   );
 }

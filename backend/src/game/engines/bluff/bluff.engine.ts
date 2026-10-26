@@ -3,19 +3,18 @@ import type {
   BluffGameState,
   BluffPlayerView,
   BluffResult,
-  CardRank,
   StandardCard,
 } from '../../../shared';
+import { CARD_RANKS, CARD_SUITS } from '../../../shared';
 import type { DistinctActionResult, DistinctGameAdapter } from '../distinct-game.adapter';
 import { hasExactActionShape } from '../action-shape';
 import { createStandardDeck, secureShuffle } from '../standard-cards';
 
 type CardShuffler = (cards: StandardCard[]) => StandardCard[];
-const RANK_SEQUENCE: CardRank[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 
 export class BluffEngine implements DistinctGameAdapter<BluffGameState, BluffAction, BluffPlayerView, BluffResult> {
   readonly key = 'bluff' as const;
-  readonly rulesetId = 'bluff.i-doubt-it-forced-ranks.v1';
+  readonly rulesetId = 'bluff.chosen-rank-passing.v2';
   readonly minPlayers = 2;
   readonly maxPlayers = 8;
 
@@ -30,7 +29,9 @@ export class BluffEngine implements DistinctGameAdapter<BluffGameState, BluffAct
       hands,
       pile: [],
       currentTurnId: playerIds[0],
-      claimRank: 'A',
+      claimRank: null,
+      consecutivePasses: 0,
+      discardedCount: 0,
       pendingClaim: null,
       lastReveal: null,
       phase: 'claiming',
@@ -42,24 +43,33 @@ export class BluffEngine implements DistinctGameAdapter<BluffGameState, BluffAct
 
   applyAction(state: BluffGameState, playerId: string, action: BluffAction): DistinctActionResult<BluffResult> {
     if (state.phase === 'finished') return { valid: false, reason: 'Game already finished' };
-    if (state.phase === 'claiming') return this.playClaim(state, playerId, action);
-    return this.resolveChallengeWindow(state, playerId, action);
+    if (!state.players.some((player) => player.id === playerId)) return { valid: false, reason: 'Player not found' };
+    if (action.type === 'bluff_challenge') return this.challenge(state, playerId, action);
+    if (state.phase === 'challenge') return this.acceptFinalClaim(state, playerId, action);
+    if (action.type === 'bluff_pass') return this.pass(state, playerId, action);
+    return this.playClaim(state, playerId, action);
   }
 
   getPlayerView(state: BluffGameState, playerId: string): BluffPlayerView {
     const pending = state.pendingClaim;
-    const canClaim = state.phase === 'claiming' && state.currentTurnId === playerId;
-    const canAccept = state.phase === 'challenge' && state.currentTurnId === playerId;
-    const canChallenge = state.phase === 'challenge' && pending?.playerId !== playerId;
+    const seated = state.players.some((player) => player.id === playerId);
+    const canClaim = seated && state.phase === 'claiming' && state.currentTurnId === playerId;
+    const canPass = canClaim && !!pending;
+    const canAccept = seated && state.phase === 'challenge' && state.currentTurnId === playerId;
+    const canChallenge = seated && state.phase !== 'finished' && !!pending && pending.playerId !== playerId;
     return {
       gameKey: this.key,
       players: state.players.map((player) => ({ ...player, handCount: state.hands[player.id].length })),
       youId: playerId,
-      yourHand: (state.hands[playerId] ?? []).map((card) => ({ ...card })),
+      yourHand: (state.hands[playerId] ?? []).map((card) => ({ ...card })).sort((left, right) =>
+        CARD_RANKS.indexOf(left.rank) - CARD_RANKS.indexOf(right.rank)
+        || CARD_SUITS.indexOf(left.suit) - CARD_SUITS.indexOf(right.suit)),
       pileCount: state.pile.length,
       currentTurnId: state.currentTurnId,
       claimRank: state.claimRank,
-      pendingClaim: pending ? { playerId: pending.playerId, count: pending.count, rank: state.claimRank } : null,
+      consecutivePasses: state.consecutivePasses,
+      discardedCount: state.discardedCount,
+      pendingClaim: pending && state.claimRank ? { playerId: pending.playerId, count: pending.count, rank: state.claimRank } : null,
       lastReveal: state.lastReveal ? {
         ...state.lastReveal,
         cards: state.lastReveal.cards.map((card) => ({ ...card })),
@@ -68,6 +78,7 @@ export class BluffEngine implements DistinctGameAdapter<BluffGameState, BluffAct
       winnerId: state.winnerId,
       canAct: canClaim || canAccept || canChallenge,
       canClaim,
+      canPass,
       canAccept,
       canChallenge,
     };
@@ -90,7 +101,7 @@ export class BluffEngine implements DistinctGameAdapter<BluffGameState, BluffAct
 
   private playClaim(state: BluffGameState, playerId: string, action: BluffAction): DistinctActionResult<BluffResult> {
     if (state.currentTurnId !== playerId) return { valid: false, reason: 'Not your turn' };
-    if (!hasExactActionShape(action, 'bluff_play', ['cardIds'])
+    if (!hasExactActionShape(action, 'bluff_play', ['cardIds', 'rank'])
       || !Array.isArray(action.cardIds)
       || action.cardIds.length < 1
       || action.cardIds.length > 4
@@ -98,34 +109,55 @@ export class BluffEngine implements DistinctGameAdapter<BluffGameState, BluffAct
       || !action.cardIds.every((id) => typeof id === 'string')) {
       return { valid: false, reason: 'A claim must contain one to four distinct cards' };
     }
+    if (!CARD_RANKS.includes(action.rank)) return { valid: false, reason: 'Choose a valid rank' };
+    if (state.claimRank && action.rank !== state.claimRank) return { valid: false, reason: 'Keep the same rank until the round ends' };
     const cards = action.cardIds.map((id) => state.hands[playerId].find((card) => card.id === id));
-    if (cards.some((card) => !card)) return { valid: false, reason: 'Card not in hand' };
-    const claimedCards = cards as StandardCard[];
+    const claimedCards = cards.filter((card): card is StandardCard => !!card);
+    if (claimedCards.length !== action.cardIds.length) return { valid: false, reason: 'Card not in hand' };
     state.hands[playerId] = state.hands[playerId].filter((card) => !action.cardIds.includes(card.id));
     state.pile.push(...claimedCards);
     state.pendingClaim = { playerId, cardIds: [...action.cardIds], count: claimedCards.length };
+    state.claimRank = action.rank;
+    state.consecutivePasses = 0;
     state.lastReveal = null;
     state.currentTurnId = this.nextPlayerId(state, playerId);
-    state.phase = 'challenge';
+    state.phase = state.hands[playerId].length === 0 ? 'challenge' : 'claiming';
     return { valid: true };
   }
 
-  private resolveChallengeWindow(
+  private pass(state: BluffGameState, playerId: string, action: BluffAction): DistinctActionResult<BluffResult> {
+    if (!hasExactActionShape(action, 'bluff_pass', [])) return { valid: false, reason: 'Invalid pass' };
+    if (state.currentTurnId !== playerId) return { valid: false, reason: 'Not your turn' };
+    if (!state.pendingClaim) return { valid: false, reason: 'Start the round by playing cards' };
+    state.consecutivePasses += 1;
+    state.currentTurnId = this.nextPlayerId(state, playerId);
+    // Include the last claimant's pass: they may add more cards when play circles back.
+    if (state.consecutivePasses === state.players.length) {
+      state.discardedCount += state.pile.length;
+      state.pile = [];
+      this.startRound(state, this.nextPlayerId(state, state.pendingClaim.playerId));
+    }
+    return { valid: true };
+  }
+
+  private acceptFinalClaim(state: BluffGameState, playerId: string, action: BluffAction): DistinctActionResult<BluffResult> {
+    if (!hasExactActionShape(action, 'bluff_accept', [])) return { valid: false, reason: 'Accept or challenge the final claim' };
+    if (state.currentTurnId !== playerId) return { valid: false, reason: 'Only the next player can accept the claim' };
+    state.consecutivePasses += 1;
+    if (state.consecutivePasses === state.players.length - 1) return this.finishWinner(state, state.pendingClaim!.playerId);
+    state.currentTurnId = this.nextPlayerId(state, playerId);
+    return { valid: true };
+  }
+
+  private challenge(
     state: BluffGameState,
     playerId: string,
     action: BluffAction,
   ): DistinctActionResult<BluffResult> {
-    const pending = state.pendingClaim!;
-    if (action.type === 'bluff_accept') {
-      if (!hasExactActionShape(action, 'bluff_accept', [])) return { valid: false, reason: 'Invalid acceptance' };
-      if (state.currentTurnId !== playerId) return { valid: false, reason: 'Only the next player can accept the claim' };
-      if (state.hands[pending.playerId].length === 0) return this.finishWinner(state, pending.playerId);
-      this.advanceAfterClaim(state);
-      return { valid: true };
-    }
     if (!hasExactActionShape(action, 'bluff_challenge', [])) return { valid: false, reason: 'Invalid challenge' };
+    const pending = state.pendingClaim;
+    if (!pending) return { valid: false, reason: 'No claim to challenge' };
     if (pending.playerId === playerId) return { valid: false, reason: 'A claimant cannot challenge their own play' };
-    if (!state.players.some((player) => player.id === playerId)) return { valid: false, reason: 'Player not found' };
     const cards = state.pile.slice(-pending.count);
     const truthful = cards.every((card) => card.rank === state.claimRank);
     const collectorId = truthful ? playerId : pending.playerId;
@@ -139,13 +171,15 @@ export class BluffEngine implements DistinctGameAdapter<BluffGameState, BluffAct
       collectorId,
     };
     if (truthful && state.hands[pending.playerId].length === 0) return this.finishWinner(state, pending.playerId);
-    this.advanceAfterClaim(state);
+    this.startRound(state, truthful ? pending.playerId : playerId);
     return { valid: true };
   }
 
-  private advanceAfterClaim(state: BluffGameState): void {
+  private startRound(state: BluffGameState, starterId: string): void {
     state.pendingClaim = null;
-    state.claimRank = RANK_SEQUENCE[(RANK_SEQUENCE.indexOf(state.claimRank) + 1) % RANK_SEQUENCE.length];
+    state.claimRank = null;
+    state.consecutivePasses = 0;
+    state.currentTurnId = starterId;
     state.phase = 'claiming';
   }
 
