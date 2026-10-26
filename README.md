@@ -14,6 +14,9 @@ The website and native app share a graphite-and-pearl visual system with restrai
 - Shared dialogs support Escape, focus containment/restoration, and keyboard-accessible dismissal.
 - Gameplay chrome uses the same surface hierarchy across the 38 distinct-game tables, legacy online games, and offline/bot modes. Felt, wood, neon boards, suit colors, and the light Photobooth workspace intentionally retain their identities.
 - Mandatory game decisions and completion dialogs trap keyboard focus without offering an invalid dismissal. Cancellable dialogs retain Escape, backdrop dismissal, and focus restoration.
+- Monopoly purchase, auction, and trade decisions use the shared mandatory dialog with inert background content. Online game loading states offer retry and a route back to games.
+- Navigation and gameplay toolbars reflow with enlarged text. Sudoku's mobile number pad uses two rows for larger touch targets; native gameplay text and header sizing follow Android's font scale.
+- Persistent turn indicators use static emphasis instead of looping pulses. Confetti honors reduced motion; dialog scrims and gameplay materials honor reduced transparency and increased contrast.
 - No runtime design-skill dependency or externally downloaded fonts are required.
 
 ## Supported Games

@@ -72,13 +72,9 @@ export function TableCenter({ view, onDrawPile, compact = false }: TableCenterPr
             </span>
           </button>
           {canDraw && (
-            <motion.span
-              animate={{ opacity: [0.4, 1, 0.4] }}
-              transition={{ repeat: Infinity, duration: 1.4 }}
-              className="text-xs font-semibold text-white/80"
-            >
+            <span className="text-xs font-semibold text-white/80">
               {S.hud.draw}
-            </motion.span>
+            </span>
           )}
         </div>
 

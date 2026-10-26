@@ -8,6 +8,7 @@ import { BingoBoard } from '@/components/bingo/BingoBoard';
 import { NumberDisplay } from '@/components/bingo/NumberDisplay';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { GameConnectionState } from '@/components/ui/GameConnectionState';
 import { VoiceChat } from '@/components/voice/VoiceChat';
 import { GameChat } from '@/components/chat/GameChat';
 import { RematchButton } from '@/components/lobby/RematchButton';
@@ -25,6 +26,7 @@ function BingoPlayContent() {
   const {
     gameId,
     view,
+    error,
     result,
     nextPlaceNumber,
     placeNumber,
@@ -61,6 +63,7 @@ function BingoPlayContent() {
         const end = Date.now() + 3000;
         const fire = () => {
           confetti({
+            disableForReducedMotion: true,
             particleCount: 100,
             spread: 120,
             origin: { x: Math.random(), y: Math.random() * 0.6 },
@@ -71,6 +74,7 @@ function BingoPlayContent() {
         fire();
       } else {
         confetti({
+          disableForReducedMotion: true,
           particleCount: 30,
           spread: 60,
           origin: { y: 0.6 },
@@ -87,14 +91,7 @@ function BingoPlayContent() {
   };
 
   if (!view) {
-    return (
-      <main className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-white/40">Loading game…</p>
-        </div>
-      </main>
-    );
+    return <GameConnectionState connected={isConnected} error={error} backHref="/games/bingo" />;
   }
 
   const isSetupPhase = view.phase === BingoGamePhase.SETUP;
@@ -218,9 +215,7 @@ export default function BingoPlayPage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen flex items-center justify-center">
-          <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
-        </main>
+        <GameConnectionState backHref="/games/bingo" />
       }
     >
       <BingoPlayContent />

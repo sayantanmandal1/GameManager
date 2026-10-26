@@ -82,6 +82,8 @@ export function connectSocket(token: string): Socket {
       onConnect();
     }
   });
+  // Hook-only consumers observe socket events rather than awaiting this promise.
+  void connectionPromise.catch((error: Error) => console.warn('Game connection failed:', error.message));
 
   return socket;
 }

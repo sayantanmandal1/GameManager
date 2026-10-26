@@ -37,9 +37,7 @@ export function BingoBoard({
   compact = false,
   lastCalledNumber,
 }: BingoBoardProps) {
-  const cellSize = compact
-    ? 'w-10 h-10 text-sm'
-    : 'w-14 h-14 sm:w-16 sm:h-16 text-lg';
+  const cellSize = compact ? 'text-sm' : 'text-lg';
 
   return (
     <div className={compact ? 'mx-auto w-full max-w-xs' : 'mx-auto w-full max-w-md'}>
@@ -90,8 +88,8 @@ export function BingoBoard({
                   if (canClickPlay && onNumberChoose) onNumberChoose(cell.value);
                 }}
                 disabled={!canClick}
-                className={`${cellSize} rounded-lg font-bold flex items-center justify-center
-                  transition-all duration-150 select-none
+                className={`${cellSize} aspect-square min-h-[44px] min-w-0 w-full rounded-lg font-bold flex items-center justify-center
+                  transition-colors duration-150 select-none
                   ${
                     isEmpty
                       ? canClickSetup

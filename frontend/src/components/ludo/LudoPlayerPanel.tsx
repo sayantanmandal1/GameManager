@@ -1,6 +1,5 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import type { LudoPlayerState } from '@/shared';
 import { LudoColor, LUDO_TOKENS_PER_PLAYER } from '@/shared';
 
@@ -43,23 +42,19 @@ export function LudoPlayerPanel({
         const tokensHome = player.tokens.filter((token) => token.state === 'home').length;
 
         return (
-          <motion.div
+          <div
             key={player.id}
-            className={`flex min-h-16 items-center gap-3 rounded-lg border px-3 py-2 transition-all ${
+            className={`flex min-h-16 items-center gap-3 rounded-2xl border px-3 py-2 transition-colors ${
               isCurrent
                 ? `${color.bg} border-white/35 ${color.text} shadow-lg shadow-black/20`
                 : isFinished
                 ? 'bg-white/[0.01] border-white/[0.03] opacity-70'
                 : 'bg-white/[0.02] border-white/[0.05]'
             }`}
-            animate={isCurrent ? { scale: [1, 1.02, 1] } : {}}
-            transition={{ repeat: Infinity, duration: 2 }}
           >
             {/* Color indicator */}
             <div
-              className={`h-5 w-5 shrink-0 rounded-full ring-2 ring-white/30 ${
-                isCurrent ? 'animate-pulse' : ''
-              }`}
+              className="h-5 w-5 shrink-0 rounded-full ring-2 ring-white/30"
               style={{ backgroundColor: color.dot }}
             />
 
@@ -106,12 +101,12 @@ export function LudoPlayerPanel({
                   {RANK_LABELS[rankIdx]}
                 </span>
               ) : isCurrent ? (
-                <span className="animate-pulse text-lg font-bold text-white">
+                <span className="text-lg font-bold text-white" aria-label="Current turn">
                   ●
                 </span>
               ) : null}
             </div>
-          </motion.div>
+          </div>
         );
       })}
     </div>

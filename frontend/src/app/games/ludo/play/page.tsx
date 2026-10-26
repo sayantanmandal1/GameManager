@@ -14,6 +14,7 @@ import { VoiceChat } from '@/components/voice/VoiceChat';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
+import { GameConnectionState } from '@/components/ui/GameConnectionState';
 import { useAuthStore } from '@/stores/authStore';
 import { useLudoStore } from '@/stores/ludoStore';
 import { useSocket } from '@/hooks/useSocket';
@@ -61,7 +62,7 @@ function LudoPlayContent() {
   // Win confetti
   useEffect(() => {
     if (result && result.winnerId === user?.id) {
-      confetti({ particleCount: 200, spread: 120, origin: { y: 0.6 } });
+      confetti({ disableForReducedMotion: true, particleCount: 200, spread: 120, origin: { y: 0.6 } });
     }
   }, [result, user?.id]);
 
@@ -79,14 +80,7 @@ function LudoPlayContent() {
   };
 
   if (!view) {
-    return (
-      <main className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-white/40">Loading game…</p>
-        </div>
-      </main>
-    );
+    return <GameConnectionState connected={isConnected} error={error} backHref="/games/ludo" />;
   }
 
   const isMyTurn = view.isMyTurn;
@@ -223,12 +217,7 @@ function LudoPlayContent() {
 export default function LudoPlayPage() {
   return (
     <Suspense fallback={
-      <main className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-white/40">Loading game…</p>
-        </div>
-      </main>
+      <GameConnectionState backHref="/games/ludo" />
     }>
       <LudoPlayContent />
     </Suspense>

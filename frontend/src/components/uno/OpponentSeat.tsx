@@ -133,10 +133,9 @@ export function OpponentSeat({
         {catchable && (
           <motion.button
             initial={{ scale: 0.8 }}
-            animate={{ scale: [1, 1.12, 1] }}
-            transition={{ repeat: Infinity, duration: 1 }}
+            animate={{ scale: 1 }}
             onClick={onCatch}
-            className="min-h-10 rounded-full bg-red-500 px-4 py-1 text-xs font-black text-white shadow"
+            className="min-h-11 rounded-full bg-red-500 px-4 py-1 text-xs font-semibold text-white shadow"
           >
             {S.hud.catch}
           </motion.button>

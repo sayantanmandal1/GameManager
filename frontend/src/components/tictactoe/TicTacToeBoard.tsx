@@ -38,7 +38,7 @@ export function TicTacToeBoard({
             aria-label={`Cell ${index + 1}${mark ? `, ${mark}` : ', empty'}`}
             disabled={disabled}
             onClick={() => onCellClick(index)}
-            className={`flex aspect-square min-h-0 items-center justify-center rounded-md border text-5xl font-black transition-colors sm:text-7xl ${
+            className={`flex aspect-square min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-md border text-[clamp(2rem,12vw,5rem)] font-black transition-colors ${
               isSelected
                 ? 'border-game-sun bg-game-sun/15'
                 : isWinner

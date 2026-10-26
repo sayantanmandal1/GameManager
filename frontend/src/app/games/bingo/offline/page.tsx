@@ -112,7 +112,7 @@ export default function OfflineBingoPage() {
       if (ml >= 5) {
         setWinner('you');
         setPhase('finished');
-        confetti({ particleCount: 200, spread: 120, origin: { y: 0.6 } });
+        confetti({ disableForReducedMotion: true, particleCount: 200, spread: 120, origin: { y: 0.6 } });
       } else if (bl >= 5) {
         setWinner('bot');
         setPhase('finished');

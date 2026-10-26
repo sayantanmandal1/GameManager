@@ -119,7 +119,7 @@ export function CardTable({
         {center}
       </div>
 
-      <div className="absolute inset-x-0 bottom-0 z-20 border-t border-white/10 bg-black/20 px-2 pb-3 pt-2 backdrop-blur-sm">
+      <div className="game-material absolute inset-x-0 bottom-0 z-20 border-t border-white/10 bg-black/20 px-2 pb-3 pt-2 backdrop-blur-sm">
         {you && <SeatIdentity player={you} active={you.id === currentTurnId} isYou />}
         <div className="mt-1 min-h-24 overflow-x-auto [scrollbar-width:thin]">{hand}</div>
         {bottomRail && <div className="mt-1 flex justify-center">{bottomRail}</div>}

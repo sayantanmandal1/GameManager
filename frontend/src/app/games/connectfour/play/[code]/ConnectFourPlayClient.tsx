@@ -7,6 +7,7 @@ import { GameChat } from '@/components/chat/GameChat';
 import { VoiceChat } from '@/components/voice/VoiceChat';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { GameConnectionState } from '@/components/ui/GameConnectionState';
 import { PlayerName } from '@/components/ui/PlayerName';
 import { RematchButton } from '@/components/lobby/RematchButton';
 import { useAuthStore } from '@/stores/authStore';
@@ -48,7 +49,7 @@ export default function ConnectFourPlayClient({ code }: { code: string }) {
   };
 
   if (!view) {
-    return <main className="flex min-h-screen items-center justify-center"><p className="text-game-muted">{isConnected ? 'Restoring match…' : 'Reconnecting…'}</p></main>;
+    return <GameConnectionState connected={isConnected} error={error} backHref="/games/connectfour" />;
   }
   const lastMoveIndex = view.lastMove
     ? view.lastMove.row * CONNECT_FOUR_COLUMNS + view.lastMove.column
@@ -61,7 +62,7 @@ export default function ConnectFourPlayClient({ code }: { code: string }) {
     <main className="tabletop-scene min-h-screen px-4 py-4 text-game-text sm:px-6">
       <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <section className="flex min-w-0 flex-col items-center">
-          <div className="glass-chrome mb-4 flex w-full max-w-[43rem] items-center justify-between gap-3 rounded-2xl border border-white/10 p-3">
+          <div className="glass-chrome game-toolbar mb-4 w-full max-w-[43rem] rounded-2xl border border-white/10 p-3">
             <button onClick={backToLobby} className="-ml-2 min-h-11 rounded-md px-2 text-sm font-semibold text-game-muted hover:bg-white/5 hover:text-white">← Lobby</button>
             <div className="text-center"><p className="text-xs font-bold text-game-sun">CONNECT FOUR</p><p className="text-sm text-game-muted">Room {code}</p></div>
             <Button variant="ghost" size="sm" onClick={() => setConfirmSurrender(true)}>Resign</Button>

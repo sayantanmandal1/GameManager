@@ -94,7 +94,7 @@ export default function UnoLandingPage() {
   };
 
   const seg = (active: boolean) =>
-    `rounded-lg border px-4 py-2 text-sm transition-colors ${
+    `min-h-11 rounded-xl border px-4 py-2 text-sm transition-colors ${
       active
         ? 'border-white bg-white text-black'
         : 'border-white/[0.08] bg-white/[0.03] text-white hover:bg-white/[0.06]'

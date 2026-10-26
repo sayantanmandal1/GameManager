@@ -196,7 +196,7 @@ export function GameChat({ lobbyCode }: GameChatProps) {
                 Chat
               </span>
               {unread > 0 && (
-                <span className="w-5 h-5 bg-red-500 text-white text-[11px] rounded-full flex items-center justify-center font-bold animate-pulse">
+                <span className="w-5 h-5 bg-red-500 text-white text-[11px] rounded-full flex items-center justify-center font-bold">
                   {unread > 9 ? '9+' : unread}
                 </span>
               )}

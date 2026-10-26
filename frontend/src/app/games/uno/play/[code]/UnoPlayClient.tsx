@@ -12,6 +12,7 @@ import { getSocket } from '@/lib/socket';
 import { GameChat } from '@/components/chat/GameChat';
 import { VoiceChat } from '@/components/voice/VoiceChat';
 import { Modal } from '@/components/ui/Modal';
+import { GameConnectionState } from '@/components/ui/GameConnectionState';
 import { Button } from '@/components/ui/Button';
 import {
   LOBBY_EVENTS,
@@ -223,14 +224,7 @@ export default function UnoPlayClient({ code }: Props) {
   };
 
   if (!view) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-black">
-        <div className="text-center text-white/50">
-          <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-white/30 border-t-transparent" />
-          <p>{isConnected ? S.errors.loading : S.errors.disconnected}</p>
-        </div>
-      </main>
-    );
+    return <GameConnectionState connected={isConnected} error={error} backHref="/games/uno" />;
   }
 
   const meIdx = view.players.findIndex((p) => p.id === view.youId);
@@ -343,7 +337,7 @@ export default function UnoPlayClient({ code }: Props) {
               {view.canSurrender && (
                 <button
                   onClick={() => setConfirmQuit(true)}
-                  className="min-h-10 rounded-full border border-red-500/50 px-4 text-xs font-semibold text-red-200 transition hover:bg-red-500/10 lg:min-h-0 lg:px-3 lg:py-0.5"
+                  className="min-h-11 rounded-full border border-red-500/50 px-4 text-xs font-semibold text-red-200 transition-colors hover:bg-red-500/10"
                 >
                   {S.hud.surrender}
                 </button>
@@ -351,13 +345,9 @@ export default function UnoPlayClient({ code }: Props) {
             </div>
           )}
               {view.jumpInIds.length > 0 && !isMyTurn && (
-            <motion.span
-              animate={{ opacity: [0.5, 1, 0.5] }}
-              transition={{ repeat: Infinity, duration: 1.2 }}
-              className="text-xs font-semibold text-amber-300"
-            >
+            <span className="text-xs font-semibold text-amber-300">
               ⚡ {S.hud.jumpInHint}
-            </motion.span>
+            </span>
               )}
             </div>
           )}

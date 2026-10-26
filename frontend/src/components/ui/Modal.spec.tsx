@@ -99,4 +99,19 @@ describe('Modal Component', () => {
     await user.tab();
     expect(screen.getByRole('button', { name: 'Red' })).toHaveFocus();
   });
+
+  it('makes the background inert and preserves a pre-existing inert region', () => {
+    const existing = document.createElement('div');
+    existing.setAttribute('inert', '');
+    document.body.appendChild(existing);
+    const { container, unmount } = render(
+      <><button>Behind dialog</button><Modal isOpen onClose={jest.fn()} title="Choose"><button>Confirm</button></Modal></>,
+    );
+    expect(container).toHaveAttribute('inert');
+    expect(screen.getByRole('dialog', { name: 'Choose' })).toBeInTheDocument();
+    unmount();
+    expect(container).not.toHaveAttribute('inert');
+    expect(existing).toHaveAttribute('inert');
+    existing.remove();
+  });
 });

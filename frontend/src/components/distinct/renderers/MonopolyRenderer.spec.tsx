@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import type { MonopolyBoardSpaceView, MonopolyPlayerView } from '@/shared';
 import { buildMonopolyCanonicalPreviewBoard } from './monopolyBoardData';
 import { MonopolyRenderer } from './MonopolyRenderer';
+import userEvent from '@testing-library/user-event';
 
 function buildBoard(): MonopolyBoardSpaceView[] {
   return buildMonopolyCanonicalPreviewBoard();
@@ -99,6 +100,31 @@ function makeView(overrides: Partial<MonopolyPlayerView> = {}): MonopolyPlayerVi
 }
 
 describe('MonopolyRenderer', () => {
+  it('contains focus in mandatory property decisions and restores it after resolution', async () => {
+    const user = userEvent.setup();
+    const onAction = jest.fn();
+    const { rerender } = render(<MonopolyRenderer view={makeView()} disabled={false} onAction={onAction} />);
+    const assetsTab = screen.getByRole('tab', { name: 'Assets' });
+    assetsTab.focus();
+    rerender(<MonopolyRenderer view={makeView({
+      pendingPurchase: { playerId: 'p1', spaceIndex: 6, price: 100 },
+      legalActions: ['monopoly_buy', 'monopoly_decline'],
+    })} disabled={false} onAction={onAction} />);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(within(dialog).getByRole('button', { name: 'Buy' })).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(within(dialog).getByRole('button', { name: 'Auction' })).toHaveFocus();
+    await user.tab();
+    expect(within(dialog).getByRole('button', { name: 'Buy' })).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Close dialog' })).not.toBeInTheDocument();
+    rerender(<MonopolyRenderer view={makeView()} disabled={false} onAction={onAction} />);
+    expect(assetsTab).toHaveFocus();
+    expect(onAction).not.toHaveBeenCalled();
+  });
+
   it('renders all spaces with canonical cyclic side placement and shared board wrapper', () => {
     const { container } = render(<MonopolyRenderer view={makeView()} disabled={false} onAction={jest.fn()} />);
 

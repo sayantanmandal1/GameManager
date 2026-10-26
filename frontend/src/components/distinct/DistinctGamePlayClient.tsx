@@ -4,6 +4,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { GameConnectionState } from '@/components/ui/GameConnectionState';
 import { PlayerName } from '@/components/ui/PlayerName';
 import { GameChat } from '@/components/chat/GameChat';
 import { VoiceChat } from '@/components/voice/VoiceChat';
@@ -54,7 +55,7 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
   useEffect(() => () => reset(), [reset]);
 
   if (!view) {
-    return <main className="flex min-h-screen items-center justify-center"><p className="text-game-muted">{isConnected ? 'Restoring match...' : 'Reconnecting...'}</p></main>;
+    return <GameConnectionState connected={isConnected} error={error} backHref={`/games/${gameKey}`} />;
   }
 
   const finished = view.phase === 'finished' || !!result;
@@ -98,7 +99,7 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
     <main data-monopoly-play-shell={isMonopoly ? 'true' : undefined} className={`game-play-shell min-h-screen text-game-text ${isBridge ? 'px-3 py-3 sm:px-6 sm:py-4 lg:h-dvh lg:overflow-hidden lg:py-2' : isMonopoly ? 'px-0 py-0 sm:px-6 sm:py-3' : 'px-3 py-3 sm:px-6 sm:py-4'}`} style={{ '--table-accent': ui.accent } as CSSProperties}>
       <div className={`mx-auto grid gap-5 ${gameLayoutClass}`}>
         <section className={`flex min-w-0 flex-col items-center ${isBridge ? 'lg:h-full lg:min-h-0' : ''}`}>
-          <div data-monopoly-game-header={isMonopoly ? 'true' : undefined} className={`glass-chrome flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 ${isMonopoly ? 'mb-0 max-w-[112rem] px-2 py-1.5 sm:mb-2 sm:px-3 sm:py-2' : `max-w-[56rem] px-3 py-2 ${isBridge ? 'mb-2' : 'mb-3 sm:mb-4'}`}`}>
+          <div data-monopoly-game-header={isMonopoly ? 'true' : undefined} className={`glass-chrome game-toolbar w-full rounded-2xl border border-white/10 ${isMonopoly ? 'mb-0 max-w-[112rem] px-2 py-1.5 sm:mb-2 sm:px-3 sm:py-2' : `max-w-[56rem] px-3 py-2 ${isBridge ? 'mb-2' : 'mb-3 sm:mb-4'}`}`}>
             <button type="button" onClick={leaveTable} className="-ml-2 min-h-11 rounded-md px-2 text-sm font-semibold text-game-muted hover:bg-white/5 hover:text-white lg:min-h-0">{finished ? 'Lobby' : 'Exit table'}</button>
             <div className="min-w-0 text-center"><p className="truncate text-xs font-bold" style={{ color: ui.accent }}>{ui.name.toUpperCase()}</p><p className={`${isMonopoly ? 'text-[11px] uppercase' : 'text-sm'} text-game-muted`}>Room {code}</p></div>
             {!isBridge && <Button variant="ghost" size="sm" className="-mr-2 min-h-11 lg:min-h-9" onClick={() => setConfirmSurrender(true)}>Resign</Button>}
@@ -113,10 +114,11 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
           </div>}
 
           <div className={isBridge ? 'flex min-h-0 w-full flex-1 justify-center' : hasIntegratedCardTable || gameKey === 'bluff' ? 'contents' : 'premium-panel flex w-full min-w-0 justify-center p-3 sm:p-5'}>
-            <DistinctGameRenderer gameKey={gameKey} view={view} disabled={finished} onAction={act} />
+            <DistinctGameRenderer gameKey={gameKey} view={view} disabled={finished || !isConnected} onAction={act} />
           </div>
 
           <div data-monopoly-game-status={isMonopoly ? 'true' : undefined} className={isBridge ? 'mt-1 min-h-6 text-center' : isMonopoly ? 'mt-2 min-h-7 text-center' : 'mt-3 min-h-10 text-center sm:mt-5 sm:min-h-16'}>
+            {!isConnected && <p role="status" className="text-sm text-game-muted">Connection lost. Reconnecting before your next move.</p>}
             {!isMonopoly && <p className={statusClass}>{statusText}</p>}
             {error && <p role="alert" className="mt-1 text-sm text-red-300">{error}</p>}
             {finished && <RematchButton lobbyCode={code} className="mt-4" />}

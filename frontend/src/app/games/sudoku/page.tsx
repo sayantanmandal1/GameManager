@@ -64,7 +64,7 @@ export default function SudokuPage() {
     <main className="min-h-[calc(100vh-4.5rem)] bg-game-bg px-3 py-6 text-white sm:px-6 sm:py-10">
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[minmax(0,38rem)_18rem] lg:items-start lg:justify-center">
         <section className="min-w-0">
-          <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="game-toolbar mb-4">
             <button onClick={() => router.push('/games')} className="-ml-2 min-h-11 rounded-md px-2 text-sm font-semibold text-game-muted hover:bg-white/5 hover:text-white">← Games</button>
             <div className="text-center"><p className="text-xs font-bold text-game-mint">SUDOKU</p><p className="font-mono text-lg font-bold">{formatTime(elapsedSeconds)}</p></div>
             <Button variant="ghost" size="sm" onClick={togglePaused}>{isPaused ? 'Resume' : 'Pause'}</Button>
@@ -79,14 +79,14 @@ export default function SudokuPage() {
             onSelect={selectCell}
           />
 
-          <div className="mt-4 grid grid-cols-9 gap-1.5 sm:gap-2">
+          <div className="mt-4 grid grid-cols-5 gap-1.5 sm:grid-cols-9 sm:gap-2" aria-label="Number pad">
             {Array.from({ length: 9 }, (_, index) => index + 1).map((number) => (
               <button
                 key={number}
                 type="button"
                 disabled={isPaused || isComplete}
                 onClick={() => enterNumber(number, notesMode)}
-                className="aspect-square rounded-xl border border-white/10 bg-game-card text-lg font-semibold text-white transition-colors hover:bg-white/10 disabled:opacity-40 sm:text-xl"
+                className="min-h-11 min-w-0 rounded-xl border border-white/10 bg-game-card py-2 text-lg font-semibold text-white transition-colors hover:bg-white/10 disabled:opacity-40 sm:text-xl"
               >
                 {number}
               </button>

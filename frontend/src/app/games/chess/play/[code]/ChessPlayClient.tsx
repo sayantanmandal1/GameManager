@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { GameConnectionState } from '@/components/ui/GameConnectionState';
 import { RematchButton } from '@/components/lobby/RematchButton';
 import { Card } from '@/components/ui/Card';
 import { VoiceChat } from '@/components/voice/VoiceChat';
@@ -135,26 +136,8 @@ export default function ChessPlayClient({ code }: ChessPlayClientProps) {
     router.push(`/lobby/${code}`);
   };
 
-  if (!isConnected && !view) {
-    return (
-      <main className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-white/40">{chessStrings.errors.disconnected}</p>
-        </div>
-      </main>
-    );
-  }
-
   if (!view) {
-    return (
-      <main className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-white/40">Loading game…</p>
-        </div>
-      </main>
-    );
+    return <GameConnectionState connected={isConnected} error={error} backHref="/games/chess" />;
   }
 
   const myColor: 'w' | 'b' | null =

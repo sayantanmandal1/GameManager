@@ -48,7 +48,7 @@ export function ThemePicker({ value, onChange }: ThemePickerProps) {
   return (
     <div className="flex flex-col gap-4">
       {/* Pack tabs */}
-      <div className="mx-auto flex rounded-full bg-white/70 p-1 shadow-sm backdrop-blur">
+      <div className="photobooth-material game-material mx-auto flex flex-wrap rounded-full bg-white/70 p-1 shadow-sm backdrop-blur">
         {(['simple', 'pattern'] as const).map((p) => (
           <button
             key={p}

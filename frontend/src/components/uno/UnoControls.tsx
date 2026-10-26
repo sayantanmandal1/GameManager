@@ -14,7 +14,7 @@ interface UnoControlsProps {
 }
 
 const base =
-  'rounded-full px-5 py-2 text-sm font-bold shadow-md transition disabled:opacity-40';
+  'min-h-11 rounded-full px-5 py-2 text-sm font-semibold shadow-md transition-colors disabled:opacity-40';
 
 export function UnoControls({
   view,
@@ -84,9 +84,8 @@ export function UnoControls({
           <motion.button
             key="uno"
             initial={{ scale: 0.6, opacity: 0 }}
-            animate={{ scale: [1, 1.1, 1], opacity: 1 }}
+            animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.6, opacity: 0 }}
-            transition={{ scale: { repeat: Infinity, duration: 1 } }}
             onClick={onCallUno}
             className={`${base} bg-yellow-400 text-black hover:bg-yellow-300`}
           >

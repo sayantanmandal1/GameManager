@@ -26,6 +26,7 @@ function tokenExpiringIn(seconds: number): string {
 describe('useSocket', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSocket.connected = false;
     useAuthStore.setState({
       user: { id: 'p1', username: 'Alice', avatar: 'A' },
       token: tokenExpiringIn(60),
@@ -35,6 +36,15 @@ describe('useSocket', () => {
       error: null,
       renewSession: jest.fn().mockResolvedValue(undefined),
     });
+  });
+
+  it('keeps observing disconnects when mounting onto an already connected socket', () => {
+    mockSocket.connected = true;
+    const { result } = renderHook(() => useSocket());
+    expect(result.current.isConnected).toBe(true);
+    const onDisconnect = mockSocket.on.mock.calls.find((call) => call[0] === 'disconnect')![1];
+    act(() => onDisconnect());
+    expect(result.current.isConnected).toBe(false);
   });
 
   it('requests fresh authoritative state after an initial game or rematch starts', () => {

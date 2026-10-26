@@ -41,7 +41,7 @@ export function StripLayoutPicker({ value, onChange }: StripLayoutPickerProps) {
             whileHover={{ y: -4 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => onChange(layout.id)}
-            className={`flex flex-col items-center gap-4 rounded-3xl border-2 bg-white/80 p-6 shadow-sm backdrop-blur transition ${
+            className={`photobooth-material game-material flex flex-col items-center gap-4 rounded-3xl border-2 bg-white/80 p-6 shadow-sm backdrop-blur transition-colors ${
               selected
                 ? 'border-rose-400 shadow-rose-200/60'
                 : 'border-transparent hover:border-rose-200'

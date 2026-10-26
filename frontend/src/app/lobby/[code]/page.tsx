@@ -283,7 +283,6 @@ export default function LobbyPage() {
                   <Button
                     disabled={!canStart}
                     onClick={startGame}
-                    className={canStart ? 'animate-pulse-glow' : ''}
                   >
                     {canStart ? 'Start game' : 'Waiting for players'}
                   </Button>

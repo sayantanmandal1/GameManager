@@ -35,9 +35,9 @@ interface GameWebViewProps {
 
 export function GameWebView({ destination, session, onSessionChange, onClose }: GameWebViewProps) {
   const webView = useRef<WebView>(null);
-  const { width, height } = useWindowDimensions();
+  const { width, height, fontScale } = useWindowDimensions();
   const landscape = width > height;
-  const headerHeight = landscape ? 0 : HEADER_HEIGHT;
+  const headerHeight = landscape ? 0 : Math.ceil(HEADER_HEIGHT * Math.max(1, fontScale));
   const [canGoBack, setCanGoBack] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
@@ -99,9 +99,9 @@ export function GameWebView({ destination, session, onSessionChange, onClose }: 
     <SafeAreaView style={styles.safeArea} edges={['top', 'right', 'bottom', 'left']}>
       <StatusBar style="light" hidden={landscape} />
       {!landscape && (
-        <View style={styles.header}>
+        <View style={[styles.header, { minHeight: headerHeight }]}>
           <Pressable onPress={onClose} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel="Close game">
-            <Text style={styles.icon}>×</Text>
+            <Text style={styles.icon} allowFontScaling={false}>×</Text>
           </Pressable>
           <View style={styles.titleWrap}>
             <Text numberOfLines={1} style={styles.title}>{destination.title}</Text>
@@ -113,7 +113,7 @@ export function GameWebView({ destination, session, onSessionChange, onClose }: 
             accessibilityRole="button"
             accessibilityLabel="Reload game"
           >
-            <Text style={styles.reload}>↻</Text>
+            <Text style={styles.reload} allowFontScaling={false}>↻</Text>
           </Pressable>
         </View>
       )}
@@ -125,7 +125,7 @@ export function GameWebView({ destination, session, onSessionChange, onClose }: 
         injectedJavaScriptBeforeContentLoaded={authScript}
         injectedJavaScript={authFallbackScript}
         applicationNameForUserAgent={`GameVerseApp/${NATIVE_BRIDGE_VERSION}`}
-        textZoom={100}
+        textZoom={Math.round(fontScale * 100)}
         javaScriptEnabled
         domStorageEnabled
         sharedCookiesEnabled={false}
@@ -234,7 +234,7 @@ function safeRoute(route: string): string {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
-  header: { height: HEADER_HEIGHT, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.background, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 },
+  header: { borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.background, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 4 },
   iconButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   pressed: { opacity: 0.6 },
   icon: { color: colors.text, fontSize: 30, lineHeight: 32, fontWeight: '400' },

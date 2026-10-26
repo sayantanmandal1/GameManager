@@ -1,6 +1,6 @@
 'use client';
 
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   Banknote,
   Bot,
@@ -28,6 +28,7 @@ import type {
   MonopolyPlayerView,
 } from '@/shared';
 import { MonopolyBoard } from './MonopolyBoard';
+import { Modal } from '@/components/ui/Modal';
 
 interface MonopolyRendererProps {
   readonly view: MonopolyPlayerView;
@@ -52,7 +53,6 @@ const GROUP_COLORS: Record<string, string> = {
 };
 
 export function MonopolyRenderer({ view, disabled, onAction }: MonopolyRendererProps) {
-  const reduceMotion = useReducedMotion();
   const legal = useMemo(() => new Set(view.legalActions), [view.legalActions]);
   const you = view.players.find((player) => player.id === view.youId) ?? view.players[0];
   const current = view.players.find((player) => player.id === view.currentTurnId) ?? null;
@@ -317,6 +317,7 @@ export function MonopolyRenderer({ view, disabled, onAction }: MonopolyRendererP
       <AnimatePresence>
         {decision && !pawnMoving && !diceRolling && (
           <DecisionOverlay
+            key={decision}
             kind={decision}
             view={view}
             legal={legal}
@@ -325,7 +326,6 @@ export function MonopolyRenderer({ view, disabled, onAction }: MonopolyRendererP
             pendingTradeProposer={pendingTradeProposer}
             pendingTradeTarget={pendingTradeTarget}
             disabled={actionLocked}
-            reduceMotion={!!reduceMotion}
             onAction={sendAction}
           />
         )}
@@ -677,7 +677,7 @@ function TradeColumn({ title, cashId, cash, setCash, jailId, jailCards, setJailC
   );
 }
 
-function DecisionOverlay({ kind, view, legal, auctionAmount, setAuctionAmount, pendingTradeProposer, pendingTradeTarget, disabled, reduceMotion, onAction }: Readonly<{
+function DecisionOverlay({ kind, view, legal, auctionAmount, setAuctionAmount, pendingTradeProposer, pendingTradeTarget, disabled, onAction }: Readonly<{
   kind: Exclude<DecisionKind, null>;
   view: MonopolyPlayerView;
   legal: Set<string>;
@@ -686,18 +686,11 @@ function DecisionOverlay({ kind, view, legal, auctionAmount, setAuctionAmount, p
   pendingTradeProposer: MonopolyPlayer | null;
   pendingTradeTarget: MonopolyPlayer | null;
   disabled: boolean;
-  reduceMotion: boolean;
   onAction: (action: MonopolyAction) => void;
 }>) {
   return (
-    <motion.div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-black/70 p-2 backdrop-blur-[3px] lg:absolute lg:p-4" initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <motion.section
-        aria-label={decisionAriaLabel(kind)}
-        initial={reduceMotion ? false : { opacity: 0, y: 24, scale: 0.96 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 16, scale: 0.97 }}
-        className="max-h-[calc(100dvh-1rem)] w-full max-w-lg overflow-y-auto border border-[#d4b667] bg-[#17130f] p-3 text-[#f8efdf] shadow-[0_26px_80px_rgba(0,0,0,0.65)] lg:max-h-none lg:p-5"
-      >
+    <Modal isOpen dismissible={false} onClose={() => {}} title={decisionAriaLabel(kind)}
+      panelClassName="game-material max-w-lg rounded-3xl border border-[#d4b667] bg-[#17130f] p-5 text-[#f8efdf] sm:p-6">
         {kind === 'purchase' && view.pendingPurchase && (
           <PurchaseDecision view={view} legal={legal} disabled={disabled} onAction={onAction} />
         )}
@@ -707,8 +700,7 @@ function DecisionOverlay({ kind, view, legal, auctionAmount, setAuctionAmount, p
         {kind === 'trade' && view.pendingTrade && (
           <TradeDecision view={view} legal={legal} proposer={pendingTradeProposer} target={pendingTradeTarget} disabled={disabled} onAction={onAction} />
         )}
-      </motion.section>
-    </motion.div>
+    </Modal>
   );
 }
 

@@ -37,8 +37,8 @@ export function DistinctGameLanding({ gameKey }: { gameKey: DistinctGameKey }) {
 
   return (
     <main className="tabletop-scene flex min-h-[calc(100svh-4.5rem)] items-center px-5 py-12 sm:px-8 sm:py-20">
-      <div className="mx-auto grid w-full max-w-6xl gap-12 lg:grid-cols-[minmax(0,1fr)_28rem] lg:items-center">
-        <section>
+      <div className="mx-auto grid w-full min-w-0 max-w-6xl grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_28rem] lg:items-center">
+        <section className="min-w-0 [overflow-wrap:anywhere]">
           <p className="eyebrow" style={{ color: ui.accent }}>{ui.eyebrow}</p>
           <h1 className="mt-5 max-w-3xl text-5xl font-semibold leading-[1.05] text-white sm:text-6xl">{ui.name}</h1>
           <p className="mt-5 max-w-2xl text-2xl font-medium leading-tight text-white/85">{ui.headline}</p>

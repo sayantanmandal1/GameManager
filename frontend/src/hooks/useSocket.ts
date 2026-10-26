@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { connectSocket, isSocketConnected } from '@/lib/socket';
+import { connectSocket } from '@/lib/socket';
 import { isTokenExpired, useAuthStore } from '@/stores/authStore';
 import { AUTH_EVENTS, GAME_EVENTS, LOBBY_EVENTS } from '@/shared';
 
@@ -26,13 +26,6 @@ export function useSocket(): UseSocketReturn {
       setIsConnected(false);
       setIsConnecting(true);
       void renewSession();
-      return;
-    }
-
-    // Check if already connected
-    if (isSocketConnected()) {
-      setIsConnected(true);
-      setIsConnecting(false);
       return;
     }
 

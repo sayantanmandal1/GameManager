@@ -69,16 +69,16 @@ export function GridSalvoRenderer({ view, disabled, onAction }: Props) {
     return (
       <div className="w-full max-w-[44rem]">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex gap-2" role="group" aria-label="Ship orientation">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Ship orientation">
             {(['horizontal', 'vertical'] as const).map((value) => (
-              <button key={value} type="button" aria-pressed={orientation === value} onClick={() => setOrientation(value)} className={`min-h-10 px-3 text-sm font-bold ${orientation === value ? 'bg-[#58c7d9] text-[#10272f]' : 'border border-white/15 text-white'}`}>{value === 'horizontal' ? 'Horizontal' : 'Vertical'}</button>
+              <button key={value} type="button" aria-pressed={orientation === value} onClick={() => setOrientation(value)} className={`min-h-11 rounded-xl px-3 text-sm font-bold ${orientation === value ? 'bg-[#58c7d9] text-[#10272f]' : 'border border-white/15 text-white'}`}>{value === 'horizontal' ? 'Horizontal' : 'Vertical'}</button>
             ))}
           </div>
           <p className="text-sm font-semibold text-white/70">{view.yourReady ? 'Fleet locked' : `Ship ${ships.length + 1}/5${nextLength ? `, length ${nextLength}` : ''}`}</p>
         </div>
         {renderGrid('own')}
         {!view.yourReady && (
-          <div className="mt-4 flex justify-center gap-3">
+          <div className="mt-4 flex flex-wrap justify-center gap-3">
             <Button variant="secondary" disabled={ships.length === 0} onClick={() => setShips((current) => current.slice(0, -1))}>Undo</Button>
             <Button disabled={ships.length !== 5} onClick={() => onAction({ type: 'place_fleet', ships })}>Lock fleet</Button>
           </div>

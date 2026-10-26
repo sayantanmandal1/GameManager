@@ -68,7 +68,7 @@ function BotGame() {
   return (
     <main className="tabletop-scene min-h-screen px-4 py-6 text-game-text">
       <div className="mx-auto flex max-w-3xl flex-col items-center">
-        <div className="glass-chrome mb-6 flex w-full max-w-[34rem] items-center justify-between gap-4 rounded-2xl border border-white/10 p-3">
+        <div className="glass-chrome game-toolbar mb-6 w-full max-w-[34rem] rounded-2xl border border-white/10 p-3">
           <button onClick={() => router.push('/games/tictactoe')} className="-ml-2 min-h-11 rounded-md px-2 text-sm font-semibold text-game-muted hover:bg-white/5 hover:text-white">← Modes</button>
           <div className="text-center">
             <p className="text-xs font-bold text-[#d7a7ff]">BOT MATCH</p>

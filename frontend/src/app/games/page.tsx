@@ -135,7 +135,7 @@ export default function GamesPage() {
         <div className="room-entry mb-6 gap-3 px-4">
           <Search className="h-4 w-4 shrink-0 text-game-muted" aria-hidden="true" />
           <label htmlFor="game-search" className="sr-only">Search games</label>
-          <input id="game-search" type="search" value={search} onChange={(event) => setSearch(event.target.value.slice(0, 60))} placeholder="Search the game shelf" className="h-10 min-w-0 w-full bg-transparent text-base text-white outline-none placeholder:text-game-muted" />
+          <input id="game-search" type="search" value={search} onChange={(event) => setSearch(event.target.value.slice(0, 60))} placeholder="Search the game shelf" className="min-h-11 min-w-0 w-full bg-transparent text-base text-white outline-none placeholder:text-game-muted" />
           <span aria-live="polite" aria-atomic="true" className="shrink-0 text-xs tabular-nums text-game-muted">{games.length > 0 ? `${visibleGames.length}/${games.length}` : '…'}</span>
         </div>
 

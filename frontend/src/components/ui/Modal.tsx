@@ -9,11 +9,12 @@ interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title?: string;
+  panelClassName?: string;
   dismissible?: boolean;
   children: React.ReactNode;
 }
 
-export function Modal({ isOpen, onClose, title, children, dismissible = true }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, dismissible = true, panelClassName }: ModalProps) {
   const titleId = useId();
   const panel = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
@@ -23,6 +24,10 @@ export function Modal({ isOpen, onClose, title, children, dismissible = true }: 
     if (!isOpen) return;
     const previousFocus = document.activeElement;
     const previousOverflow = document.body.style.overflow;
+    const overlay = panel.current?.parentElement;
+    const background = Array.from(document.body.children).filter((element) =>
+      element instanceof HTMLElement && element !== overlay && !element.hasAttribute('inert'));
+    background.forEach((element) => element.setAttribute('inert', ''));
     document.body.style.overflow = 'hidden';
     const focusable = () => Array.from(panel.current?.querySelectorAll<HTMLElement>(
       'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]',
@@ -42,10 +47,10 @@ export function Modal({ isOpen, onClose, title, children, dismissible = true }: 
       if (!first) {
         event.preventDefault();
         panel.current?.focus();
-      } else if (event.shiftKey && (document.activeElement === first || document.activeElement === panel.current)) {
+      } else if (event.shiftKey && (document.activeElement === first || !panel.current?.contains(document.activeElement) || document.activeElement === panel.current)) {
         event.preventDefault();
         last.focus();
-      } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === panel.current)) {
+      } else if (!event.shiftKey && (document.activeElement === last || !panel.current?.contains(document.activeElement) || document.activeElement === panel.current)) {
         event.preventDefault();
         first.focus();
       }
@@ -53,6 +58,7 @@ export function Modal({ isOpen, onClose, title, children, dismissible = true }: 
     document.addEventListener('keydown', handleKey);
     return () => {
       document.body.style.overflow = previousOverflow;
+      background.forEach((element) => element.removeAttribute('inert'));
       document.removeEventListener('keydown', handleKey);
       if (previousFocus instanceof HTMLElement) previousFocus.focus();
     };
@@ -74,7 +80,7 @@ export function Modal({ isOpen, onClose, title, children, dismissible = true }: 
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             aria-hidden="true"
-            className="absolute inset-0 bg-black/65 backdrop-blur-md"
+            className="modal-scrim absolute inset-0 bg-black/65 backdrop-blur-md"
             onClick={dismissible ? onClose : undefined}
           />
 
@@ -88,7 +94,7 @@ export function Modal({ isOpen, onClose, title, children, dismissible = true }: 
             initial={{ opacity: 0, scale: 0.97, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: 12 }}
-            className={`premium-panel relative max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto p-6 shadow-2xl sm:p-8 ${dismissible ? 'pt-16 sm:pt-16' : ''}`}
+            className={`relative max-h-[calc(100dvh-2rem)] w-full min-w-0 overflow-y-auto shadow-2xl ${panelClassName ?? 'premium-panel max-w-md p-6 sm:p-8'} ${dismissible ? 'pt-16 sm:pt-16' : ''}`}
           >
             {dismissible && <button type="button" onClick={onClose} aria-label="Close dialog" className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-white/5 text-game-muted transition-colors hover:bg-white/10 hover:text-white">
               <X className="h-5 w-5" aria-hidden="true" />

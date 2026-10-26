@@ -8,7 +8,7 @@ Expo SDK 57 Android/iOS shell for the GameVerse platform. The app provides:
 - synchronized guest-session renewal between the WebView and `expo-secure-store`;
 - microphone and camera support for voice chat and Photobooth, requested only when a game asks for them;
 - a native save/share sheet for files generated in the web app (Photobooth strips), which Android WebView cannot download itself;
-- edge-to-edge safe-area handling, fixed 100% text zoom, an immersive landscape mode and automatic recovery if the WebView renderer is killed;
+- edge-to-edge safe-area handling, gameplay text zoom and header sizing that follow the system font scale, an immersive landscape mode and automatic recovery if the WebView renderer is killed;
 - reproducible Android APK builds from GitHub Actions.
 
 The website detects the app through its `GameVerseApp/<bridge>` user-agent suffix and the injected `window.__GAMEVERSE_NATIVE__` capabilities, hides duplicate browser chrome and download prompts, and routes file downloads through the native bridge.

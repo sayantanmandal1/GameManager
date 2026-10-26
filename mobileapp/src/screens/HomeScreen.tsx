@@ -12,7 +12,6 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
 import { BrandMark } from '../components/BrandMark';
 import { colors } from '../theme';
 import type { GameDefinition, GameModeKey, GuestSession, WebDestination } from '../types';
@@ -83,8 +82,7 @@ export function HomeScreen({ session, onOpen, onLogout }: Readonly<HomeScreenPro
     setCatalogAttempt((attempt) => attempt + 1);
   };
 
-  const open = async (destination: WebDestination) => {
-    await Haptics.selectionAsync();
+  const open = (destination: WebDestination) => {
     onOpen(destination);
   };
 
@@ -137,8 +135,8 @@ export function HomeScreen({ session, onOpen, onLogout }: Readonly<HomeScreenPro
             <Text style={styles.hello} numberOfLines={1}>Hello, {session.user.username}</Text>
             <Text style={styles.subtitle}>Pick a table or enter a friend&apos;s room code.</Text>
 
-            <View style={styles.joinPanel}>
-              <View style={styles.joinCopy}>
+            <View style={[styles.joinPanel, fontScale >= 1.5 && styles.joinPanelStacked]}>
+              <View style={[styles.joinCopy, fontScale >= 1.5 && styles.joinCopyStacked]}>
                 <Text style={styles.joinLabel}>JOIN A ROOM</Text>
                 <TextInput
                   value={joinCode}
@@ -154,6 +152,7 @@ export function HomeScreen({ session, onOpen, onLogout }: Readonly<HomeScreenPro
               </View>
               <Pressable
                 disabled={joinCode.length !== 6}
+                accessibilityState={{ disabled: joinCode.length !== 6 }}
                 onPress={join}
                 accessibilityRole="button"
                 style={({ pressed }) => [styles.joinButton, joinCode.length !== 6 && styles.disabled, pressed && styles.pressed]}
@@ -250,23 +249,25 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   list: { width: '100%', maxWidth: 1000, alignSelf: 'center', paddingHorizontal: 16, paddingBottom: 40 },
   row: { gap: 12 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, marginBottom: 40, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+  header: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, marginBottom: 40, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
+  brandRow: { flexDirection: 'row', flexShrink: 1, alignItems: 'center', gap: 11 },
   brand: { color: colors.text, fontSize: 19, fontWeight: '600', letterSpacing: -0.6 },
   connection: { color: colors.mint, fontSize: 9, fontWeight: '600', marginTop: 4, letterSpacing: 1.2 },
   profile: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.surfaceRaised, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border },
   profileText: { color: colors.text, fontSize: 18, fontWeight: '800' },
   hello: { color: colors.text, fontSize: 34, fontWeight: '600', letterSpacing: -1.3 },
   subtitle: { color: colors.muted, fontSize: 15, lineHeight: 23, marginTop: 8 },
-  joinPanel: { marginTop: 28, minHeight: 104, borderRadius: 24, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: 18, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  joinPanel: { marginTop: 28, minHeight: 104, borderRadius: 24, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: 18, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12 },
+  joinPanelStacked: { flexDirection: 'column', alignItems: 'stretch' },
   joinCopy: { flex: 1 },
+  joinCopyStacked: { flex: 0 },
   joinLabel: { color: colors.muted, fontSize: 10, fontWeight: '600', letterSpacing: 1.5, marginBottom: 6 },
   codeInput: { minHeight: 42, color: colors.text, fontSize: 26, fontWeight: '500', letterSpacing: 4, fontVariant: ['tabular-nums'], padding: 0 },
   joinButton: { minWidth: 76, minHeight: 48, padding: 12, borderRadius: 16, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' },
   joinButtonText: { color: colors.background, fontWeight: '600' },
   disabled: { opacity: 0.35 },
   pressed: { opacity: 0.78 },
-  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, marginTop: 36, marginBottom: 18 },
+  sectionRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, marginTop: 36, marginBottom: 18 },
   sectionTitle: { color: colors.text, fontSize: 24, fontWeight: '600', letterSpacing: -0.7, flexShrink: 1 },
   sectionMeta: { color: colors.muted, fontSize: 13, fontWeight: '700' },
   searchInput: { minHeight: 52, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, color: colors.text, fontSize: 16, paddingHorizontal: 18, paddingVertical: 14, marginBottom: 18 },

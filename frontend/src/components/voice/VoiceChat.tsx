@@ -48,6 +48,8 @@ export function VoiceChat({ roomId }: VoiceChatProps) {
                 size="sm"
                 onClick={toggleMute}
                 title={isMuted ? 'Unmute Mic' : 'Mute Mic'}
+                aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
+                aria-pressed={isMuted}
               >
                 {isMuted ? '🎙️❌' : '🎙️'}
               </Button>
@@ -56,6 +58,8 @@ export function VoiceChat({ roomId }: VoiceChatProps) {
                 size="sm"
                 onClick={toggleSpeaker}
                 title={isSpeakerOff ? 'Enable Speaker' : 'Disable Speaker'}
+                aria-label={isSpeakerOff ? 'Enable speaker' : 'Disable speaker'}
+                aria-pressed={isSpeakerOff}
               >
                 {isSpeakerOff ? '🔇' : '🔊'}
               </Button>
@@ -81,7 +85,7 @@ export function VoiceChat({ roomId }: VoiceChatProps) {
             >
               <span
                 className={`w-2 h-2 rounded-full ${
-                  peer.isMuted ? 'bg-red-400' : 'bg-green-400 animate-pulse'
+                  peer.isMuted ? 'bg-red-400' : 'bg-green-400'
                 }`}
               />
               <span className="text-game-muted">{peer.username}</span>

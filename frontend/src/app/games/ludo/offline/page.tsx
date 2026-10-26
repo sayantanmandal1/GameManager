@@ -128,7 +128,7 @@ export default function OfflineLudoPage() {
               setWinner(moveResult.winner.winnerId);
               if (moveResult.winner.winnerId === humanId) {
                 playWin();
-                confetti({ particleCount: 200, spread: 120, origin: { y: 0.6 } });
+                confetti({ disableForReducedMotion: true, particleCount: 200, spread: 120, origin: { y: 0.6 } });
               }
             }
 
@@ -204,7 +204,7 @@ export default function OfflineLudoPage() {
             setWinner(result.winner.winnerId);
             if (result.winner.winnerId === humanId) {
               playWin();
-              confetti({ particleCount: 200, spread: 120, origin: { y: 0.6 } });
+              confetti({ disableForReducedMotion: true, particleCount: 200, spread: 120, origin: { y: 0.6 } });
             }
           }
         }

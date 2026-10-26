@@ -19,9 +19,9 @@ export function SiteHeader() {
 
   return (
     <header className="glass-chrome sticky top-0 z-40 [@media(max-height:520px)]:static">
-      <div className="mx-auto flex h-[4.5rem] max-w-7xl items-center justify-between gap-2 px-3 sm:px-6">
-        <div className="flex min-w-0 items-center gap-6">
-          <Link href="/games" className="flex min-h-11 shrink-0 items-center gap-2 text-white">
+      <div className="mx-auto flex min-h-[4.5rem] max-w-7xl flex-wrap items-center justify-between gap-2 px-3 py-3 sm:px-6">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-6">
+          <Link href="/games" className="flex min-h-11 min-w-0 items-center gap-2 text-white">
             <Image src="/gameverse-mark.svg" alt="" width={30} height={30} priority />
             <span className="font-display text-base font-semibold">GameVerse</span>
           </Link>
@@ -29,13 +29,13 @@ export function SiteHeader() {
             <Link
               href="/games"
               aria-current={pathname === '/games' ? 'page' : undefined}
-              className="rounded-full bg-white/[0.06] px-4 py-2 text-sm font-medium text-game-text transition-colors hover:bg-white/10"
+              className="inline-flex min-h-11 items-center rounded-full bg-white/[0.06] px-4 py-2 text-sm font-medium text-game-text transition-colors hover:bg-white/10"
             >
               Games
             </Link>
           </nav>
         </div>
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 sm:gap-3">
           <Link
             href="/download"
             className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-4 text-sm font-medium text-game-text transition-colors hover:bg-white/10"

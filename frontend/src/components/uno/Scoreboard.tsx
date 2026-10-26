@@ -76,7 +76,7 @@ export function Scoreboard({
             </Button>
           </div>
         ) : (
-          <p className="mt-6 animate-pulse text-xs font-semibold uppercase tracking-widest text-white/40">
+          <p className="mt-6 text-xs font-semibold uppercase tracking-widest text-game-muted">
             {S.over.nextRound}
           </p>
         )}

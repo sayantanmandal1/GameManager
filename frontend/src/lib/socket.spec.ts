@@ -101,6 +101,19 @@ describe('Socket Module', () => {
       expect(mockSocket.on).toHaveBeenCalledWith('connect', expect.any(Function));
       expect(mockSocket.on).toHaveBeenCalledWith('connect_error', expect.any(Function));
     });
+
+    it('reports initial failures even when consumers only observe socket events', async () => {
+      const warning = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+      try {
+        connectSocket('test-token');
+        const onError = mockSocket.on.mock.calls.find((call) => call[0] === 'connect_error')![1];
+        onError(new Error('Server unavailable'));
+        await Promise.resolve();
+        expect(warning).toHaveBeenCalledWith('Game connection failed:', 'Server unavailable');
+      } finally {
+        warning.mockRestore();
+      }
+    });
   });
 
   describe('disconnectSocket', () => {

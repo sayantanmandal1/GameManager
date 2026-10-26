@@ -65,8 +65,8 @@ export default function TicTacToeLandingPage() {
 
   return (
     <main className="tabletop-scene flex min-h-[calc(100svh-4.5rem)] items-center px-5 py-12 sm:px-8 sm:py-20">
-      <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[1fr_24rem] lg:items-center">
-        <section>
+      <div className="mx-auto grid w-full min-w-0 max-w-5xl grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-center">
+        <section className="min-w-0 [overflow-wrap:anywhere]">
           <p className="eyebrow text-[#d7a7ff]">TIC TAC TOE</p>
           <h1 className="mt-4 text-4xl font-semibold leading-[1.08] text-white sm:text-6xl">Three cells. Two ways to play.</h1>
           <p className="mt-4 max-w-xl text-base leading-7 text-game-muted">
@@ -113,7 +113,7 @@ export default function TicTacToeLandingPage() {
           aria-hidden="true"
         >
           {['X', '', 'O', '', 'X', '', 'O', '', 'X'].map((value, index) => (
-            <div key={index} className="flex items-center justify-center rounded-2xl bg-white/5 text-5xl font-medium text-game-coral">
+            <div key={index} className="flex min-w-0 items-center justify-center rounded-2xl bg-white/5 text-[clamp(2rem,12vw,3rem)] font-medium text-game-coral">
               <span className={value === 'O' ? 'text-game-mint' : ''}>{value}</span>
             </div>
           ))}

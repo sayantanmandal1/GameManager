@@ -107,7 +107,7 @@ export function LudoDice({
         >
           Rolled: <span className="text-white font-bold text-base">{dice}</span>
           {dice === 6 && (
-            <span className="ml-2 inline-block animate-bounce font-black text-game-sun">Six!</span>
+            <span className="ml-2 inline-block font-semibold text-game-sun">Six!</span>
           )}
         </motion.div>
       )}
@@ -117,7 +117,7 @@ export function LudoDice({
         <Button
           onClick={onRoll}
           disabled={disabled || !isMyTurn || isRolling}
-          className={`${isMyTurn && !disabled ? 'animate-pulse-glow' : ''} px-6 py-3 text-base`}
+          className="px-6 py-3 text-base"
         >
           {isRolling ? '🎲 Rolling…' : '🎲 Roll Dice'}
         </Button>

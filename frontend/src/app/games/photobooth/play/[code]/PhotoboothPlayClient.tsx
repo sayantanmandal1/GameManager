@@ -10,6 +10,7 @@ import { useSocket } from '@/hooks/useSocket';
 import { usePhotoboothSocket } from '@/hooks/usePhotoboothSocket';
 import { getSocket } from '@/lib/socket';
 import { RematchButton } from '@/components/lobby/RematchButton';
+import { GameConnectionState } from '@/components/ui/GameConnectionState';
 import {
   LOBBY_EVENTS,
   PhotoboothPhase,
@@ -97,6 +98,7 @@ export default function PhotoboothPlayClient({ code }: Props) {
     if (!complete) return;
     const burst = (x: number) =>
       confetti({
+        disableForReducedMotion: true,
         particleCount: 60,
         spread: 70,
         origin: { x, y: 0.6 },
@@ -150,14 +152,7 @@ export default function PhotoboothPlayClient({ code }: Props) {
   );
 
   if (!view) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-rose-100 via-pink-50 to-amber-50">
-        <div className="text-center text-rose-400">
-          <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-rose-300 border-t-transparent" />
-          <p>{isConnected ? S.errors.loading : S.errors.disconnected}</p>
-        </div>
-      </main>
-    );
+    return <GameConnectionState connected={isConnected} error={error} backHref="/games/photobooth" />;
   }
 
   const isHost = view.role === 'host';
@@ -168,7 +163,7 @@ export default function PhotoboothPlayClient({ code }: Props) {
     <main className="relative min-h-screen overflow-hidden bg-[#faf8f6] px-4 py-6 text-zinc-700">
       <div className="mx-auto max-w-5xl">
         {/* Header */}
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-200/80 bg-white/85 p-3 shadow-sm backdrop-blur-xl">
+        <div className="photobooth-material game-material mb-8 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-200/80 bg-white/85 p-3 shadow-sm backdrop-blur-xl">
           <button
             onClick={handleBackToLobby}
             className="-ml-2 inline-flex min-h-11 items-center rounded-md px-2 text-sm text-zinc-500 transition hover:bg-white/60 hover:text-zinc-700"
@@ -273,7 +268,7 @@ export default function PhotoboothPlayClient({ code }: Props) {
                   )}
                 </div>
               ) : (
-                <div className="flex h-full flex-col items-center justify-center rounded-3xl bg-white/60 p-10 text-center shadow-sm backdrop-blur">
+                <div className="photobooth-material game-material flex h-full flex-col items-center justify-center rounded-3xl bg-white/60 p-10 text-center shadow-sm backdrop-blur">
                   <span className="mb-4 text-5xl">
                     💞
                   </span>

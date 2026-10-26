@@ -32,7 +32,7 @@ export function ConnectFourBoard({
               aria-label={`Drop disc in column ${column + 1}`}
               disabled={!enabled}
               onClick={() => onDrop(column)}
-              className="flex aspect-square items-center justify-center rounded-md text-xl font-black text-game-sun transition-colors enabled:hover:bg-white/10 disabled:text-white/15"
+              className="flex min-h-11 min-w-0 items-center justify-center rounded-md text-xl font-black text-game-sun transition-colors enabled:hover:bg-white/10 disabled:text-white/15"
             >
               ↓
             </button>
