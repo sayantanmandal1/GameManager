@@ -1612,8 +1612,13 @@ async function verifyDistinctGames(
       },
       assertTransition: (view, previousView) => {
         assert.equal(view.players.find((player) => player.id === previousView.currentTurnId).handCount, 3);
-        assert.notEqual(view.currentTurnId, previousView.currentTurnId);
-        assert(view.total >= 0 && view.total <= 99);
+        const play = previousView.legalPlays[0];
+        const card = previousView.yourHand.find((entry) => entry.id === play.cardId);
+        const expectedPlayer = card.rank === '3' || card.rank === '4'
+          ? previousView.currentTurnId
+          : previousView.players.find((player) => player.id !== previousView.currentTurnId).id;
+        assert.equal(view.currentTurnId, expectedPlayer);
+        assert.equal(view.total, card.rank === '9' ? 99 : previousView.total + play.values[0]);
       },
     },
     {
