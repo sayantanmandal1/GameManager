@@ -14,20 +14,22 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="w-full">
         {label && (
-          <label htmlFor={inputId} className="block text-sm font-medium text-white/40 mb-1.5">
+          <label htmlFor={inputId} className="mb-2 block text-sm font-medium text-game-muted">
             {label}
           </label>
         )}
         <input
           ref={ref}
           id={inputId}
-          className={`w-full bg-black border border-white/[0.1] rounded-xl px-4 py-2.5
-            text-white placeholder:text-white/25
-            focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-transparent
-            transition-all ${error ? 'border-red-500/50' : ''} ${className}`}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${inputId}-error` : props['aria-describedby']}
+          className={`min-h-12 w-full rounded-2xl border border-white/[0.12] bg-black/20 px-4 py-3
+            text-base text-white placeholder:text-game-muted
+            focus:outline-none focus:ring-2 focus:ring-game-blue/30 focus:border-game-blue
+            transition-colors ${error ? 'border-red-400/60' : ''} ${className}`}
           {...props}
         />
-        {error && <p className="mt-1 text-sm text-red-400">{error}</p>}
+        {error && <p id={`${inputId}-error`} role="alert" className="mt-2 text-sm text-game-coral">{error}</p>}
       </div>
     );
   },

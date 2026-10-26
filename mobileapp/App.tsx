@@ -8,6 +8,8 @@ import { GameWebView } from './src/screens/GameWebView';
 import { deleteSession, loadSession, saveSession } from './src/services/session';
 import { isTokenExpired, loginGuest } from './src/services/auth';
 import type { GuestSession, WebDestination } from './src/types';
+import { colors } from './src/theme';
+import { BrandMark } from './src/components/BrandMark';
 
 export default function App() {
   const [booting, setBooting] = useState(true);
@@ -57,7 +59,8 @@ export default function App() {
       <StatusBar style="light" />
       {booting ? (
         <View style={styles.boot}>
-          <ActivityIndicator color="#63d5a4" size="large" />
+          <BrandMark size={64} />
+          <ActivityIndicator color={colors.mint} style={{ marginTop: 24 }} />
         </View>
       ) : !session ? (
         <LoginScreen onLogin={handleLogin} />
@@ -82,7 +85,7 @@ export default function App() {
 const styles = StyleSheet.create({
   boot: {
     flex: 1,
-    backgroundColor: '#101310',
+    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },

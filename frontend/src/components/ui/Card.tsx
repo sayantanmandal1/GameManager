@@ -16,10 +16,19 @@ export function Card({
 }: CardProps) {
   return (
     <motion.div
-      whileHover={hoverable ? { scale: 1.02, y: -4 } : undefined}
-      className={`bg-[#1c1f1b]/95 backdrop-blur-xl border border-white/[0.14] rounded-lg p-6
-        ${glowing ? 'shadow-xl shadow-black/20' : ''}
-        ${hoverable ? 'cursor-pointer transition-shadow hover:shadow-xl hover:shadow-black/30 hover:bg-[#232720]' : ''}
+      role={props.onClick ? 'button' : undefined}
+      tabIndex={props.onClick ? 0 : undefined}
+      onKeyDown={props.onClick ? (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          event.currentTarget.click();
+        }
+      } : undefined}
+      whileHover={hoverable ? { y: -3 } : undefined}
+      whileTap={hoverable ? { scale: 0.98 } : undefined}
+      className={`premium-panel p-6
+        ${glowing ? 'ring-1 ring-white/[0.04]' : ''}
+        ${hoverable ? 'cursor-pointer transition-colors hover:border-white/25 hover:bg-white/[0.06]' : ''}
         ${className}`}
       {...props}
     >

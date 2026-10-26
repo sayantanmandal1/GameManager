@@ -24,6 +24,9 @@ describe('Input Component', () => {
   it('should show error text when error prop is set', () => {
     render(<Input error="This field is required" />);
     expect(screen.getByText('This field is required')).toBeInTheDocument();
+    const input = screen.getByRole('textbox');
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input).toHaveAttribute('aria-describedby', screen.getByRole('alert').id);
   });
 
   it('should not show error when error prop is not set', () => {

@@ -4,6 +4,16 @@ A real-time multiplayer gaming platform built with **Next.js**, **NestJS**, **So
 
 ---
 
+## Interface design
+
+The website and native app share a graphite-and-pearl visual system with restrained game accents, system typography, rounded surfaces, and immediate press feedback. The website uses shared buttons, cards, inputs, dialogs, and motion configuration; game boards retain their own colors and rules.
+
+- Web design tokens: `frontend/src/app/globals.css` and `frontend/tailwind.config.js`.
+- Native design tokens: `mobileapp/src/theme.ts`.
+- Motion respects the system reduced-motion preference. Web chrome also supports reduced transparency and increased contrast.
+- Shared dialogs support Escape, focus containment/restoration, and keyboard-accessible dismissal.
+- No runtime design-skill dependency or externally downloaded fonts are required.
+
 ## Supported Games
 
 | Game | Players | Notes |

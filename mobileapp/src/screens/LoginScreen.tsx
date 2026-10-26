@@ -87,7 +87,7 @@ export function LoginScreen({ onLogin }: { onLogin: (session: GuestSession) => P
               autoCorrect={false}
               maxLength={20}
               placeholder="e.g. Alex_7"
-              placeholderTextColor="#697068"
+              placeholderTextColor={colors.muted}
               returnKeyType="go"
               style={[styles.input, (error || validationError) && styles.inputError]}
               accessibilityLabel="Player name"
@@ -123,34 +123,34 @@ export function LoginScreen({ onLogin }: { onLogin: (session: GuestSession) => P
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   safeArea: { flex: 1, backgroundColor: colors.background },
-  content: { flexGrow: 1, paddingHorizontal: 24, paddingVertical: 24, justifyContent: 'center' },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 28 },
-  brand: { color: colors.text, fontSize: 22, fontWeight: '800' },
+  content: { flexGrow: 1, width: '100%', maxWidth: 520, alignSelf: 'center', paddingHorizontal: 28, paddingVertical: 32, justifyContent: 'center' },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 36 },
+  brand: { color: colors.text, fontSize: 22, fontWeight: '600', letterSpacing: -0.7 },
   scene: {
-    height: 150,
-    borderRadius: 16,
-    backgroundColor: '#17201a',
+    height: 190,
+    borderRadius: 28,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: 28,
+    marginBottom: 36,
     overflow: 'hidden',
   },
   piece: { position: 'absolute', width: 54, height: 54, borderRadius: 27, borderWidth: 6, borderColor: colors.text },
-  pieceCoral: { backgroundColor: colors.coral, left: 24, top: 44 },
-  pieceMint: { backgroundColor: colors.mint, left: 98, top: 70 },
-  card: { position: 'absolute', width: 70, height: 102, borderRadius: 9, borderWidth: 5, borderColor: colors.text, alignItems: 'center', justifyContent: 'center' },
-  cardOne: { backgroundColor: colors.blue, right: 74, top: 22, transform: [{ rotate: '-10deg' }] },
-  cardTwo: { backgroundColor: colors.sun, right: 18, top: 35, transform: [{ rotate: '11deg' }] },
+  pieceCoral: { backgroundColor: colors.coral, left: 22, top: 45 },
+  pieceMint: { backgroundColor: colors.mint, left: 64, top: 115 },
+  card: { position: 'absolute', width: 74, height: 110, borderRadius: 13, borderWidth: 4, borderColor: colors.text, alignItems: 'center', justifyContent: 'center', boxShadow: '0 12px 24px rgba(0, 0, 0, 0.3)' },
+  cardOne: { backgroundColor: colors.blue, right: 74, top: 28, transform: [{ rotate: '-14deg' }] },
+  cardTwo: { backgroundColor: colors.sun, right: 22, top: 58, transform: [{ rotate: '12deg' }] },
   cardText: { color: '#17201a', fontSize: 38, fontWeight: '900' },
-  title: { color: colors.text, fontSize: 38, lineHeight: 42, fontWeight: '900' },
-  subtitle: { color: colors.muted, fontSize: 16, lineHeight: 24, marginTop: 12 },
-  form: { marginTop: 32 },
-  label: { color: colors.mint, fontSize: 12, fontWeight: '800', marginBottom: 8 },
-  input: { height: 54, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, color: colors.text, fontSize: 17, paddingHorizontal: 16 },
+  title: { color: colors.text, fontSize: 42, lineHeight: 46, fontWeight: '600', letterSpacing: -1.8 },
+  subtitle: { color: colors.muted, fontSize: 16, lineHeight: 26, marginTop: 14 },
+  form: { marginTop: 36 },
+  label: { color: colors.muted, fontSize: 11, fontWeight: '600', letterSpacing: 1.6, marginBottom: 12 },
+  input: { minHeight: 56, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, color: colors.text, fontSize: 17, paddingHorizontal: 18, paddingVertical: 14 },
   inputError: { borderColor: colors.danger },
   error: { color: colors.danger, fontSize: 13, marginTop: 8 },
-  primaryButton: { minHeight: 54, marginTop: 16, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.sun },
-  primaryButtonText: { color: '#17201a', fontSize: 16, fontWeight: '900' },
-  pressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
+  primaryButton: { minHeight: 56, paddingVertical: 16, marginTop: 16, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.text },
+  primaryButtonText: { color: colors.background, fontSize: 16, fontWeight: '600' },
+  pressed: { opacity: 0.75 },
   disabled: { opacity: 0.45 },
 });

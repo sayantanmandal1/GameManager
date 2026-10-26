@@ -18,17 +18,18 @@ export function SiteHeader() {
   if (!isAuthenticated || inNativeApp || pathname === '/' || pathname.startsWith('/download') || isPlayRoute) return null;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/10 bg-[#101310]/90 backdrop-blur-xl [@media(max-height:520px)]:static">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-3 sm:px-6">
+    <header className="glass-chrome sticky top-0 z-40 [@media(max-height:520px)]:static">
+      <div className="mx-auto flex h-[4.5rem] max-w-7xl items-center justify-between gap-2 px-3 sm:px-6">
         <div className="flex min-w-0 items-center gap-6">
           <Link href="/games" className="flex min-h-11 shrink-0 items-center gap-2 text-white">
             <Image src="/gameverse-mark.svg" alt="" width={30} height={30} priority />
-            <span className="font-display text-base font-bold">GameVerse</span>
+            <span className="font-display text-base font-semibold">GameVerse</span>
           </Link>
           <nav aria-label="Primary" className="hidden sm:block">
             <Link
               href="/games"
-              className="rounded-md px-3 py-2 text-sm font-semibold text-game-muted transition-colors hover:bg-white/5 hover:text-white"
+              aria-current={pathname === '/games' ? 'page' : undefined}
+              className="rounded-full bg-white/[0.06] px-4 py-2 text-sm font-medium text-game-text transition-colors hover:bg-white/10"
             >
               Games
             </Link>
@@ -37,7 +38,7 @@ export function SiteHeader() {
         <div className="flex items-center gap-2 sm:gap-3">
           <Link
             href="/download"
-            className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border border-game-mint/40 bg-game-mint/10 px-3 text-sm font-bold text-game-mint transition-colors hover:bg-game-mint/20"
+            className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-4 text-sm font-medium text-game-text transition-colors hover:bg-white/10"
           >
             <Smartphone className="h-4 w-4" aria-hidden="true" />
             <span>Get app</span>
@@ -46,7 +47,7 @@ export function SiteHeader() {
             <p className="text-sm font-semibold text-white">{user?.username}</p>
             <p className="text-xs text-game-muted">Guest player</p>
           </div>
-          <span className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#252923] text-lg min-[400px]:flex" aria-hidden="true">
+          <span className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-game-card text-lg min-[400px]:flex" aria-hidden="true">
             {user?.avatar ?? 'G'}
           </span>
           <button

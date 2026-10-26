@@ -36,20 +36,20 @@ export function DistinctGameLanding({ gameKey }: { gameKey: DistinctGameKey }) {
   useEffect(() => () => reset(), [reset]);
 
   return (
-    <main className="min-h-[calc(100vh-4rem)] px-4 py-8 sm:px-6">
-      <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[minmax(0,1fr)_28rem] lg:items-center">
+    <main className="tabletop-scene flex min-h-[calc(100svh-4.5rem)] items-center px-5 py-12 sm:px-8 sm:py-20">
+      <div className="mx-auto grid w-full max-w-6xl gap-12 lg:grid-cols-[minmax(0,1fr)_28rem] lg:items-center">
         <section>
-          <p className="text-sm font-bold" style={{ color: ui.accent }}>{ui.eyebrow}</p>
-          <h1 className="mt-2 max-w-3xl text-4xl font-black text-white sm:text-5xl">{ui.name}</h1>
-          <p className="mt-3 max-w-2xl text-2xl font-bold leading-tight text-white/85">{ui.headline}</p>
-          <p className="mt-4 max-w-xl text-base leading-7 text-game-muted">{ui.description}</p>
-          <div className="mt-8 flex flex-wrap gap-3">
+          <p className="eyebrow" style={{ color: ui.accent }}>{ui.eyebrow}</p>
+          <h1 className="mt-5 max-w-3xl text-5xl font-semibold leading-[1.05] text-white sm:text-6xl">{ui.name}</h1>
+          <p className="mt-5 max-w-2xl text-2xl font-medium leading-tight text-white/85">{ui.headline}</p>
+          <p className="mt-5 max-w-xl text-base leading-8 text-game-muted">{ui.description}</p>
+          <div className="mt-9 flex flex-wrap gap-3">
             <Button onClick={() => createLobby(GameType.DISTINCT, gameKey)} isLoading={isLoading}>Create online match</Button>
             <Button variant="secondary" onClick={() => setShowJoin(true)}>Join with code</Button>
           </div>
           {error && <p role="alert" className="mt-4 text-sm text-red-300">{error}</p>}
         </section>
-        <div className="flex justify-center lg:justify-end"><DistinctGamePreview gameKey={gameKey} /></div>
+        <div className="premium-panel flex min-w-0 justify-center overflow-hidden bg-white/[0.025] p-5 sm:p-8"><DistinctGamePreview gameKey={gameKey} /></div>
       </div>
 
       <Modal isOpen={showJoin} onClose={() => setShowJoin(false)} title={`Join ${ui.name}`}>

@@ -100,7 +100,7 @@ export function GameWebView({ destination, session, onSessionChange, onClose }: 
       <StatusBar style="light" hidden={landscape} />
       {!landscape && (
         <View style={styles.header}>
-          <Pressable onPress={onClose} style={styles.iconButton} accessibilityRole="button" accessibilityLabel="Close game">
+          <Pressable onPress={onClose} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel="Close game">
             <Text style={styles.icon}>×</Text>
           </Pressable>
           <View style={styles.titleWrap}>
@@ -109,7 +109,7 @@ export function GameWebView({ destination, session, onSessionChange, onClose }: 
           </View>
           <Pressable
             onPress={() => webView.current?.reload()}
-            style={styles.iconButton}
+            style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
             accessibilityRole="button"
             accessibilityLabel="Reload game"
           >
@@ -234,22 +234,23 @@ function safeRoute(route: string): string {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
-  header: { height: HEADER_HEIGHT, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.background, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 },
-  iconButton: { width: 44, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
+  header: { height: HEADER_HEIGHT, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.background, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 },
+  iconButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
+  pressed: { opacity: 0.6 },
   icon: { color: colors.text, fontSize: 30, lineHeight: 32, fontWeight: '400' },
   reload: { color: colors.text, fontSize: 24, fontWeight: '700' },
   titleWrap: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
-  title: { color: colors.text, fontSize: 15, fontWeight: '800' },
-  crossplay: { color: colors.mint, fontSize: 10, fontWeight: '900', marginTop: 1, letterSpacing: 0.6 },
+  title: { color: colors.text, fontSize: 15, fontWeight: '600', letterSpacing: -0.3 },
+  crossplay: { color: colors.mint, fontSize: 9, fontWeight: '600', marginTop: 3, letterSpacing: 1.2 },
   webView: { flex: 1, backgroundColor: colors.background },
   overlay: { position: 'absolute', right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
-  sharingOverlay: { backgroundColor: 'rgba(16, 19, 16, 0.82)' },
+  sharingOverlay: { backgroundColor: 'rgba(11, 13, 18, 0.95)' },
   loadingText: { color: colors.muted, marginTop: 12, fontSize: 14 },
   errorOverlay: { position: 'absolute', right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', padding: 32, backgroundColor: colors.background },
-  errorTitle: { color: colors.text, fontSize: 24, fontWeight: '900' },
+  errorTitle: { color: colors.text, fontSize: 26, fontWeight: '600', letterSpacing: -0.7 },
   errorText: { color: colors.muted, fontSize: 15, textAlign: 'center', marginTop: 8 },
-  retryButton: { minHeight: 48, minWidth: 150, borderRadius: 10, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center', marginTop: 20, paddingHorizontal: 18 },
+  retryButton: { minHeight: 48, minWidth: 150, borderRadius: 16, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center', marginTop: 24, paddingHorizontal: 20, paddingVertical: 12 },
   retryText: { color: '#17201a', fontWeight: '900' },
-  secondaryButton: { minHeight: 48, minWidth: 150, borderRadius: 10, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', marginTop: 10, paddingHorizontal: 18 },
+  secondaryButton: { minHeight: 48, minWidth: 150, borderRadius: 16, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', marginTop: 12, paddingHorizontal: 20, paddingVertical: 12 },
   secondaryText: { color: colors.text, fontWeight: '800' },
 });

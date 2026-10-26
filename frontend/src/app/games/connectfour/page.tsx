@@ -33,11 +33,11 @@ export default function ConnectFourLandingPage() {
   useEffect(() => () => reset(), [reset]);
 
   return (
-    <main className="min-h-[calc(100vh-4rem)] px-4 py-8 sm:px-6">
+    <main className="tabletop-scene flex min-h-[calc(100svh-4.5rem)] items-center px-5 py-12 sm:px-8 sm:py-20">
       <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[1fr_25rem] lg:items-center">
         <section>
-          <p className="text-sm font-bold text-game-sun">CONNECT FOUR</p>
-          <h1 className="mt-2 text-4xl font-black text-white sm:text-5xl">Own the drop. Build the line.</h1>
+          <p className="eyebrow text-game-sun">CONNECT FOUR</p>
+          <h1 className="mt-4 text-4xl font-semibold leading-[1.08] text-white sm:text-6xl">Own the drop. Build the line.</h1>
           <p className="mt-4 max-w-xl text-base leading-7 text-game-muted">
             A fast two-player strategy game with server-checked gravity and wins. Play online or challenge the local bot.
           </p>
@@ -49,7 +49,7 @@ export default function ConnectFourLandingPage() {
           {error && <p role="alert" className="mt-4 text-sm text-red-300">{error}</p>}
         </section>
 
-        <div className="grid aspect-[7/6] grid-cols-7 gap-2 rounded-lg border border-[#72a6ff] bg-[#315fbd] p-3 shadow-2xl" aria-hidden="true">
+        <div className="grid aspect-[7/6] grid-cols-7 gap-2 rounded-3xl border border-[#72a6ff]/50 bg-[#315fbd] p-5 shadow-2xl" aria-hidden="true">
           {Array.from({ length: 42 }, (_, index) => {
             const red = [35, 37, 39, 30, 24].includes(index);
             const yellow = [36, 38, 31, 32].includes(index);

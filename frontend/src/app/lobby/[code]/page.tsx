@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { Modal } from '@/components/ui/Modal';
 import { LobbyPlayerCard } from '@/components/lobby/LobbyPlayer';
 import { PartnershipTeamPicker } from '@/components/lobby/PartnershipTeamPicker';
 import { GameChat } from '@/components/chat/GameChat';
@@ -197,31 +198,31 @@ export default function LobbyPage() {
   }
 
   return (
-    <main className="min-h-[calc(100vh-4rem)] px-4 py-6 sm:px-6 md:py-10">
+    <main className="min-h-[calc(100vh-4.5rem)] px-4 py-8 sm:px-6 md:py-14">
       <div className="mx-auto max-w-6xl">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-7 flex flex-col justify-between gap-5 border-b border-white/10 pb-7 sm:flex-row sm:items-end"
+          className="mb-9 flex flex-col justify-between gap-6 border-b border-white/[0.08] pb-9 sm:flex-row sm:items-end"
         >
           <div>
-            <p className="text-sm font-bold text-game-coral">{gameName.toUpperCase()} ROOM</p>
-            <h1 className="mt-1 text-3xl font-black text-white">Get the table ready</h1>
+            <p className="eyebrow">{gameName.toUpperCase()} ROOM</p>
+            <h1 className="mt-3 text-3xl font-semibold text-white sm:text-4xl">Get the table ready</h1>
             <p className="mt-2 text-sm text-game-muted">
               {isHost ? 'Start when every guest is ready.' : 'Mark yourself ready when you are set.'}
             </p>
           </div>
           <div className="sm:text-right">
-            <p className="mb-1 text-xs font-bold text-game-muted">INVITE CODE</p>
+            <p className="eyebrow mb-2">INVITE CODE</p>
             <button
               type="button"
               onClick={copyCode}
-              className="rounded-lg border border-white/15 bg-[#1c1f1b] px-4 py-2 font-mono text-2xl font-black text-white transition-colors hover:border-game-mint/60"
+              className="min-h-14 rounded-2xl border border-white/15 bg-game-card px-5 py-3 font-mono text-2xl font-medium tracking-[0.15em] text-white transition-colors hover:border-game-mint/60"
               title="Copy lobby code"
             >
               {code}
             </button>
-            <p className="mt-1 text-xs text-game-muted">
+            <p aria-live="polite" className="mt-2 text-xs text-game-muted">
               {copied ? 'Copied' : 'Click to copy'}
             </p>
           </div>
@@ -311,26 +312,23 @@ export default function LobbyPage() {
       </div>
 
       {pendingRemoval && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-          <div className="w-full max-w-sm rounded-lg border border-white/12 bg-[#1c1f1b] p-6 text-center shadow-2xl">
-            <h2 className="text-xl font-bold text-white">Remove {pendingRemoval.username}?</h2>
-            <p className="mt-2 text-sm text-game-muted">
-              They will be removed from this waiting room and must be invited again to return.
-            </p>
-            <div className="mt-5 flex justify-center gap-3">
-              <Button variant="secondary" onClick={() => setPendingRemoval(null)}>Cancel</Button>
-              <Button
-                variant="danger"
-                onClick={() => {
-                  removePlayer(pendingRemoval.id);
-                  setPendingRemoval(null);
-                }}
-              >
-                Remove player
-              </Button>
-            </div>
+        <Modal isOpen onClose={() => setPendingRemoval(null)} title={`Remove ${pendingRemoval.username}?`}>
+          <p className="mt-2 text-sm text-game-muted">
+            They will be removed from this waiting room and must be invited again to return.
+          </p>
+          <div className="mt-5 flex justify-center gap-3">
+            <Button variant="secondary" onClick={() => setPendingRemoval(null)}>Cancel</Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                removePlayer(pendingRemoval.id);
+                setPendingRemoval(null);
+              }}
+            >
+              Remove player
+            </Button>
           </div>
-        </div>
+        </Modal>
       )}
     </main>
   );

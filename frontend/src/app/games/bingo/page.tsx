@@ -39,16 +39,16 @@ export default function BingoEntryPage() {
   }, [lobby, router]);
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-6">
-      <div className="max-w-2xl w-full">
+    <main className="tabletop-scene flex min-h-[calc(100svh-4.5rem)] items-center justify-center px-5 py-12 sm:py-20">
+      <div className="w-full max-w-3xl">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-10"
         >
-          <span className="text-6xl mb-4 block">🎰</span>
-          <h1 className="text-4xl font-black text-white mb-2">Bingo</h1>
-          <p className="text-white/40">
+          <span className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-[2rem] border border-white/10 bg-game-card text-5xl shadow-xl">🎰</span>
+          <h1 className="mb-4 text-5xl font-semibold text-white sm:text-6xl">Bingo</h1>
+          <p className="text-game-muted">
             Classic number-calling game — be first to complete a pattern!
           </p>
         </motion.div>

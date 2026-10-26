@@ -1,10 +1,7 @@
 import type { Metadata } from 'next';
-import { DM_Sans, Space_Grotesk } from 'next/font/google';
 import { SiteHeader } from '@/components/ui/SiteHeader';
+import { MotionProvider } from '@/components/ui/MotionProvider';
 import './globals.css';
-
-const bodyFont = DM_Sans({ subsets: ['latin'], variable: '--font-body' });
-const displayFont = Space_Grotesk({ subsets: ['latin'], variable: '--font-display' });
 
 export const metadata: Metadata = {
   title: 'GameVerse | Play Together',
@@ -21,9 +18,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <body className={`${bodyFont.variable} ${displayFont.variable} min-h-screen bg-game-bg text-game-text`}>
-        <SiteHeader />
-        {children}
+      <body className="min-h-screen bg-game-bg text-game-text">
+        <MotionProvider>
+          <SiteHeader />
+          {children}
+        </MotionProvider>
       </body>
     </html>
   );

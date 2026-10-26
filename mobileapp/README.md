@@ -15,6 +15,8 @@ The website detects the app through its `GameVerseApp/<bridge>` user-agent suffi
 
 Players install the APK from the website's `/download` page.
 
+The native login, library, loading, and WebView chrome use the same graphite-and-pearl palette as the website, defined in `src/theme.ts`. Game identity stays in the accent marks; text uses platform fonts. Native press feedback uses opacity rather than animated movement, and the library adapts to phones and tablets.
+
 ## Requirements
 
 - Node.js 22.13 or newer (required by Expo SDK 57)

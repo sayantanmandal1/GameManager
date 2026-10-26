@@ -88,24 +88,24 @@ export default function ChessLandingPage() {
   };
 
   return (
-    <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-[#171713] p-6">
+    <main className="tabletop-scene flex min-h-[calc(100svh-4.5rem)] items-center justify-center px-5 py-12 sm:py-20">
       <div className="max-w-2xl w-full">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-10"
         >
-          <span className="text-6xl mb-4 block">♟️</span>
-          <h1 className="text-4xl font-black text-white mb-2">{chessStrings.landing.title}</h1>
-          <p className="text-white/40">{chessStrings.landing.subtitle}</p>
+          <span className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-[2rem] border border-white/10 bg-game-card text-5xl shadow-xl">♟️</span>
+          <h1 className="mb-4 text-5xl font-semibold text-white sm:text-6xl">{chessStrings.landing.title}</h1>
+          <p className="text-game-muted">{chessStrings.landing.subtitle}</p>
         </motion.div>
 
         {/* Time-control segmented control */}
         <fieldset
-          className="mb-6 rounded-lg border border-[#b68a4a]/35 bg-[#2a251d] p-3 shadow-xl shadow-black/20"
+          className="premium-panel mb-6 p-4"
           data-testid="time-control-picker"
         >
-          <legend className="px-2 text-xs uppercase tracking-wider text-white/40">
+          <legend className="eyebrow px-2">
             {chessStrings.timeControl.pickerLabel}
           </legend>
           <div className="flex flex-wrap gap-2">
@@ -117,9 +117,9 @@ export default function ChessLandingPage() {
                 aria-checked={tcKey === opt.key}
                 data-testid={`tc-${opt.key}`}
                 onClick={() => setTcKey(opt.key)}
-                className={`px-4 py-2 rounded-lg text-sm border transition-colors ${
+                className={`min-h-11 rounded-xl border px-4 py-2 text-sm transition-colors ${
                   tcKey === opt.key
-                    ? 'border-[#d3a85d] bg-[#b7833f] text-white shadow-lg shadow-black/20'
+                    ? 'border-game-sun bg-game-sun text-[#171912] shadow-lg shadow-black/20'
                     : 'border-white/10 bg-black/15 text-game-muted hover:border-white/25 hover:text-white'
                 }`}
               >

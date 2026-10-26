@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import { PlayerName } from '@/components/ui/PlayerName';
 import { GameChat } from '@/components/chat/GameChat';
 import { VoiceChat } from '@/components/voice/VoiceChat';
@@ -124,15 +125,10 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
         {!hasIntegratedWideSurface && <aside className="space-y-4"><VoiceChat roomId={code} /><GameChat lobbyCode={code} /></aside>}
       </div>
 
-      {confirmSurrender && !isBridge && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-          <div className="w-full max-w-sm rounded-lg border border-white/12 bg-[#1c1f1b] p-6 text-center">
-            <h2 className="text-xl font-bold">Resign this match?</h2>
-            <p className="mt-2 text-sm text-game-muted">Your opponent will be awarded the win.</p>
-            <div className="mt-5 flex justify-center gap-3"><Button variant="secondary" onClick={() => setConfirmSurrender(false)}>Cancel</Button><Button variant="danger" onClick={() => { surrender(); setConfirmSurrender(false); }}>Resign</Button></div>
-          </div>
-        </div>
-      )}
+      <Modal isOpen={confirmSurrender && !isBridge} onClose={() => setConfirmSurrender(false)} title="Resign this match?">
+        <p className="mt-2 text-sm text-game-muted">Your opponent will be awarded the win.</p>
+        <div className="mt-5 flex justify-center gap-3"><Button variant="secondary" onClick={() => setConfirmSurrender(false)}>Cancel</Button><Button variant="danger" onClick={() => { surrender(); setConfirmSurrender(false); }}>Resign</Button></div>
+      </Modal>
     </main>
   );
 }

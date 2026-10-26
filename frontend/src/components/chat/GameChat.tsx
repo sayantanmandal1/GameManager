@@ -119,7 +119,7 @@ export function GameChat({ lobbyCode }: GameChatProps) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
             transition={{ duration: 0.15 }}
-            className="bg-white/[0.04] backdrop-blur-sm border border-white/[0.06] rounded-xl flex flex-col overflow-hidden"
+            className="premium-panel flex flex-col overflow-hidden"
             style={{ height: '360px' }}
           >
             {/* Header */}
@@ -129,7 +129,7 @@ export function GameChat({ lobbyCode }: GameChatProps) {
               </span>
               <button
                 onClick={() => setIsExpanded(false)}
-                className="text-white/40 hover:text-white text-xs px-2 py-1 rounded hover:bg-black transition-colors"
+                className="min-h-11 rounded-xl px-3 text-xs text-game-muted transition-colors hover:bg-white/5 hover:text-white"
               >
                 ESC
               </button>
@@ -166,7 +166,8 @@ export function GameChat({ lobbyCode }: GameChatProps) {
                 onKeyDown={handleKeyDown}
                 placeholder="Type a message… (Enter to send, Esc to close)"
                 maxLength={500}
-                className="w-full px-3 py-2 bg-black/80 border border-white/[0.06] rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-white/30 transition-colors"
+                aria-label="Chat message"
+                className="min-h-12 w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-3 text-base text-white placeholder:text-game-muted focus:border-game-blue focus:outline-none transition-colors"
               />
             </div>
           </motion.div>
@@ -178,7 +179,16 @@ export function GameChat({ lobbyCode }: GameChatProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={handleExpand}
-            className="bg-white/[0.03] backdrop-blur-sm border border-white/[0.06] rounded-xl cursor-pointer hover:border-white/50 transition-all group"
+            role="button"
+            tabIndex={0}
+            aria-label="Open team chat"
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                handleExpand();
+              }
+            }}
+            className="premium-panel group cursor-pointer transition-colors hover:border-white/25"
           >
             {/* Mini header */}
             <div className="px-3 py-1.5 border-b border-white/[0.04] flex items-center justify-between">

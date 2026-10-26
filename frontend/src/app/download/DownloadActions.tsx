@@ -30,7 +30,7 @@ export function PrimaryDownloadActions({ meta, align = 'start' }: Readonly<{ met
     return (
       <div className="space-y-3">
         <div className={`flex flex-wrap items-center gap-3 ${justify}`}>
-          <Link href="/" className="inline-flex min-h-14 items-center gap-2 rounded-xl bg-game-sun px-6 text-base font-black text-[#171912] shadow-[0_14px_34px_rgba(242,201,76,0.28)] transition hover:bg-[#ffdc63]">
+          <Link href="/" className="inline-flex min-h-14 items-center gap-2 rounded-2xl bg-game-text px-6 text-base font-semibold text-game-bg transition-colors hover:bg-white">
             <Globe className="h-5 w-5" aria-hidden="true" /> Play in Safari
           </Link>
         </div>
@@ -46,12 +46,12 @@ export function PrimaryDownloadActions({ meta, align = 'start' }: Readonly<{ met
       <div className={`flex flex-wrap items-center gap-3 ${justify}`}>
         <a
           href={ANDROID_DOWNLOAD_PATH}
-          className="group inline-flex min-h-14 items-center gap-2.5 rounded-xl bg-game-mint px-6 text-base font-black text-[#0f241a] shadow-[0_16px_40px_rgba(99,213,164,0.35)] transition hover:-translate-y-0.5 hover:bg-[#7ee0b7]"
+          className="group inline-flex min-h-14 items-center gap-2.5 rounded-2xl bg-game-mint px-6 text-base font-semibold text-[#0f241a] transition-colors hover:bg-[#b1efd8]"
         >
           <Download className="h-5 w-5 transition group-hover:translate-y-0.5" aria-hidden="true" />
           Download for Android
         </a>
-        <Link href="/" className="inline-flex min-h-14 items-center gap-2 rounded-xl border border-white/20 px-5 text-base font-bold text-white transition hover:bg-white/5">
+        <Link href="/" className="inline-flex min-h-14 items-center gap-2 rounded-2xl border border-white/15 bg-white/[0.035] px-5 text-base font-medium text-white transition-colors hover:bg-white/[0.08]">
           Play in browser <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Link>
       </div>

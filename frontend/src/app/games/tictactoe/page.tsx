@@ -64,11 +64,11 @@ export default function TicTacToeLandingPage() {
   };
 
   return (
-    <main className="min-h-[calc(100vh-4rem)] px-4 py-8 sm:px-6">
+    <main className="tabletop-scene flex min-h-[calc(100svh-4.5rem)] items-center px-5 py-12 sm:px-8 sm:py-20">
       <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[1fr_24rem] lg:items-center">
         <section>
-          <p className="text-sm font-bold text-[#d7a7ff]">TIC TAC TOE</p>
-          <h1 className="mt-2 text-4xl font-black text-white sm:text-5xl">Three cells. Two ways to play.</h1>
+          <p className="eyebrow text-[#d7a7ff]">TIC TAC TOE</p>
+          <h1 className="mt-4 text-4xl font-semibold leading-[1.08] text-white sm:text-6xl">Three cells. Two ways to play.</h1>
           <p className="mt-4 max-w-xl text-base leading-7 text-game-muted">
             Challenge a friend online or play a local bot. Every online turn is checked by the server.
           </p>
@@ -80,10 +80,10 @@ export default function TicTacToeLandingPage() {
                 type="button"
                 aria-pressed={mode === option.mode}
                 onClick={() => setMode(option.mode)}
-                className={`min-h-32 rounded-lg border p-4 text-left transition-colors ${
+                className={`min-h-32 rounded-3xl border p-5 text-left transition-colors ${
                   mode === option.mode
                     ? 'border-[#d7a7ff] bg-[#d7a7ff]/10'
-                    : 'border-white/12 bg-[#1c1f1b] hover:border-white/25'
+                    : 'border-white/10 bg-game-card hover:border-white/25'
                 }`}
               >
                 <span className="font-display text-lg font-bold text-white">{option.name}</span>
@@ -109,11 +109,11 @@ export default function TicTacToeLandingPage() {
         <motion.div
           initial={{ opacity: 0, rotate: 3, y: 16 }}
           animate={{ opacity: 1, rotate: 0, y: 0 }}
-          className="grid aspect-square grid-cols-3 gap-2 rounded-lg border border-white/12 bg-[#0d1715] p-3 shadow-2xl shadow-black/30"
+          className="premium-panel grid aspect-square grid-cols-3 gap-2 p-4 shadow-2xl shadow-black/30"
           aria-hidden="true"
         >
           {['X', '', 'O', '', 'X', '', 'O', '', 'X'].map((value, index) => (
-            <div key={index} className="flex items-center justify-center rounded-md bg-[#1b2925] text-5xl font-black text-[#ff795f]">
+            <div key={index} className="flex items-center justify-center rounded-2xl bg-white/5 text-5xl font-medium text-game-coral">
               <span className={value === 'O' ? 'text-game-mint' : ''}>{value}</span>
             </div>
           ))}

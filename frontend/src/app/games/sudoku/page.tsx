@@ -60,7 +60,7 @@ export default function SudokuPage() {
   if (!puzzle) return <main className="min-h-[calc(100vh-4rem)]" />;
 
   return (
-    <main className="min-h-[calc(100vh-4rem)] bg-[#15201c] px-3 py-5 text-white sm:px-6">
+    <main className="min-h-[calc(100vh-4.5rem)] bg-game-bg px-3 py-6 text-white sm:px-6 sm:py-10">
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[minmax(0,38rem)_18rem] lg:items-start lg:justify-center">
         <section className="min-w-0">
           <div className="mb-4 flex items-center justify-between gap-3">
@@ -85,7 +85,7 @@ export default function SudokuPage() {
                 type="button"
                 disabled={isPaused || isComplete}
                 onClick={() => enterNumber(number, notesMode)}
-                className="aspect-square rounded-md border border-white/12 bg-[#22302a] text-lg font-bold text-white hover:bg-[#2b3d35] disabled:opacity-40 sm:text-xl"
+                className="aspect-square rounded-xl border border-white/10 bg-game-card text-lg font-semibold text-white transition-colors hover:bg-white/10 disabled:opacity-40 sm:text-xl"
               >
                 {number}
               </button>
@@ -94,8 +94,8 @@ export default function SudokuPage() {
         </section>
 
         <aside className="space-y-4">
-          <div className="rounded-lg border border-white/12 bg-[#1c2924] p-4">
-            <p className="text-xs font-bold text-game-muted">DIFFICULTY</p>
+          <div className="premium-panel p-5">
+            <p className="eyebrow">DIFFICULTY</p>
             <div className="mt-3 grid grid-cols-2 gap-2">
               {DIFFICULTIES.map((option) => (
                 <button
@@ -103,7 +103,7 @@ export default function SudokuPage() {
                   type="button"
                   aria-pressed={difficulty === option}
                   onClick={() => newGame(option)}
-                  className={`min-h-10 rounded-md border px-2 text-sm font-semibold capitalize ${difficulty === option ? 'border-game-mint bg-game-mint/15 text-white' : 'border-white/10 text-game-muted hover:text-white'}`}
+                  className={`min-h-11 rounded-xl border px-2 text-sm font-medium capitalize ${difficulty === option ? 'border-game-mint/50 bg-game-mint/10 text-game-mint' : 'border-white/10 text-game-muted hover:text-white'}`}
                 >
                   {option}
                 </button>
@@ -112,12 +112,12 @@ export default function SudokuPage() {
           </div>
 
           <div className="grid grid-cols-3 gap-2">
-            <button onClick={() => setNotesMode((current) => !current)} aria-pressed={notesMode} className={`min-h-14 rounded-lg border text-sm font-semibold ${notesMode ? 'border-game-sun bg-game-sun/15 text-game-sun' : 'border-white/12 bg-[#1c2924] text-game-muted'}`}>Notes</button>
-            <button onClick={erase} className="min-h-14 rounded-lg border border-white/12 bg-[#1c2924] text-sm font-semibold text-game-muted hover:text-white">Erase</button>
-            <button onClick={useHint} disabled={hintsRemaining === 0} className="min-h-14 rounded-lg border border-white/12 bg-[#1c2924] text-sm font-semibold text-game-muted hover:text-white disabled:opacity-40">Hint {hintsRemaining}</button>
+            <button onClick={() => setNotesMode((current) => !current)} aria-pressed={notesMode} className={`min-h-14 rounded-2xl border text-sm font-medium ${notesMode ? 'border-game-sun/50 bg-game-sun/10 text-game-sun' : 'border-white/10 bg-game-card text-game-muted'}`}>Notes</button>
+            <button onClick={erase} className="min-h-14 rounded-2xl border border-white/10 bg-game-card text-sm font-medium text-game-muted hover:text-white">Erase</button>
+            <button onClick={useHint} disabled={hintsRemaining === 0} className="min-h-14 rounded-2xl border border-white/10 bg-game-card text-sm font-medium text-game-muted hover:text-white disabled:opacity-40">Hint {hintsRemaining}</button>
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border border-white/12 bg-[#1c2924] p-4 text-sm">
+          <div className="premium-panel flex items-center justify-between p-5 text-sm">
             <span className="text-game-muted">Mistakes</span>
             <span className="font-bold text-[#ff8a75]">{mistakes}</span>
           </div>
@@ -127,7 +127,7 @@ export default function SudokuPage() {
 
       {isComplete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-          <div className="w-full max-w-sm rounded-lg border border-game-mint/30 bg-[#1c2924] p-7 text-center shadow-2xl">
+          <div className="premium-panel w-full max-w-sm border-game-mint/30 p-8 text-center shadow-2xl">
             <p className="text-sm font-bold text-game-mint">PUZZLE COMPLETE</p>
             <h2 className="mt-2 text-3xl font-black">{formatTime(elapsedSeconds)}</h2>
             <p className="mt-2 text-sm text-game-muted">{mistakes} mistake{mistakes === 1 ? '' : 's'} · {difficulty}</p>

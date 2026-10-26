@@ -1,6 +1,9 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useId, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
 
 interface ModalProps {
   isOpen: boolean;
@@ -10,38 +13,93 @@ interface ModalProps {
 }
 
 export function Modal({ isOpen, onClose, title, children }: ModalProps) {
-  return (
+  const titleId = useId();
+  const panel = useRef<HTMLDivElement>(null);
+  const close = useRef(onClose);
+  useEffect(() => { close.current = onClose; }, [onClose]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const focusable = () => Array.from(panel.current?.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]',
+    ) ?? []).filter((element) => !element.hidden && element.getAttribute('aria-hidden') !== 'true');
+    if (!panel.current?.contains(document.activeElement)) {
+      (panel.current?.querySelector<HTMLElement>('[autofocus]') ?? focusable()[0] ?? panel.current)?.focus();
+    }
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        close.current();
+      }
+      if (event.key !== 'Tab') return;
+      const elements = focusable();
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (!first) {
+        event.preventDefault();
+        panel.current?.focus();
+      } else if (event.shiftKey && (document.activeElement === first || document.activeElement === panel.current)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === panel.current)) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKey);
+      if (previousFocus instanceof HTMLElement) previousFocus.focus();
+    };
+  }, [isOpen]);
+
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
         >
-          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            aria-hidden="true"
+            className="absolute inset-0 bg-black/65 backdrop-blur-md"
             onClick={onClose}
           />
 
-          {/* Content */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            ref={panel}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={title ? titleId : undefined}
+            aria-label={title ? undefined : 'Game dialog'}
+            tabIndex={-1}
+            initial={{ opacity: 0, scale: 0.97, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="relative bg-white/[0.04] backdrop-blur-2xl border border-white/[0.08] rounded-2xl p-6 w-full max-w-md shadow-2xl"
+            exit={{ opacity: 0, scale: 0.97, y: 12 }}
+            className="premium-panel relative max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto p-6 pt-16 shadow-2xl sm:p-8 sm:pt-16"
           >
+            <button type="button" onClick={onClose} aria-label="Close dialog" className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-white/5 text-game-muted transition-colors hover:bg-white/10 hover:text-white">
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
             {title && (
-              <h2 className="text-xl font-bold mb-4 text-white">{title}</h2>
+              <h2 id={titleId} className="mb-6 text-2xl font-semibold text-white">{title}</h2>
             )}
             {children}
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

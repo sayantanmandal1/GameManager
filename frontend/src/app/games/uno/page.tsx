@@ -101,7 +101,7 @@ export default function UnoLandingPage() {
     }`;
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-[#1a0d12] via-black to-[#0d1220] p-6">
+    <main className="tabletop-scene min-h-[calc(100svh-4.5rem)] px-5 py-12 sm:py-16">
       <div className="mx-auto max-w-2xl">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -114,12 +114,12 @@ export default function UnoLandingPage() {
           >
             UNO
           </span>
-          <h1 className="text-4xl font-black text-white">{S.landing.title}</h1>
-          <p className="mt-1 text-white/40">{S.landing.subtitle}</p>
+          <h1 className="mt-5 text-5xl font-semibold text-white sm:text-6xl">{S.landing.title}</h1>
+          <p className="mt-3 text-game-muted">{S.landing.subtitle}</p>
         </motion.div>
 
         {/* Mode picker */}
-        <fieldset className="mb-4 rounded-2xl border border-white/[0.06] bg-white/[0.03] p-4">
+        <fieldset className="premium-panel mb-5 p-5">
           <legend className="px-2 text-xs uppercase tracking-wider text-white/40">
             {S.landing.mode}
           </legend>
@@ -130,7 +130,7 @@ export default function UnoLandingPage() {
                 type="button"
                 aria-pressed={mode === m.key}
                 onClick={() => setMode(m.key)}
-                className={`flex flex-col items-center gap-1 rounded-xl border px-3 py-2 text-sm transition-colors ${
+                className={`flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm transition-colors ${
                   mode === m.key
                     ? 'border-white bg-white/[0.1] text-white'
                     : 'border-white/[0.08] bg-white/[0.02] text-white/70 hover:bg-white/[0.06]'

@@ -35,9 +35,9 @@ export function VoiceChat({ roomId }: VoiceChatProps) {
   };
 
   return (
-    <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-white/40 uppercase tracking-wider">
+    <div className="premium-panel p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="eyebrow">
           Voice Chat
         </h3>
         <div className="flex gap-2">
@@ -84,18 +84,18 @@ export function VoiceChat({ roomId }: VoiceChatProps) {
                   peer.isMuted ? 'bg-red-400' : 'bg-green-400 animate-pulse'
                 }`}
               />
-              <span className="text-white/40">{peer.username}</span>
+              <span className="text-game-muted">{peer.username}</span>
             </div>
           ))}
         </div>
       )}
 
       {isInVoice && activePeers.size === 0 && (
-        <p className="text-xs text-white/40">No one else in voice yet…</p>
+        <p className="text-xs leading-5 text-game-muted">No one else in voice yet…</p>
       )}
 
       {!isInVoice && (
-        <p className="text-xs text-white/40">Click Join to start voice chat</p>
+        <p className="text-xs leading-5 text-game-muted">Click Join to start voice chat</p>
       )}
 
       {connectionError && (

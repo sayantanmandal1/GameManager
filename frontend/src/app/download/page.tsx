@@ -82,9 +82,9 @@ export default async function DownloadPage() {
   const marqueeChips = [...ALL_GAME_CHIPS, ...ALL_GAME_CHIPS];
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#101310] text-white">
-      <nav aria-label="Download page" className="sticky top-0 z-40 border-b border-white/10 bg-[#101310]/85 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
+    <main className="min-h-screen overflow-x-hidden bg-game-bg text-white">
+      <nav aria-label="Download page" className="glass-chrome sticky top-0 z-40">
+        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
           <Link href="/" className="flex min-h-11 items-center gap-2">
             <Image src="/gameverse-mark.svg" alt="" width={30} height={30} priority />
             <span className="font-display text-base font-bold">GameVerse</span>
@@ -93,7 +93,7 @@ export default async function DownloadPage() {
             <Link href="/" className="hidden min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-white/80 hover:bg-white/5 hover:text-white sm:inline-flex">
               Play in browser
             </Link>
-            <a href={ANDROID_DOWNLOAD_PATH} className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-game-mint px-4 text-sm font-black text-[#0f241a] hover:bg-[#7ee0b7]">
+            <a href={ANDROID_DOWNLOAD_PATH} className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-game-text px-5 text-sm font-semibold text-game-bg transition-colors hover:bg-white">
               <Smartphone className="h-4 w-4" aria-hidden="true" /> Get the app
             </a>
           </div>
@@ -104,15 +104,15 @@ export default async function DownloadPage() {
       <section className="tabletop-scene relative overflow-hidden border-b border-white/10">
         <div aria-hidden="true" className="pointer-events-none absolute -left-32 top-10 h-80 w-80 rounded-full bg-game-mint/15 blur-3xl" />
         <div aria-hidden="true" className="pointer-events-none absolute -right-24 bottom-0 h-80 w-80 rounded-full bg-game-sun/10 blur-3xl" />
-        <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 md:py-16 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:py-20">
+        <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 md:py-20 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:py-28">
           <div className="text-center sm:text-left">
-            <p className="inline-flex items-center gap-2 rounded-full border border-game-mint/35 bg-game-mint/10 px-3 py-1.5 text-xs font-black uppercase text-game-mint">
+            <p className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3.5 py-2 text-xs font-medium text-game-mint">
               <Smartphone className="h-3.5 w-3.5" aria-hidden="true" /> GameVerse for Android
             </p>
-            <h1 className="mt-5 text-4xl font-black leading-[1.05] sm:text-5xl lg:text-6xl">
-              Every game night, <span className="text-game-sun">in your pocket.</span>
+            <h1 className="mt-6 text-5xl font-semibold leading-[1.04] sm:text-6xl lg:text-7xl">
+              Every game night, <span className="text-game-blue">in your pocket.</span>
             </h1>
-            <p className="mx-auto mt-5 max-w-xl text-base leading-7 text-white/80 sm:mx-0 sm:text-lg">
+            <p className="mx-auto mt-6 max-w-xl text-base leading-8 text-game-muted sm:mx-0 sm:text-lg">
               {GAME_COUNT} multiplayer games — Contract Bridge, Monopoly, UNO, Chess and dozens more — with voice chat, instant rejoin and live crossplay with friends on the web.
             </p>
             <div className="mt-8">
@@ -129,7 +129,7 @@ export default async function DownloadPage() {
       </section>
 
       {/* Stats */}
-      <section aria-label="GameVerse at a glance" className="border-b border-white/10 bg-[#141813]">
+      <section aria-label="GameVerse at a glance" className="border-b border-white/[0.08] bg-game-card/50">
         <dl className="mx-auto grid max-w-7xl grid-cols-2 gap-px bg-white/10 sm:grid-cols-4">
           {[
             [String(GAME_COUNT), 'games to play'],
@@ -148,25 +148,25 @@ export default async function DownloadPage() {
 
       {/* Features */}
       <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20" aria-labelledby="features-title">
-        <p className="text-sm font-black uppercase text-game-coral">Built for game night</p>
-        <h2 id="features-title" className="mt-2 max-w-2xl text-3xl font-black sm:text-4xl">Everything the table needs, nothing it doesn&apos;t.</h2>
+        <p className="eyebrow">Built for game night</p>
+        <h2 id="features-title" className="mt-4 max-w-2xl text-3xl font-semibold leading-tight sm:text-5xl">Everything the table needs, nothing it doesn&apos;t.</h2>
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map(({ icon: Icon, title, body }) => (
-            <article key={title} className="rounded-2xl border border-white/10 bg-[#1a1e19] p-6 transition hover:border-white/20">
-              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-game-mint/15 text-game-mint" aria-hidden="true">
+            <article key={title} className="premium-panel p-7 transition-colors hover:border-white/20">
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-game-blue/10 text-game-blue" aria-hidden="true">
                 <Icon className="h-5 w-5" />
               </span>
-              <h3 className="mt-4 text-lg font-bold">{title}</h3>
-              <p className="mt-2 text-sm leading-6 text-white/75">{body}</p>
+              <h3 className="mt-6 text-lg font-semibold">{title}</h3>
+              <p className="mt-2 text-sm leading-7 text-game-muted">{body}</p>
             </article>
           ))}
         </div>
       </section>
 
       {/* Game marquee */}
-      <section aria-labelledby="games-title" className="border-y border-white/10 bg-[#141813] py-12">
+      <section aria-labelledby="games-title" className="border-y border-white/[0.08] bg-game-card/50 py-14">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <h2 id="games-title" className="text-2xl font-black sm:text-3xl">All {GAME_COUNT} games, one app</h2>
+          <h2 id="games-title" className="text-2xl font-semibold sm:text-3xl">All {GAME_COUNT} games, one app</h2>
           <p className="mt-2 text-white/75">Cards, boards, dice and party classics — every table on the web is in the app too.</p>
         </div>
         <div className="marquee-mask mt-8 overflow-hidden">
@@ -175,7 +175,7 @@ export default async function DownloadPage() {
               <li
                 key={`${game.name}-${index}`}
                 aria-hidden={index >= ALL_GAME_CHIPS.length ? true : undefined}
-                className="mr-3 flex shrink-0 items-center gap-2 rounded-full border border-white/12 bg-[#1f241e] px-4 py-2 text-sm font-semibold text-white/90"
+                className="mr-3 flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-game-card px-5 py-3 text-sm font-medium text-game-text"
               >
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: game.accent }} />
                 {game.name}
@@ -188,13 +188,13 @@ export default async function DownloadPage() {
       {/* Install steps + release */}
       <section className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 sm:py-20 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]" aria-labelledby="install-title">
         <div>
-          <p className="text-sm font-black uppercase text-game-coral">Install in a minute</p>
-          <h2 id="install-title" className="mt-2 text-3xl font-black sm:text-4xl">Four quick steps</h2>
+          <p className="eyebrow">Install in a minute</p>
+          <h2 id="install-title" className="mt-4 text-3xl font-semibold sm:text-4xl">Four quick steps</h2>
           <div className="mt-3"><PhoneHint /></div>
           <ol className="mt-8 space-y-4">
             {STEPS.map((step, index) => (
-              <li key={step.title} className="flex gap-4 rounded-2xl border border-white/10 bg-[#1a1e19] p-5">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-game-sun font-display text-lg font-black text-[#171912]">{index + 1}</span>
+              <li key={step.title} className="premium-panel flex gap-4 p-6">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 font-display text-lg font-medium text-game-blue">{index + 1}</span>
                 <div>
                   <h3 className="font-bold">{step.title}</h3>
                   <p className="mt-1 text-sm leading-6 text-white/75">{step.body}</p>
@@ -214,7 +214,7 @@ export default async function DownloadPage() {
         </div>
 
         <aside className="space-y-6" aria-label="Release details">
-          <div className="rounded-2xl border border-white/10 bg-[#1a1e19] p-6">
+          <div className="premium-panel p-7">
             <div className="flex items-center gap-3">
               <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-game-sun/15 text-game-sun" aria-hidden="true"><PackageCheck className="h-5 w-5" /></span>
               <div>
@@ -247,7 +247,7 @@ export default async function DownloadPage() {
             </a>
           </div>
 
-          <div className="hidden items-center gap-5 rounded-2xl border border-white/10 bg-[#1a1e19] p-6 md:flex">
+          <div className="premium-panel hidden items-center gap-5 p-7 md:flex">
             <DownloadQrCode />
             <div>
               <h2 className="text-lg font-bold">On a computer?</h2>
@@ -258,12 +258,12 @@ export default async function DownloadPage() {
       </section>
 
       {/* FAQ */}
-      <section className="border-t border-white/10 bg-[#141813]" aria-labelledby="faq-title">
+      <section className="border-t border-white/[0.08] bg-game-card/50" aria-labelledby="faq-title">
         <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6 sm:py-20">
-          <h2 id="faq-title" className="text-center text-3xl font-black sm:text-4xl">Questions, answered</h2>
+          <h2 id="faq-title" className="text-center text-3xl font-semibold sm:text-4xl">Questions, answered</h2>
           <div className="mt-8 space-y-3">
             {FAQS.map((item) => (
-              <details key={item.q} className="group rounded-2xl border border-white/10 bg-[#1a1e19] px-5 open:border-white/20">
+              <details key={item.q} className="premium-panel group px-6 open:border-white/25">
                 <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 py-3 font-bold [&::-webkit-details-marker]:hidden">
                   {item.q}
                   <ChevronDown className="h-5 w-5 shrink-0 text-white/70 transition group-open:rotate-180" aria-hidden="true" />

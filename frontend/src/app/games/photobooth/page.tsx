@@ -8,6 +8,9 @@ import { useLobbyStore } from '@/stores/lobbyStore';
 import { useSocket } from '@/hooks/useSocket';
 import { GameType } from '@/shared';
 import { photoboothStrings as S } from '@/components/photobooth';
+import { Modal } from '@/components/ui/Modal';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
 
 export default function PhotoboothLandingPage() {
   const router = useRouter();
@@ -36,12 +39,13 @@ export default function PhotoboothLandingPage() {
   useEffect(() => () => reset(), [reset]);
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-gradient-to-br from-rose-100 via-pink-50 to-amber-50 p-6 text-zinc-700">
+    <main className="tabletop-scene relative flex min-h-[calc(100svh-4.5rem)] items-center overflow-hidden px-5 py-12 sm:py-20">
       {/* floating hearts */}
       {[...Array(6)].map((_, i) => (
         <span
           key={i}
-          className="pb-heart pointer-events-none absolute text-2xl"
+          aria-hidden="true"
+          className="pointer-events-none absolute text-2xl opacity-15"
           style={{
             left: `${8 + i * 15}%`,
             bottom: '10%',
@@ -52,17 +56,17 @@ export default function PhotoboothLandingPage() {
         </span>
       ))}
 
-      <div className="relative mx-auto flex min-h-[80vh] max-w-2xl flex-col items-center justify-center">
+      <div className="relative mx-auto flex w-full max-w-2xl flex-col items-center justify-center">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="mb-10 text-center"
         >
-          <span className="mb-3 block text-6xl">📸</span>
-          <h1 className="font-serif text-5xl font-black text-rose-500">
+          <span className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-[2rem] border border-white/10 bg-game-card text-5xl shadow-xl">📸</span>
+          <h1 className="text-5xl font-semibold text-white sm:text-6xl">
             {S.landing.title}
           </h1>
-          <p className="mt-2 text-zinc-500">{S.landing.subtitle}</p>
+          <p className="mt-4 text-game-muted">{S.landing.subtitle}</p>
         </motion.div>
 
         <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
@@ -74,13 +78,13 @@ export default function PhotoboothLandingPage() {
             whileTap={{ scale: 0.98 }}
             disabled={isLoading}
             onClick={() => createLobby(GameType.PHOTOBOOTH)}
-            className="flex flex-col items-center gap-2 rounded-3xl border border-rose-200/70 bg-white/70 p-8 text-center shadow-lg backdrop-blur transition hover:shadow-rose-200/60 disabled:opacity-60"
+            className="premium-panel flex flex-col items-center gap-3 p-8 text-center transition-colors hover:border-rose-300/40 disabled:opacity-60"
           >
             <span className="text-4xl">{isLoading ? '⏳' : '🏠'}</span>
-            <h3 className="text-lg font-bold text-rose-500">
+            <h3 className="text-lg font-semibold text-rose-200">
               {isLoading ? S.landing.creating : S.landing.createLobby}
             </h3>
-            <p className="text-xs text-zinc-500">{S.landing.createDescription}</p>
+            <p className="text-sm leading-6 text-game-muted">{S.landing.createDescription}</p>
           </motion.button>
 
           <motion.button
@@ -90,13 +94,13 @@ export default function PhotoboothLandingPage() {
             whileHover={{ y: -4 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => setShowJoin(true)}
-            className="flex flex-col items-center gap-2 rounded-3xl border border-sky-200/70 bg-white/70 p-8 text-center shadow-lg backdrop-blur transition hover:shadow-sky-200/60"
+            className="premium-panel flex flex-col items-center gap-3 p-8 text-center transition-colors hover:border-game-blue/40"
           >
             <span className="text-4xl">🔗</span>
-            <h3 className="text-lg font-bold text-sky-500">
+            <h3 className="text-lg font-semibold text-game-blue">
               {S.landing.joinLobby}
             </h3>
-            <p className="text-xs text-zinc-500">{S.landing.joinDescription}</p>
+            <p className="text-sm leading-6 text-game-muted">{S.landing.joinDescription}</p>
           </motion.button>
         </div>
 
@@ -108,61 +112,36 @@ export default function PhotoboothLandingPage() {
 
         <button
           onClick={() => router.push('/games')}
-          className="mt-8 inline-flex min-h-11 items-center rounded-md px-3 text-sm text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-700"
+          className="mt-8 inline-flex min-h-11 items-center rounded-xl px-4 text-sm text-game-muted transition-colors hover:bg-white/5 hover:text-white"
         >
           {S.landing.back}
         </button>
       </div>
 
-      {/* Join modal */}
-      {showJoin && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
-            onClick={() => setShowJoin(false)}
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="relative w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl"
-          >
-            <h2 className="mb-4 text-xl font-bold text-rose-500">
-              {S.landing.joinModalTitle}
-            </h2>
-            <label className="mb-1 block text-sm font-medium text-zinc-500">
-              {S.landing.joinCodeLabel}
-            </label>
-            <input
-              autoFocus
-              inputMode="numeric"
-              value={joinCode}
-              onChange={(e) =>
-                setJoinCode(e.target.value.replace(/\D/g, '').slice(0, 6))
-              }
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && joinCode.length === 6) joinLobby(joinCode);
-              }}
-              placeholder={S.landing.joinCodePlaceholder}
-              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-center font-mono text-2xl tracking-[0.4em] text-zinc-700 outline-none focus:border-rose-300 focus:ring-2 focus:ring-rose-200"
-            />
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                onClick={() => setShowJoin(false)}
-                className="rounded-full px-5 py-2 text-sm font-semibold text-zinc-400 hover:text-zinc-600"
-              >
-                Cancel
-              </button>
-              <button
-                disabled={joinCode.length !== 6}
-                onClick={() => joinLobby(joinCode)}
-                className="rounded-full bg-gradient-to-r from-rose-400 to-pink-400 px-6 py-2 text-sm font-bold text-white shadow-md transition hover:from-rose-500 hover:to-pink-500 disabled:opacity-50"
-              >
-                {S.landing.join}
-              </button>
-            </div>
-          </motion.div>
+      <Modal isOpen={showJoin} onClose={() => setShowJoin(false)} title={S.landing.joinModalTitle}>
+        <Input
+          label={S.landing.joinCodeLabel}
+          autoFocus
+          inputMode="numeric"
+          value={joinCode}
+          onChange={(e) =>
+            setJoinCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+          }
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && joinCode.length === 6) joinLobby(joinCode);
+          }}
+          placeholder={S.landing.joinCodePlaceholder}
+          className="text-center font-mono text-2xl tracking-[0.3em]"
+        />
+        <div className="mt-5 flex justify-end gap-2">
+          <Button onClick={() => setShowJoin(false)} variant="ghost">
+            Cancel
+          </Button>
+          <Button disabled={joinCode.length !== 6} onClick={() => joinLobby(joinCode)}>
+            {S.landing.join}
+          </Button>
         </div>
-      )}
+      </Modal>
     </main>
   );
 }

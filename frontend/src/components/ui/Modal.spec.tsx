@@ -2,8 +2,9 @@
  * Tests for components/ui/Modal.tsx
  */
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { Modal } from './Modal';
+import userEvent from '@testing-library/user-event';
 
 // Mock framer-motion
 jest.mock('framer-motion', () => {
@@ -53,5 +54,35 @@ describe('Modal Component', () => {
       </Modal>,
     );
     expect(screen.queryByRole('heading')).not.toBeInTheDocument();
+  });
+
+  it('labels the dialog and dismisses with Escape or the close button', async () => {
+    const user = userEvent.setup();
+    const onClose = jest.fn();
+    render(<Modal isOpen onClose={onClose} title="Join room"><input aria-label="Code" /></Modal>);
+    expect(screen.getByRole('dialog', { name: 'Join room' })).toHaveAttribute('aria-modal', 'true');
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: 'Close dialog' }));
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it('contains keyboard focus and restores focus and scrolling on close', async () => {
+    const user = userEvent.setup();
+    const onClose = jest.fn();
+    const { rerender } = render(<><button>Open</button><Modal isOpen={false} onClose={onClose}><input aria-label="Code" /><button>Join</button></Modal></>);
+    screen.getByRole('button', { name: 'Open' }).focus();
+    const originalOverflow = document.body.style.overflow;
+    rerender(<><button>Open</button><Modal isOpen onClose={onClose}><input aria-label="Code" /><button>Join</button></Modal></>);
+    const closeButton = screen.getByRole('button', { name: 'Close dialog' });
+    expect(closeButton).toHaveFocus();
+    expect(document.body.style.overflow).toBe('hidden');
+    await user.tab({ shift: true });
+    expect(screen.getByRole('button', { name: 'Join' })).toHaveFocus();
+    await user.tab();
+    expect(closeButton).toHaveFocus();
+    rerender(<><button>Open</button><Modal isOpen={false} onClose={onClose}><input aria-label="Code" /><button>Join</button></Modal></>);
+    expect(screen.getByRole('button', { name: 'Open' })).toHaveFocus();
+    expect(document.body.style.overflow).toBe(originalOverflow);
   });
 });

@@ -20,14 +20,14 @@ export function LobbyPlayerCard({
     <motion.div
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 20 }}
-      className={`flex min-h-16 items-center gap-3 rounded-lg border p-3
-        ${isCurrentUser ? 'border-game-mint/50 bg-game-mint/10' : 'border-white/10 bg-black/15'}`}
+      exit={{ opacity: 0, x: -20 }}
+      className={`flex min-h-[4.5rem] items-center gap-3 rounded-2xl border p-3.5
+        ${isCurrentUser ? 'border-game-mint/30 bg-game-mint/[0.06]' : 'border-white/[0.08] bg-white/[0.02]'}`}
     >
       <span className="text-2xl">{player.avatar}</span>
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-white truncate">
             {player.username}
           </span>
@@ -64,7 +64,7 @@ export function LobbyPlayerCard({
         <button
           type="button"
           onClick={onRemove}
-          className="min-h-9 rounded-lg border border-red-400/25 px-2.5 text-xs font-bold text-red-200 transition hover:bg-red-400/10"
+          className="min-h-11 rounded-xl border border-red-400/25 px-2.5 text-xs font-medium text-red-200 transition-colors hover:bg-red-400/10"
           aria-label={`Remove ${player.username}`}
         >
           Remove

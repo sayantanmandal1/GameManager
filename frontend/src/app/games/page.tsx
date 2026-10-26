@@ -1,9 +1,9 @@
 'use client';
 
-import { useDeferredValue, useEffect, useState } from 'react';
+import { useDeferredValue, useEffect, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Download, Smartphone, X } from 'lucide-react';
+import { ArrowUpRight, Download, Search, Smartphone, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/authStore';
 import { useSocket } from '@/hooks/useSocket';
@@ -77,10 +77,10 @@ export default function GamesPage() {
     : games;
 
   return (
-    <main className="min-h-[calc(100vh-4rem)] px-4 py-6 sm:px-6 md:py-12">
+    <main className="min-h-[calc(100vh-4.5rem)] px-4 py-8 sm:px-6 md:py-14">
       <div className="mx-auto max-w-7xl">
         {!inNativeApp && !bannerDismissed && (
-          <section aria-label="GameVerse Android app" className="relative mb-6 flex items-center gap-3 overflow-hidden rounded-xl border border-game-mint/30 bg-[linear-gradient(110deg,#183a2c,#1b211d_55%,#2a2016)] p-3 pr-12 sm:gap-4 sm:p-4 sm:pr-14">
+          <section aria-label="GameVerse Android app" className="premium-panel relative mb-10 flex items-center gap-3 overflow-hidden p-4 pr-12 sm:gap-4 sm:p-5 sm:pr-14">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-game-mint text-[#11251b]" aria-hidden="true">
               <Smartphone className="h-6 w-6" />
             </span>
@@ -98,15 +98,15 @@ export default function GamesPage() {
           </section>
         )}
 
-        <div className="mb-6 flex flex-col justify-between gap-5 border-b border-white/10 pb-6 sm:mb-8 sm:pb-7 lg:flex-row lg:items-end">
+        <div className="mb-8 flex flex-col justify-between gap-7 lg:flex-row lg:items-end">
           <div>
-            <p className="text-sm font-bold text-game-coral">GAME ROOM</p>
-            <h1 className="mt-1 text-3xl font-bold text-white">Choose a table</h1>
-            <p className="mt-2 text-game-muted">
+            <p className="eyebrow">GAME ROOM</p>
+            <h1 className="mt-3 text-4xl font-semibold text-white sm:text-5xl">Choose a table</h1>
+            <p className="mt-3 text-sm leading-6 text-game-muted sm:text-base">
               {games.length > 0 ? `${user?.username}, your ${games.length} games are ready.` : `${user?.username ?? 'Player'}, loading your games…`}
             </p>
           </div>
-          <div className="flex w-full max-w-lg items-center gap-2 rounded-lg border border-white/12 bg-[#1b211d] p-2">
+          <div className="room-entry max-w-md">
             <input
               value={joinCode}
               onChange={(event) => setJoinCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -114,58 +114,58 @@ export default function GamesPage() {
               inputMode="numeric"
               aria-label="Join lobby code"
               placeholder="Enter 6-digit room code"
-              className="h-11 min-w-0 flex-1 bg-transparent px-3 font-mono text-lg font-bold text-white outline-none placeholder:font-sans placeholder:text-sm placeholder:font-normal placeholder:text-white/35"
+              className="h-11 min-w-0 flex-1 bg-transparent px-3 font-mono text-lg font-medium text-white outline-none placeholder:font-sans placeholder:text-sm placeholder:font-normal placeholder:text-game-muted"
             />
             <button
               type="button"
               disabled={joinCode.length !== 6}
               onClick={join}
-              className="h-11 rounded-lg bg-[#f4f1e8] px-5 font-bold text-[#171912] disabled:opacity-35"
+              className="h-11 rounded-xl bg-game-text px-5 text-sm font-semibold text-game-bg transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-35"
             >
               Join
             </button>
           </div>
         </div>
 
-        <div className="mb-5 flex items-center gap-2 text-xs text-game-muted">
+        <div role="status" className="mb-8 inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.025] px-3 py-1.5 text-xs text-game-muted">
           <span className={`h-2 w-2 rounded-full ${isConnected ? 'bg-game-mint' : 'bg-game-coral'}`} />
           {isConnected ? 'Connected' : 'Reconnecting'}
         </div>
 
-        <div className="mb-6 flex items-center border-b border-white/15">
+        <div className="room-entry mb-6 gap-3 px-4">
+          <Search className="h-4 w-4 shrink-0 text-game-muted" aria-hidden="true" />
           <label htmlFor="game-search" className="sr-only">Search games</label>
-          <input id="game-search" type="search" value={search} onChange={(event) => setSearch(event.target.value.slice(0, 60))} placeholder="Search the game shelf" className="h-12 w-full bg-transparent px-1 text-base font-semibold text-white outline-none placeholder:text-white/50" />
-          <span className="text-xs font-bold text-game-muted">{games.length > 0 ? `${visibleGames.length}/${games.length}` : '…'}</span>
+          <input id="game-search" type="search" value={search} onChange={(event) => setSearch(event.target.value.slice(0, 60))} placeholder="Search the game shelf" className="h-10 min-w-0 w-full bg-transparent text-base text-white outline-none placeholder:text-game-muted" />
+          <span aria-live="polite" aria-atomic="true" className="shrink-0 text-xs tabular-nums text-game-muted">{games.length > 0 ? `${visibleGames.length}/${games.length}` : '…'}</span>
         </div>
 
         {catalogError && <p role="alert" className="mb-5 border-l-2 border-game-coral pl-3 text-sm text-red-200">{catalogError}</p>}
         {!catalogError && games.length === 0 && <p className="text-sm text-game-muted">Loading game library...</p>}
         {games.length > 0 && visibleGames.length === 0 && <p className="text-sm text-game-muted">No games match “{search.trim()}”.</p>}
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
-          {visibleGames.map((game, index) => (
+          {visibleGames.map((game) => (
             <motion.button
               key={game.key}
               type="button"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: Math.min(index, 8) * 0.04 }}
+              initial={false}
+              whileHover={{ y: -4 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => router.push(game.route)}
-              className="group relative flex min-h-48 flex-col overflow-hidden rounded-lg border border-white/14 p-3.5 text-left shadow-xl shadow-black/15 transition-transform hover:-translate-y-1 sm:min-h-72 sm:p-5"
-              style={{ backgroundColor: game.surface }}
+              className="game-tile group min-h-56 p-4 sm:min-h-72 sm:p-6"
+              style={{ '--tile-accent': game.accent } as CSSProperties}
             >
-              <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: game.accent }} />
               <div className="flex items-start justify-between gap-2">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg text-2xl font-black text-[#141712] sm:h-16 sm:w-16 sm:text-3xl" style={{ backgroundColor: game.accent }}>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl text-2xl font-bold text-[#141712] shadow-lg shadow-black/20 sm:h-16 sm:w-16 sm:rounded-[1.25rem] sm:text-3xl" style={{ backgroundColor: game.accent }}>
                   {game.mark}
                 </div>
-                <span className="mt-1 text-right text-[11px] font-bold text-white/80 sm:text-xs">{playersLabel(game)}</span>
+                <span className="mt-1 rounded-full bg-white/5 px-2 py-1 text-right text-[10px] font-medium text-game-muted sm:text-xs">{playersLabel(game)}</span>
               </div>
               <div className="mt-auto pt-5 sm:pt-8">
                 <div className="mb-1.5 flex items-center justify-between gap-3 sm:mb-2">
-                  <h2 className="text-base font-bold leading-tight text-white sm:text-xl">{game.name}</h2>
-                  <span className="hidden text-lg text-white/60 sm:inline" aria-hidden="true">→</span>
+                  <h2 className="text-base font-semibold leading-tight text-white sm:text-xl">{game.name}</h2>
+                  <ArrowUpRight className="hidden h-4 w-4 shrink-0 text-game-muted transition-colors group-hover:text-white sm:block" aria-hidden="true" />
                 </div>
-                <p className="line-clamp-3 text-xs leading-5 text-white/80 sm:text-sm">{game.description}</p>
+                <p className="line-clamp-3 text-xs leading-5 text-game-muted sm:text-sm sm:leading-6">{game.description}</p>
               </div>
             </motion.button>
           ))}

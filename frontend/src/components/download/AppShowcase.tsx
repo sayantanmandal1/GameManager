@@ -16,13 +16,13 @@ export function AppShowcase({ className = '' }: Readonly<{ className?: string }>
 
       {/* Back phone: a live Monopoly table */}
       <PhoneFrame className="absolute right-0 top-6 hidden w-[13.5rem] rotate-[7deg] sm:block">
-        <div className="flex h-9 items-center justify-between border-b border-[#3b4139] px-2.5">
-          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#1c1f1b] text-sm text-[#f4f1e8]">×</span>
+        <div className="flex h-9 items-center justify-between border-b border-game-border px-2.5">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-game-card text-sm text-game-text">×</span>
           <span className="text-center leading-none">
             <span className="block text-[10px] font-black text-[#f4f1e8]">Monopoly</span>
             <span className="block text-[7px] font-black text-[#63d5a4]">LIVE CROSSPLAY</span>
           </span>
-          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#1c1f1b] text-xs text-[#f4f1e8]">↻</span>
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-game-card text-xs text-game-text">↻</span>
         </div>
         <div className="grid grid-cols-4 gap-1 px-2 pt-2">
           {['$1,500', '$1,320', '$1,640', '$980'].map((cash, index) => (
@@ -46,34 +46,34 @@ export function AppShowcase({ className = '' }: Readonly<{ className?: string }>
             <span className="flex items-center gap-1.5">
               <Image src="/gameverse-mark.svg" alt="" width={22} height={22} />
               <span className="leading-none">
-                <span className="block text-[11px] font-black text-[#f4f1e8]">GameVerse</span>
+                <span className="block text-[11px] font-semibold text-game-text">GameVerse</span>
                 <span className="block text-[7px] font-black text-[#63d5a4]">CROSSPLAY READY</span>
               </span>
             </span>
-            <span className="flex h-6 w-6 items-center justify-center rounded-md border border-[#3b4139] bg-[#252923] text-[11px]">🦊</span>
+            <span className="flex h-6 w-6 items-center justify-center rounded-full border border-game-border bg-game-card text-[11px]">🦊</span>
           </div>
-          <p className="mt-3 text-base font-black text-[#f4f1e8]">Hello, Alex</p>
-          <p className="text-[9px] text-[#a7ada4]">Pick a table or enter a friend&apos;s room code.</p>
-          <div className="mt-2 flex items-center gap-2 rounded-lg border border-[#3b4139] bg-[#1c1f1b] p-2">
+          <p className="mt-4 text-lg font-semibold tracking-tight text-game-text">Hello, Alex</p>
+          <p className="mt-1 text-[9px] text-game-muted">Pick a table or enter a friend&apos;s room code.</p>
+          <div className="mt-3 flex items-center gap-2 rounded-2xl border border-game-border bg-game-card p-2.5">
             <span className="min-w-0 flex-1">
-              <span className="block text-[7px] font-black text-[#ff684d]">JOIN A ROOM</span>
-              <span className="block font-mono text-sm font-black tracking-wider text-[#f4f1e8]">482913</span>
+              <span className="block text-[7px] font-medium tracking-wider text-game-muted">JOIN A ROOM</span>
+              <span className="block font-mono text-sm font-medium tracking-wider text-game-text">482913</span>
             </span>
-            <span className="rounded-md bg-[#f4f1e8] px-2.5 py-1.5 text-[9px] font-black text-[#17201a]">Join</span>
+            <span className="rounded-lg bg-game-text px-2.5 py-1.5 text-[9px] font-semibold text-game-bg">Join</span>
           </div>
           <div className="mt-3 flex items-end justify-between">
-            <span className="text-xs font-black text-[#f4f1e8]">Choose a game</span>
-            <span className="text-[8px] font-bold text-[#a7ada4]">{GAME_COUNT} games</span>
+            <span className="text-xs font-semibold text-game-text">Choose a game</span>
+            <span className="text-[8px] font-medium text-game-muted">{GAME_COUNT} games</span>
           </div>
         </div>
         <div className="mt-1.5 grid grid-cols-2 gap-1.5 px-3 pb-3">
           {FEATURED_APP_GAMES.slice(0, 6).map((game) => (
-            <span key={game.key} className="flex min-h-[5.25rem] flex-col justify-between rounded-lg border border-white/10 p-1.5" style={{ backgroundColor: game.surface }}>
+            <span key={game.key} className="flex min-h-[5.5rem] flex-col justify-between rounded-xl border border-game-border bg-game-card p-2">
               <span className="flex items-start justify-between gap-1">
-                <span className="flex h-6 w-6 items-center justify-center rounded-md text-[11px] font-black text-[#17201a]" style={{ backgroundColor: game.accent }}>{game.mark}</span>
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg text-[11px] font-bold text-[#17201a]" style={{ backgroundColor: game.accent }}>{game.mark}</span>
                 <span className="text-right text-[6.5px] font-bold leading-tight text-[#e4e8e0]">{game.players}</span>
               </span>
-              <span className="truncate text-[9px] font-black text-[#f4f1e8]">{game.name}</span>
+              <span className="truncate text-[9px] font-semibold text-game-text">{game.name}</span>
             </span>
           ))}
         </div>
@@ -84,7 +84,7 @@ export function AppShowcase({ className = '' }: Readonly<{ className?: string }>
 
 function PhoneFrame({ children, className = '' }: Readonly<{ children: React.ReactNode; className?: string }>) {
   return (
-    <div aria-hidden="true" className={`overflow-hidden rounded-[2.2rem] border-[9px] border-[#0b0d0b] bg-[#101310] shadow-[0_30px_70px_rgba(0,0,0,0.55)] ring-1 ring-white/10 ${className}`}>
+    <div aria-hidden="true" className={`overflow-hidden rounded-[2.2rem] border-[9px] border-[#222733] bg-game-bg shadow-[0_30px_70px_rgba(0,0,0,0.55)] ring-1 ring-white/20 ${className}`}>
       <div className="flex h-6 items-center justify-between px-4 text-[8px] font-bold text-[#f4f1e8]">
         <span>9:41</span>
         <span className="h-3.5 w-16 rounded-full bg-black" />
