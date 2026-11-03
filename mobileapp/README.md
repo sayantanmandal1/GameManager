@@ -36,6 +36,8 @@ Both values must use HTTPS. These are public application endpoints, not secrets.
 
 Gameplay uses the shared web route in the same-origin WebView, so rule controls, rematch state, accessibility, and visual fixes remain identical on web and mobile.
 
+Loading and error overlays are confined to the WebView area, preserving safe-area headers. Android history changes honor the event's actual loading state so moving from a lobby into a game cannot leave a loading overlay over an already playable table.
+
 ## Development
 
 ```powershell

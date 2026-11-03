@@ -72,6 +72,8 @@ The website and native app share a graphite-and-pearl visual system with restrai
 
 The library contains **46 implemented games**: the original eight plus 38 separately registered multiplayer rules engines. Global six-digit room joining works across the library, and every multiplayer completion screen offers unanimous in-room rematch without repeating lobby ready/start steps. Hearts, Spades, Euchre, and Whist share a responsive felt table with three hidden opponent hands and the local hand face-up. Bridge uses a content-sized table with a separate hand tray, fitting all thirteen cards on laptop screens and providing horizontal hand scrolling on smaller screens. Dummy and partner hands remain available through their permitted hand tabs rather than overlapping the table. Auction suits have large vector symbols and visible names; secondary deal controls expand below the hand, automatically opening for partner requests. All standard-deck games use original mirrored card artwork with rank-correct pip counts and illustrated court cards, shared by the website and Android game views. Bridge, Spades, Euchre, and Whist require players to choose balanced two-versus-two partnerships in the lobby before the host can start.
 
+Expired or unavailable rooms show the server error with retry and return-to-library actions instead of an indefinite lobby spinner.
+
 ### Bluff table rules
 
 - This table uses a chosen-rank, passing house variant, not the forced A-to-K sequence. The opening player chooses any rank and plays one to four cards face down. The actual cards need not match.

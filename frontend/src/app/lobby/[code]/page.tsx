@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
+import { GameConnectionState } from '@/components/ui/GameConnectionState';
 import { LobbyPlayerCard } from '@/components/lobby/LobbyPlayer';
 import { PartnershipTeamPicker } from '@/components/lobby/PartnershipTeamPicker';
 import { GameChat } from '@/components/chat/GameChat';
@@ -187,14 +188,7 @@ export default function LobbyPage() {
   };
 
   if (!lobby) {
-    return (
-      <main className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-white/30 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-game-muted">Connecting to lobby…</p>
-        </div>
-      </main>
-    );
+    return <GameConnectionState connected={isConnected} error={error} backHref="/games" />;
   }
 
   return (

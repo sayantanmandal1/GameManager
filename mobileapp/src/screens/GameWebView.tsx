@@ -118,68 +118,71 @@ export function GameWebView({ destination, session, onSessionChange, onClose }: 
         </View>
       )}
 
-      <WebView
-        ref={webView}
-        source={{ uri }}
-        style={styles.webView}
-        injectedJavaScriptBeforeContentLoaded={authScript}
-        injectedJavaScript={authFallbackScript}
-        applicationNameForUserAgent={`GameVerseApp/${NATIVE_BRIDGE_VERSION}`}
-        textZoom={Math.round(fontScale * 100)}
-        javaScriptEnabled
-        domStorageEnabled
-        sharedCookiesEnabled={false}
-        thirdPartyCookiesEnabled={false}
-        allowsInlineMediaPlayback
-        mediaPlaybackRequiresUserAction={false}
-        mediaCapturePermissionGrantType="grantIfSameHostElsePrompt"
-        setSupportMultipleWindows={false}
-        javaScriptCanOpenWindowsAutomatically={false}
-        originWhitelist={[`${WEB_ORIGIN}/*`]}
-        onShouldStartLoadWithRequest={allowNavigation}
-        onNavigationStateChange={handleNavigation}
-        onMessage={(event) => {
-          // Only the trusted GameVerse origin may use the native bridge.
-          if (!event.nativeEvent.url?.startsWith(WEB_ORIGIN)) return;
-          handleMessage(event.nativeEvent.data);
-        }}
-        onLoadStart={() => {
-          setLoading(true);
-          setLoadError(null);
-        }}
-        onLoadEnd={() => setLoading(false)}
-        onError={() => {
-          setLoading(false);
-          setLoadError('The game page could not be loaded.');
-        }}
-        onRenderProcessGone={() => webView.current?.reload()}
-        renderError={() => <View />}
-      />
+      <View style={styles.gameContainer}>
+        <WebView
+          ref={webView}
+          source={{ uri }}
+          style={styles.webView}
+          injectedJavaScriptBeforeContentLoaded={authScript}
+          injectedJavaScript={authFallbackScript}
+          applicationNameForUserAgent={`GameVerseApp/${NATIVE_BRIDGE_VERSION}`}
+          textZoom={Math.round(fontScale * 100)}
+          javaScriptEnabled
+          domStorageEnabled
+          sharedCookiesEnabled={false}
+          thirdPartyCookiesEnabled={false}
+          allowsInlineMediaPlayback
+          mediaPlaybackRequiresUserAction={false}
+          mediaCapturePermissionGrantType="grantIfSameHostElsePrompt"
+          setSupportMultipleWindows={false}
+          javaScriptCanOpenWindowsAutomatically={false}
+          originWhitelist={[`${WEB_ORIGIN}/*`]}
+          onShouldStartLoadWithRequest={allowNavigation}
+          onNavigationStateChange={handleNavigation}
+          onMessage={(event) => {
+            // Only the trusted GameVerse origin may use the native bridge.
+            if (!event.nativeEvent.url?.startsWith(WEB_ORIGIN)) return;
+            handleMessage(event.nativeEvent.data);
+          }}
+          onLoadStart={(event) => {
+            // Android also emits this event for completed-page history changes.
+            setLoading(event.nativeEvent.loading);
+            setLoadError(null);
+          }}
+          onLoadEnd={() => setLoading(false)}
+          onError={() => {
+            setLoading(false);
+            setLoadError('The game page could not be loaded.');
+          }}
+          onRenderProcessGone={() => webView.current?.reload()}
+          renderError={() => <View />}
+        />
 
-      {loading && (
-        <View style={[styles.overlay, { top: headerHeight }]} pointerEvents="none">
-          <ActivityIndicator color={colors.mint} size="large" />
-          <Text style={styles.loadingText}>Opening table…</Text>
-        </View>
-      )}
-      {sharing && (
-        <View style={[styles.overlay, styles.sharingOverlay, { top: headerHeight }]} pointerEvents="none">
-          <ActivityIndicator color={colors.mint} size="large" />
-          <Text style={styles.loadingText}>Preparing your file…</Text>
-        </View>
-      )}
-      {loadError && (
-        <View style={[styles.errorOverlay, { top: headerHeight }]}>
-          <Text style={styles.errorTitle}>Connection problem</Text>
-          <Text style={styles.errorText}>{loadError}</Text>
-          <Pressable onPress={() => webView.current?.reload()} style={styles.retryButton} accessibilityRole="button">
-            <Text style={styles.retryText}>Try again</Text>
-          </Pressable>
-          <Pressable onPress={onClose} style={styles.secondaryButton} accessibilityRole="button">
-            <Text style={styles.secondaryText}>Back to games</Text>
-          </Pressable>
-        </View>
-      )}
+        {loading && (
+          <View style={styles.overlay} pointerEvents="none">
+            <ActivityIndicator color={colors.mint} size="large" />
+            <Text style={styles.loadingText}>Opening table…</Text>
+          </View>
+        )}
+        {sharing && (
+          <View style={[styles.overlay, styles.sharingOverlay]} pointerEvents="none">
+            <ActivityIndicator color={colors.mint} size="large" />
+            <Text style={styles.loadingText}>Preparing your file…</Text>
+          </View>
+        )}
+        {loadError && (
+          <View style={styles.errorOverlay}>
+            <Text style={styles.errorTitle}>Connection problem</Text>
+            <Text style={styles.errorText}>{loadError}</Text>
+            <Pressable onPress={() => webView.current?.reload()} style={styles.retryButton} accessibilityRole="button">
+              <Text style={styles.retryText}>Try again</Text>
+            </Pressable>
+            <Pressable onPress={onClose} style={styles.secondaryButton} accessibilityRole="button">
+              <Text style={styles.secondaryText}>Back to games</Text>
+            </Pressable>
+          </View>
+        )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -243,10 +246,11 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 15, fontWeight: '600', letterSpacing: -0.3 },
   crossplay: { color: colors.mint, fontSize: 9, fontWeight: '600', marginTop: 3, letterSpacing: 1.2 },
   webView: { flex: 1, backgroundColor: colors.background },
-  overlay: { position: 'absolute', right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
+  gameContainer: { flex: 1 },
+  overlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
   sharingOverlay: { backgroundColor: 'rgba(11, 13, 18, 0.95)' },
   loadingText: { color: colors.muted, marginTop: 12, fontSize: 14 },
-  errorOverlay: { position: 'absolute', right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', padding: 32, backgroundColor: colors.background },
+  errorOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', padding: 32, backgroundColor: colors.background },
   errorTitle: { color: colors.text, fontSize: 26, fontWeight: '600', letterSpacing: -0.7 },
   errorText: { color: colors.muted, fontSize: 15, textAlign: 'center', marginTop: 8 },
   retryButton: { minHeight: 48, minWidth: 150, borderRadius: 16, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center', marginTop: 24, paddingHorizontal: 20, paddingVertical: 12 },
