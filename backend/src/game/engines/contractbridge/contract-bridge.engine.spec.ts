@@ -654,7 +654,7 @@ describe('ContractBridgeEngine', () => {
     expect(state.hands.d.map((entry) => entry.id)).toContain('c-clubs-3');
   });
 
-  it('auto-plays only a single legal card and preserves a 1.5-second undo grace', () => {
+  it('auto-plays only a single legal card with a natural pause and undo grace', () => {
     const now = 2_000;
     const engine = new ContractBridgeEngine((cards) => cards, () => now);
     const state = engine.initGame(players, names);
@@ -668,8 +668,11 @@ describe('ContractBridgeEngine', () => {
     expect(engine.getAutomaticAction(state)).toEqual({
       playerId: 'b',
       action: { type: 'play_bridge_card', cardId: 'c-clubs-K' },
-      delayMs: 1_500,
+      delayMs: expect.any(Number),
     });
+    const delayMs = engine.getAutomaticAction(state)!.delayMs;
+    expect(delayMs).toBeGreaterThanOrEqual(1_500);
+    expect(delayMs).toBeLessThanOrEqual(3_000);
 
     state.hands.b.push(card('clubs', 'Q'));
     expect(engine.getAutomaticAction(state)).toBeNull();
@@ -699,9 +702,35 @@ describe('ContractBridgeEngine', () => {
     expect(engine.getAutomaticAction(state)).toEqual({
       playerId: 'a',
       action: { type: 'play_bridge_card', cardId: 'c-clubs-Q' },
-      delayMs: 3_900,
+      delayMs: expect.any(Number),
     });
+    const delayMs = engine.getAutomaticAction(state)!.delayMs;
+    expect(delayMs).toBeGreaterThanOrEqual(5_000);
+    expect(delayMs).toBeLessThanOrEqual(6_500);
   });
+
+  it.each(['opening_lead', 'playing'] as const)(
+    'pauses for a final card during %s even when the previous reveal has expired',
+    (phase) => {
+      const engine = new ContractBridgeEngine((cards) => cards, () => 6_000);
+      const state = engine.initGame(players, names);
+      engine.applyAction(state, 'a', { type: 'select_bridge_mode', mode: 'duplicate' });
+      state.phase = phase;
+      state.contract = contract();
+      state.currentTurnId = 'b';
+      state.hands.b = [card('clubs', 'K')];
+      state.trickDisplayUntil = 5_500;
+
+      const automatic = engine.getAutomaticAction(state);
+      expect(automatic).toEqual({
+        playerId: 'b',
+        action: { type: 'play_bridge_card', cardId: 'c-clubs-K' },
+        delayMs: expect.any(Number),
+      });
+      expect(automatic!.delayMs).toBeGreaterThanOrEqual(1_500);
+      expect(automatic!.delayMs).toBeLessThanOrEqual(3_000);
+    },
+  );
 
   it('rejects a revoke when the controlled hand can follow suit', () => {
     const { engine, state } = game();

@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import type {
   BridgeAction,
   BridgeBid,
@@ -31,6 +32,8 @@ type CardShuffler = (cards: StandardCard[]) => StandardCard[];
 const SEATS = ['north', 'east', 'south', 'west'] as const;
 const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'] as const;
 const TRICK_REVEAL_MS = 3_500;
+const AUTO_PLAY_DELAY_MIN_MS = 1_500;
+const AUTO_PLAY_DELAY_MAX_MS = 3_000;
 const HIGH_CARD_POINTS: Partial<Record<StandardCard['rank'], number>> = { J: 1, Q: 2, K: 3, A: 4 };
 const DUPLICATE_VULNERABILITY: Array<[boolean, boolean]> = [
   [false, false], [true, false], [false, true], [true, true],
@@ -259,7 +262,7 @@ export class ContractBridgeEngine implements DistinctGameAdapter<BridgeGameState
     return {
       playerId: actorId,
       action: { type: 'play_bridge_card', cardId: legalCards[0].id },
-      delayMs: Math.max(1_500, revealRemaining + 400),
+      delayMs: revealRemaining + randomInt(AUTO_PLAY_DELAY_MIN_MS, AUTO_PLAY_DELAY_MAX_MS + 1),
     };
   }
 

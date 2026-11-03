@@ -85,6 +85,8 @@ Expired or unavailable rooms show the server error with retry and return-to-libr
 
 ### Bridge Home Rules
 
+Across all Bridge modes, a single legal card plays automatically after a randomized 1.5–3 second pause, starting after any previous-trick reveal finishes. Own-hand and dummy plays use the same timing range, reducing the instant-play cue without changing card visibility or legal moves.
+
 - Hand points are J = 1, Q = 2, K = 3, and A = 4; all other ranks count as zero.
 - Any zero-point hand discards the Home deal for a 0-0 score and automatically deals again. This rule is independent of the surrender setting.
 - Selecting Home opens the low-point surrender switch (on by default) and its threshold (default 4, configurable from 1 to 40). Eligibility is strictly below that threshold.
