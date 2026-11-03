@@ -126,6 +126,9 @@ export class DistinctActionPayloadDto {
     'roll', 'hold', 'place_fleet', 'shoot', 'set_code', 'guess_code',
     'set_phrase', 'guess_letter', 'guess_phrase', 'ask', 'play_card',
     'draw_card', 'roll_dice', 'score_category', 'bid', 'challenge',
+    'select_liars_dice_mode', 'next_liars_dice_round', 'spot_on',
+    'select_liars_deck_mode', 'play_liars_deck', 'call_liars_deck',
+    'devils_deal', 'next_liars_deck_round',
     'roll_farkle', 'select_dice', 'bank_farkle', 'roll_box',
     'close_tiles', 'play_domino', 'draw_domino',
     'pass_cards', 'bid_spades', 'gin_draw', 'gin_discard', 'battle',
@@ -165,8 +168,8 @@ export class DistinctActionPayloadDto {
   chosenValue?: number;
 
   @IsOptional()
-  @IsIn(['rubber', 'duplicate', 'home'])
-  mode?: 'rubber' | 'duplicate' | 'home';
+  @IsIn(['rubber', 'duplicate', 'home', 'classic', 'traditional', 'devil'])
+  mode?: 'rubber' | 'duplicate' | 'home' | 'classic' | 'traditional' | 'devil';
 
   @IsOptional()
   @IsObject()

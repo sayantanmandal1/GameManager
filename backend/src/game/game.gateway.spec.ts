@@ -228,6 +228,27 @@ describe('distinct game DTOs - class-validator', () => {
     }
   });
 
+  it.each([
+    { type: 'select_liars_dice_mode', mode: 'classic' },
+    { type: 'select_liars_dice_mode', mode: 'traditional' },
+    { type: 'next_liars_dice_round' },
+    { type: 'spot_on' },
+    { type: 'select_liars_deck_mode', mode: 'classic' },
+    { type: 'select_liars_deck_mode', mode: 'devil' },
+    { type: 'play_liars_deck', cardIds: ['A-0', 'K-1', 'joker-0'] },
+    { type: 'play_liars_deck', cardIds: ['devil'] },
+    { type: 'call_liars_deck' },
+    { type: 'devils_deal' },
+    { type: 'next_liars_deck_round' },
+  ])('accepts Liar table action through the production validation pipe: $type $mode', async (action) => {
+    const dto = plainToInstance(DistinctGameActionDto, {
+      gameId: '123e4567-e89b-12d3-a456-426614174000',
+      lobbyCode: '123456',
+      action,
+    });
+    await expect(validate(dto, { whitelist: true, forbidNonWhitelisted: true })).resolves.toHaveLength(0);
+  });
+
   it('rejects out-of-range expanded-game fields and malformed card arrays', async () => {
     const actions = [
       { type: 'pass_cards', cardIds: ['c-clubs-A', 'invalid card'] },
@@ -237,6 +258,9 @@ describe('distinct game DTOs - class-validator', () => {
       { type: 'place_stone', node: 24 },
       { type: 'answer_trivia', answerIndex: 4 },
       { type: 'reveal_tile', tileIndex: 24 },
+      { type: 'select_liars_dice_mode', mode: 'unknown' },
+      { type: 'select_liars_deck_mode', mode: 'unknown' },
+      { type: 'play_liars_deck', cardIds: ['invalid card'] },
     ];
 
     for (const action of actions) {
