@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import type { LiarsDeckPlayerView } from '@/shared';
 import { LiarsDeckRenderer } from './LiarsDeckRenderer';
 
+afterEach(() => jest.restoreAllMocks());
+
 const view: LiarsDeckPlayerView = {
   gameKey: 'liars-deck', players: [
     { id: 'a', name: 'Alice', handCount: 5, pulls: 0, active: true },
@@ -22,6 +24,18 @@ describe("Liar's Deck table", () => {
     expect(screen.getByText('0 cards · 0/6 chambers')).toBeInTheDocument();
     rerender(<LiarsDeckRenderer view={view} disabled={false} onAction={jest.fn()} />);
     expect(screen.getAllByText('5 cards · 0/6 chambers')).toHaveLength(2);
+  });
+
+  it('shows character portraits and plays the three-card voice cue only for a new claim', () => {
+    const play = jest.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const { rerender } = render(<LiarsDeckRenderer view={view} disabled={false} onAction={jest.fn()} />);
+    expect(screen.getAllByRole('img', { name: /portrait for/ })).toHaveLength(2);
+
+    const claimView = { ...view, pileCount: 3, pendingClaim: { playerId: 'b', count: 3 } };
+    rerender(<LiarsDeckRenderer view={claimView} disabled={false} onAction={jest.fn()} />);
+    expect(play).toHaveBeenCalledTimes(1);
+    rerender(<LiarsDeckRenderer view={claimView} disabled={false} onAction={jest.fn()} />);
+    expect(play).toHaveBeenCalledTimes(1);
   });
 
   it('explains a resignation pause and lets the host continue without revealed cards', () => {

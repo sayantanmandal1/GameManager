@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import type { LiarsDiceAction, LiarsDicePlayerView } from '@/shared';
+import { LiarsCharacterAvatar } from './LiarsCharacterAvatar';
 import { LiarDie, LiarTableScene } from './LiarTableScene';
+import { playLiarsBarVoice } from './liarsBarAssets';
 
 interface Props { view: LiarsDicePlayerView; disabled: boolean; onAction: (action: LiarsDiceAction) => void }
 
@@ -15,11 +17,22 @@ export function LiarsDiceRenderer({ view, disabled, onAction }: Props) {
   const [quantity, setQuantity] = useState(minimumQuantity);
   const [face, setFace] = useState(bidFace ? Math.min(6, bidFace + 1) : 1);
   const [cupOpen, setCupOpen] = useState(false);
+  const spotOnCallerId = view.lastReveal?.kind === 'spot_on' ? view.lastReveal.callerId : null;
+  const spotOnCallerIndex = spotOnCallerId ? view.players.findIndex((player) => player.id === spotOnCallerId) : -1;
+  const spotOnVoiceKey = spotOnCallerIndex >= 0 && view.lastReveal
+    ? `${view.round}:${spotOnCallerId}:${view.lastReveal.bid.quantity}:${view.lastReveal.bid.face}:${view.lastReveal.actual}`
+    : null;
+  const lastSpotOnVoiceKey = useRef(spotOnVoiceKey);
   useEffect(() => {
     setQuantity((bidQuantity ?? 0) + 1);
     setFace(1);
   }, [bidQuantity, bidFace, view.round]);
   useEffect(() => setCupOpen(false), [view.round]);
+  useEffect(() => {
+    if (spotOnCallerIndex < 0 || !spotOnVoiceKey || spotOnVoiceKey === lastSpotOnVoiceKey.current) return;
+    lastSpotOnVoiceKey.current = spotOnVoiceKey;
+    playLiarsBarVoice(spotOnCallerIndex, 'spotOn');
+  }, [spotOnCallerIndex, spotOnVoiceKey]);
   const bidValid = Number.isInteger(quantity) && quantity >= minimumQuantity && quantity <= view.totalDice && Number.isInteger(face) && face >= 1 && face <= 6;
   const playerName = (id: string) => view.players.find((player) => player.id === id)?.name ?? 'Player';
   if (view.phase === 'setup') return <section className="w-full max-w-3xl rounded-3xl border border-[#d1af68]/25 bg-[#201a14] p-6 text-center">
@@ -33,7 +46,13 @@ export function LiarsDiceRenderer({ view, disabled, onAction }: Props) {
     <div className="w-full max-w-[64rem] space-y-4">
       <LiarTableScene kind="dice" players={view.players.map((player) => ({ ...player, active: player.diceCount > 0 }))} youId={view.youId} currentTurnId={view.currentTurnId} round={view.round} privateDice={cupOpen ? view.yourDice : []} />
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {view.players.map((player) => <div key={player.id} className={`min-w-0 rounded-xl border px-3 py-2 ${player.id === view.currentTurnId && view.phase === 'playing' ? 'border-[#dfbd70]/70 bg-[#dfbd70]/10' : 'border-white/10 bg-black/15'} ${player.diceCount === 0 ? 'opacity-45' : ''}`}><p className="truncate font-semibold" title={player.name}>{player.name}{player.id === view.youId ? ' · you' : ''}</p><p className="mt-1 text-xs text-white/65">{player.diceCount > 0 ? `${player.diceCount} dice · ${view.penalties[player.id]}/2 poison` : 'Eliminated'}</p></div>)}
+        {view.players.map((player, index) => <div key={player.id} className={`flex min-w-0 items-center gap-2 rounded-xl border px-2 py-2 sm:gap-3 sm:px-3 ${player.id === view.currentTurnId && view.phase === 'playing' ? 'border-[#dfbd70]/70 bg-[#dfbd70]/10' : 'border-white/10 bg-black/15'} ${player.diceCount === 0 ? 'opacity-45' : ''}`}>
+          <LiarsCharacterAvatar playerIndex={index} playerName={player.name} />
+          <div className="min-w-0">
+            <p className="truncate font-semibold" title={player.name}>{player.name}{player.id === view.youId ? ' · you' : ''}</p>
+            <p className="mt-1 text-xs text-white/65">{player.diceCount > 0 ? `${player.diceCount} dice · ${view.penalties[player.id]}/2 poison` : 'Eliminated'}</p>
+          </div>
+        </div>)}
       </div>
       <div className="rounded-2xl border border-[#dfbd70]/20 bg-black/20 px-4 py-4 text-center">
         <p className="text-xs font-bold text-white/65">{view.mode === 'traditional' ? 'TRADITIONAL · ONES ARE WILD' : 'CLASSIC · NO WILD DICE'}</p>

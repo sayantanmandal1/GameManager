@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { LiarsDeckAction, LiarsDeckCard, LiarsDeckPlayerView } from '@/shared';
 import { Button } from '@/components/ui/Button';
 import { CardFace } from './CardFace';
+import { LiarsCharacterAvatar } from './LiarsCharacterAvatar';
 import { LiarTableScene } from './LiarTableScene';
+import { playLiarsBarVoice } from './liarsBarAssets';
 
 const RANK_LABELS = { A: 'Ace', K: 'King', Q: 'Queen', joker: 'Joker', devil: 'Devil' } as const;
 
@@ -12,7 +14,16 @@ export function LiarsDeckRenderer({ view, disabled, onAction }: Readonly<{
   view: LiarsDeckPlayerView; disabled: boolean; onAction: (action: LiarsDeckAction) => void;
 }>) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const claimSpeakerId = view.pendingClaim?.count === 3 ? view.pendingClaim.playerId : null;
+  const claimSpeakerIndex = claimSpeakerId ? view.players.findIndex((player) => player.id === claimSpeakerId) : -1;
+  const claimVoiceKey = claimSpeakerIndex >= 0 ? `${view.round}:${view.pileCount}:${claimSpeakerId}` : null;
+  const lastClaimVoiceKey = useRef(claimVoiceKey);
   useEffect(() => setSelectedIds([]), [view.round, view.currentTurnId, view.pileCount]);
+  useEffect(() => {
+    if (claimSpeakerIndex < 0 || !claimVoiceKey || claimVoiceKey === lastClaimVoiceKey.current) return;
+    lastClaimVoiceKey.current = claimVoiceKey;
+    playLiarsBarVoice(claimSpeakerIndex, 'threeCards');
+  }, [claimSpeakerIndex, claimVoiceKey]);
   const selected = view.yourHand.filter((card) => selectedIds.includes(card.id));
   const name = (id: string) => view.players.find((player) => player.id === id)?.name ?? 'Player';
   const toggle = (card: LiarsDeckCard) => {
@@ -40,9 +51,12 @@ export function LiarsDeckRenderer({ view, disabled, onAction }: Readonly<{
     <section className="w-full max-w-[64rem] space-y-4" aria-label="Liar's Deck table">
       <LiarTableScene kind="deck" players={view.players} youId={view.youId} currentTurnId={view.currentTurnId} round={view.round} tableCount={view.pileCount} />
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {view.players.map((player) => <div key={player.id} className={`min-w-0 rounded-xl border p-3 ${view.currentTurnId === player.id && view.phase === 'playing' ? 'border-[#dfbd70]/70 bg-[#dfbd70]/10' : 'border-white/10 bg-black/15'} ${player.active ? '' : 'opacity-45'}`}>
-          <p className="truncate text-sm font-bold" title={player.name}>{player.name}{player.id === view.youId ? ' · you' : ''}</p>
-          <p className="mt-1 text-xs text-white/65">{player.active ? `${player.handCount} ${player.handCount === 1 ? 'card' : 'cards'} · ${player.pulls}/6 chambers` : 'Eliminated'}</p>
+        {view.players.map((player, index) => <div key={player.id} className={`flex min-w-0 items-center gap-2 rounded-xl border p-2 sm:gap-3 sm:p-3 ${view.currentTurnId === player.id && view.phase === 'playing' ? 'border-[#dfbd70]/70 bg-[#dfbd70]/10' : 'border-white/10 bg-black/15'} ${player.active ? '' : 'opacity-45'}`}>
+          <LiarsCharacterAvatar playerIndex={index} playerName={player.name} />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold" title={player.name}>{player.name}{player.id === view.youId ? ' · you' : ''}</p>
+            <p className="mt-1 text-xs text-white/65">{player.active ? `${player.handCount} ${player.handCount === 1 ? 'card' : 'cards'} · ${player.pulls}/6 chambers` : 'Eliminated'}</p>
+          </div>
         </div>)}
       </div>
       <div className="rounded-2xl border border-[#dfbd70]/20 bg-black/20 p-4 text-center">

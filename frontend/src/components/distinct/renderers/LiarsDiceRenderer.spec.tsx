@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import type { LiarsDicePlayerView } from '@/shared';
 import { LiarsDiceRenderer } from './LiarsDiceRenderer';
 
+afterEach(() => jest.restoreAllMocks());
+
 const view: LiarsDicePlayerView = {
   gameKey: 'liars-dice', players: [
     { id: 'a', name: 'Alice', diceCount: 5 },
@@ -15,6 +17,24 @@ const view: LiarsDicePlayerView = {
 };
 
 describe('Liar dice table', () => {
+  it('shows character portraits and announces a new Spot on reveal once', () => {
+    const play = jest.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const { rerender } = render(<LiarsDiceRenderer view={view} disabled={false} onAction={jest.fn()} />);
+    expect(screen.getAllByRole('img', { name: /portrait for/ })).toHaveLength(2);
+
+    const bid = { quantity: 2, face: 4, bidderId: 'a' };
+    const revealView = {
+      ...view,
+      phase: 'reveal' as const,
+      currentBid: bid,
+      lastReveal: { bid, callerId: 'b', kind: 'spot_on' as const, dice: { a: [4, 2, 3, 5, 6], b: [4, 1, 3, 5, 6] }, actual: 2, successful: true, penalizedIds: ['a'] },
+    };
+    rerender(<LiarsDiceRenderer view={revealView} disabled={false} onAction={jest.fn()} />);
+    expect(play).toHaveBeenCalledTimes(1);
+    rerender(<LiarsDiceRenderer view={revealView} disabled={false} onAction={jest.fn()} />);
+    expect(play).toHaveBeenCalledTimes(1);
+  });
+
   it.each([0, 1, 2])('uses the correct wording for a %i-die reveal and its bid', (actual) => {
     const bid = { quantity: Math.max(1, actual), face: 4, bidderId: 'b' };
     render(<LiarsDiceRenderer view={{
