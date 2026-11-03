@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { LIARS_DECK_ROULETTE_TIMING, liarsDeckRevealDurationMs, type LiarsDeckPlayerView } from '@/shared';
+import { LIARS_DECK_DEAL_INTRO_MS, LIARS_DECK_ROULETTE_TIMING, liarsDeckRevealDurationMs, type LiarsDeckPlayerView } from '@/shared';
 import { useDistinctGameStore } from '@/stores/distinctGameStore';
 import { LiarsDeckRenderer } from './LiarsDeckRenderer';
 
@@ -15,9 +15,50 @@ const view: LiarsDeckPlayerView = {
   tableRank: 'A', pileCount: 0, pendingClaim: null, currentTurnId: 'a',
   round: 1, lastReveal: null, canAct: true, canChallenge: false,
   canPlay: true, canDevilsDeal: false, forcedChallenge: false, winnerId: null,
+  deck: { A: 5, K: 6, Q: 6, joker: 2, devil: 1 }, roundIntroRemainingMs: 0, nextRoundInMs: 0,
 };
 
 describe("Liar's Deck table", () => {
+  it('announces the table card and deck before unlocking play for a fresh round', () => {
+    jest.useFakeTimers();
+    try {
+      const onAction = jest.fn();
+      render(<LiarsDeckRenderer view={{ ...view, tableRank: 'K', roundIntroRemainingMs: LIARS_DECK_DEAL_INTRO_MS }} disabled={false} onAction={onAction} />);
+      expect(screen.getByRole('heading', { name: "King's Table" })).toBeInTheDocument();
+      expect(screen.getByLabelText(/Deck of 20: 5 Aces · 6 Kings · 6 Queens · 2 Jokers · 1 Devil/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'King card' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Call Liar!' })).toBeDisabled();
+      act(() => { jest.advanceTimersByTime(LIARS_DECK_DEAL_INTRO_MS + 250); });
+      expect(screen.queryByRole('heading', { name: "King's Table" })).not.toBeInTheDocument();
+      expect(screen.getByText('Deck · 5 Aces · 6 Kings · 6 Queens · 2 Jokers · 1 Devil')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'King card' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Play selected' }));
+      expect(onAction).toHaveBeenCalledWith({ type: 'play_liars_deck', cardIds: ['k1'] });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('lays out six seats without truncating the table', () => {
+    const six = ['a', 'b', 'c', 'd', 'e', 'f'].map((id, index) => ({ id, name: `P${index + 1}`, handCount: 5, pulls: 0, active: true }));
+    render(<LiarsDeckRenderer view={{ ...view, players: six, deck: { A: 8, K: 9, Q: 9, joker: 3, devil: 1 } }} disabled={false} onAction={jest.fn()} />);
+    expect(screen.getAllByRole('img', { name: /portrait for/ })).toHaveLength(6);
+    expect(screen.getAllByText('5 cards · 0/6 pulls')).toHaveLength(6);
+  });
+
+  it('shows every player a live countdown to the automatic next round', () => {
+    jest.useFakeTimers();
+    try {
+      render(<LiarsDeckRenderer view={{ ...view, youId: 'b', phase: 'reveal', canAct: false, nextRoundInMs: 6_000,
+        lastReveal: { kind: 'challenge', callerId: 'b', claimantId: 'a', tableRank: 'A', cards: [{ id: 'x', rank: 'Q' }], successful: true, riskPlayerIds: ['a'], eliminatedIds: [], shots: [] } }} disabled={false} onAction={jest.fn()} />);
+      expect(screen.getByRole('timer')).toHaveTextContent('Next round deals in 6s');
+      act(() => { jest.advanceTimersByTime(2_100); });
+      expect(screen.getByRole('timer')).toHaveTextContent('Next round deals in 4s');
+      expect(screen.queryByRole('button', { name: 'Next round' })).not.toBeInTheDocument();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
   it('uses singular wording for the last card without changing empty or larger hand counts', () => {
     const players = view.players.map((player, index) => ({ ...player, handCount: index === 0 ? 1 : 0 }));
     const { rerender } = render(<LiarsDeckRenderer view={{ ...view, players }} disabled={false} onAction={jest.fn()} />);

@@ -3,7 +3,7 @@ import type {
   LiarsDeckAction, LiarsDeckCard, LiarsDeckGameState, LiarsDeckPlayerView,
   LiarsDeckResult, LiarsDeckTableRank,
 } from '../../../shared';
-import { liarsDeckRevealDurationMs } from '../../../shared';
+import { LIARS_DECK_DEAL_INTRO_MS, liarsDeckDeckCounts, liarsDeckRevealDurationMs, liarsDeckRouletteDurationMs } from '../../../shared';
 import type { DistinctActionResult, DistinctAutomaticAction, DistinctGameAdapter } from '../distinct-game.adapter';
 import { hasExactActionShape } from '../action-shape';
 import { secureShuffle } from '../standard-cards';
@@ -14,17 +14,18 @@ export class LiarsDeckEngine implements DistinctGameAdapter<LiarsDeckGameState, 
   readonly key = 'liars-deck' as const;
   readonly rulesetId = 'liars-deck.classic-devil-deal.v1';
   readonly minPlayers = 2;
-  readonly maxPlayers = 4;
+  readonly maxPlayers = 6;
 
   constructor(
     private readonly shuffle: (cards: LiarsDeckCard[]) => LiarsDeckCard[] = secureShuffle,
     private readonly chamber: () => number = () => randomInt(1, 7),
     private readonly table: () => LiarsDeckTableRank = () => TABLE_RANKS[randomInt(0, 3)],
+    private readonly now: () => number = Date.now,
   ) {}
 
   initGame(playerIds: string[], names: Record<string, string>): LiarsDeckGameState {
-    if (playerIds.length < 2 || playerIds.length > 4 || new Set(playerIds).size !== playerIds.length) {
-      throw new Error("Liar's Deck requires two to four distinct players");
+    if (playerIds.length < this.minPlayers || playerIds.length > this.maxPlayers || new Set(playerIds).size !== playerIds.length) {
+      throw new Error("Liar's Deck requires two to six distinct players");
     }
     return {
       players: playerIds.map((id, index) => ({ id, name: names[id] || `Player ${index + 1}` })),
@@ -53,10 +54,14 @@ export class LiarsDeckEngine implements DistinctGameAdapter<LiarsDeckGameState, 
     if (action.type === 'next_liars_deck_round') {
       if (!hasExactActionShape(action, 'next_liars_deck_round', [])
         || state.phase !== 'reveal' || playerId !== state.hostId) return { valid: false, reason: 'Only the host can advance a revealed round' };
+      if (this.now() < (state.revealedAt ?? 0) + liarsDeckRouletteDurationMs(state.lastReveal?.shots?.length ?? 0)) {
+        return { valid: false, reason: 'Wait for the revolver to settle' };
+      }
       this.deal(state);
       return { valid: true };
     }
     if (state.phase !== 'playing') return { valid: false, reason: 'Wait for the next round' };
+    if (this.introRemaining(state) > 0) return { valid: false, reason: 'The cards are still being dealt' };
     if (state.currentTurnId !== playerId || state.eliminatedIds.includes(playerId)) return { valid: false, reason: 'Not your turn' };
     if (action.type === 'call_liars_deck') {
       if (!hasExactActionShape(action, 'call_liars_deck', [])) return { valid: false, reason: 'Invalid action' };
@@ -117,6 +122,9 @@ export class LiarsDeckEngine implements DistinctGameAdapter<LiarsDeckGameState, 
       canPlay: canAct && !forcedChallenge && state.hands[playerId].length > 0,
       canDevilsDeal: canAct && !forcedChallenge && this.canDevilsDeal(state, playerId),
       forcedChallenge, winnerId: state.winnerId,
+      deck: { ...(state.deck ?? liarsDeckDeckCounts(this.activeIds(state).length, state.mode, state.tableRank)) },
+      roundIntroRemainingMs: this.introRemaining(state),
+      nextRoundInMs: state.phase === 'reveal' ? this.revealDelay(state) : 0,
     };
   }
 
@@ -140,6 +148,7 @@ export class LiarsDeckEngine implements DistinctGameAdapter<LiarsDeckGameState, 
     if (state.phase === 'playing') {
       state.pendingClaim = null;
       state.lastReveal = null;
+      state.revealedAt = this.now();
       state.phase = 'reveal';
     }
     return { valid: true };
@@ -180,25 +189,25 @@ export class LiarsDeckEngine implements DistinctGameAdapter<LiarsDeckGameState, 
     if (this.activeIds(state).length === 1) return this.finish(state, 'last_player');
     const starter = reveal.riskPlayerIds[0] ?? reveal.callerId;
     state.currentTurnId = state.eliminatedIds.includes(starter) ? this.nextActive(state, starter) : starter;
+    state.revealedAt = this.now();
     state.phase = 'reveal';
     return { valid: true };
   }
 
   private revealDelay(state: LiarsDeckGameState): number {
-    return state.lastReveal ? liarsDeckRevealDurationMs(state.lastReveal.shots?.length ?? 0) : 5_000;
+    const elapsed = Math.max(0, this.now() - (state.revealedAt ?? this.now()));
+    return Math.max(0, liarsDeckRevealDurationMs(state.lastReveal?.shots?.length ?? 0) - elapsed);
   }
 
   private deal(state: LiarsDeckGameState): void {
     state.tableRank = this.table();
-    const deck: LiarsDeckCard[] = TABLE_RANKS.flatMap((rank) => Array.from({ length: 6 }, (_, index) => ({ id: `${rank}-${index}`, rank })));
-    deck.push({ id: 'joker-0', rank: 'joker' }, { id: 'joker-1', rank: 'joker' });
-    if (state.mode === 'devil') {
-      const index = deck.findIndex((card) => card.rank === state.tableRank);
-      deck[index] = { id: 'devil', rank: 'devil' };
-    }
+    const active = this.activeIds(state);
+    const counts = liarsDeckDeckCounts(active.length, state.mode, state.tableRank);
+    const deck: LiarsDeckCard[] = (['A', 'K', 'Q', 'joker'] as const)
+      .flatMap((rank) => Array.from({ length: counts[rank] }, (_, index) => ({ id: `${rank}-${index}`, rank })));
+    if (counts.devil) deck.push({ id: 'devil', rank: 'devil' });
     const shuffled = this.shuffle(deck);
     for (const player of state.players) state.hands[player.id] = [];
-    const active = this.activeIds(state);
     for (let cardIndex = 0; cardIndex < 5; cardIndex += 1) {
       for (let index = 0; index < active.length; index += 1) {
         state.hands[active[index]].push(shuffled[cardIndex * active.length + index]);
@@ -207,7 +216,14 @@ export class LiarsDeckEngine implements DistinctGameAdapter<LiarsDeckGameState, 
     state.round += 1;
     state.pile = [];
     state.pendingClaim = null;
+    state.deck = counts;
+    state.dealtAt = this.now();
     state.phase = 'playing';
+  }
+
+  private introRemaining(state: LiarsDeckGameState): number {
+    if (state.phase !== 'playing' || state.dealtAt === undefined) return 0;
+    return Math.max(0, state.dealtAt + LIARS_DECK_DEAL_INTRO_MS - this.now());
   }
 
   private truthful(card: LiarsDeckCard, tableRank: LiarsDeckTableRank): boolean {

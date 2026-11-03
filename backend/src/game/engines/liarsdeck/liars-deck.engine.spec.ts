@@ -1,15 +1,21 @@
 import type { LiarsDeckAction, LiarsDeckCard, LiarsDeckMode } from '../../../shared';
-import { liarsDeckRevealDurationMs } from '../../../shared';
+import { LIARS_DECK_DEAL_INTRO_MS, liarsDeckRevealDurationMs, liarsDeckRouletteDurationMs } from '../../../shared';
 import { LiarsDeckEngine } from './liars-deck.engine';
 
 describe('LiarsDeckEngine', () => {
   const players = ['a', 'b', 'c', 'd'];
   const card = (id: string, rank: LiarsDeckCard['rank']): LiarsDeckCard => ({ id, rank });
-  const game = (mode: LiarsDeckMode = 'classic', chamber = 6) => {
-    const engine = new LiarsDeckEngine((cards) => cards, () => chamber, () => 'A');
-    const state = engine.initGame(players, {});
+  /** Each read moves well past every presentation gate unless frozen. */
+  const makeClock = () => {
+    const clock = { time: 0, frozen: false, now: () => (clock.frozen ? clock.time : (clock.time += 60_000)) };
+    return clock;
+  };
+  const game = (mode: LiarsDeckMode = 'classic', chamber = 6, seats = players) => {
+    const clock = makeClock();
+    const engine = new LiarsDeckEngine((cards) => cards, () => chamber, () => 'A', clock.now);
+    const state = engine.initGame(seats, {});
     expect(engine.applyAction(state, 'a', { type: 'select_liars_deck_mode', mode }).valid).toBe(true);
-    return { engine, state };
+    return { engine, state, clock };
   };
 
   it('deals twenty unique cards, five per seat, from the documented Classic deck', () => {
@@ -29,6 +35,65 @@ describe('LiarsDeckEngine', () => {
     expect(cards.filter((entry) => entry.rank === 'devil')).toHaveLength(1);
     expect(cards.filter((entry) => entry.rank === 'A')).toHaveLength(5);
     expect(cards.filter((entry) => entry.rank === 'joker')).toHaveLength(2);
+  });
+
+  it('keeps the standard 20-card deck for up to four seats and scales to 30 cards for five or six', () => {
+    const three = game('classic', 6, ['a', 'b', 'c']);
+    expect(Object.values(three.state.hands).flat()).toHaveLength(15);
+    expect(three.engine.getPlayerView(three.state, 'b').deck).toEqual({ A: 6, K: 6, Q: 6, joker: 2, devil: 0 });
+
+    const six = game('devil', 6, ['a', 'b', 'c', 'd', 'e', 'f']);
+    const cards = Object.values(six.state.hands).flat();
+    expect(cards).toHaveLength(30);
+    expect(new Set(cards.map((entry) => entry.id)).size).toBe(30);
+    expect(cards.filter((entry) => entry.rank === 'A')).toHaveLength(8);
+    expect(cards.filter((entry) => entry.rank === 'K')).toHaveLength(9);
+    expect(cards.filter((entry) => entry.rank === 'joker')).toHaveLength(3);
+    expect(cards.filter((entry) => entry.rank === 'devil')).toHaveLength(1);
+    expect(Object.values(six.state.hands).every((hand) => hand.length === 5)).toBe(true);
+    expect(six.engine.getPlayerView(six.state, 'f').deck).toEqual({ A: 8, K: 9, Q: 9, joker: 3, devil: 1 });
+
+    const five = game('classic', 6, ['a', 'b', 'c', 'd', 'e']);
+    expect(Object.values(five.state.hands).flat()).toHaveLength(25);
+    expect(five.state.deck).toEqual({ A: 9, K: 9, Q: 9, joker: 3, devil: 0 });
+    expect(() => new LiarsDeckEngine().initGame(['a', 'b', 'c', 'd', 'e', 'f', 'g'], {})).toThrow('two to six');
+  });
+
+  it('holds every play until the table card and deal have been shown', () => {
+    const clock = makeClock();
+    clock.frozen = true;
+    const engine = new LiarsDeckEngine((cards) => cards, () => 6, () => 'K', clock.now);
+    const state = engine.initGame(players, {});
+    engine.applyAction(state, 'a', { type: 'select_liars_deck_mode', mode: 'classic' });
+    expect(engine.getPlayerView(state, 'b')).toMatchObject({ tableRank: 'K', roundIntroRemainingMs: LIARS_DECK_DEAL_INTRO_MS });
+    const play: LiarsDeckAction = { type: 'play_liars_deck', cardIds: [state.hands.a[0].id] };
+    expect(engine.applyAction(state, 'a', play)).toEqual({ valid: false, reason: 'The cards are still being dealt' });
+    clock.time = LIARS_DECK_DEAL_INTRO_MS - 1;
+    expect(engine.applyAction(state, 'a', play).valid).toBe(false);
+    clock.time = LIARS_DECK_DEAL_INTRO_MS;
+    expect(engine.getPlayerView(state, 'b').roundIntroRemainingMs).toBe(0);
+    expect(engine.applyAction(state, 'a', play).valid).toBe(true);
+  });
+
+  it('lets the host skip only the post-revolver pause, never the revolver itself', () => {
+    const clock = makeClock();
+    clock.frozen = true;
+    const engine = new LiarsDeckEngine((cards) => cards, () => 6, () => 'A', clock.now);
+    const state = engine.initGame(players, {});
+    engine.applyAction(state, 'a', { type: 'select_liars_deck_mode', mode: 'classic' });
+    clock.time = LIARS_DECK_DEAL_INTRO_MS;
+    engine.applyAction(state, 'a', { type: 'play_liars_deck', cardIds: [state.hands.a[0].id] });
+    engine.applyAction(state, 'b', { type: 'call_liars_deck' });
+    const revealedAt = clock.time;
+    expect(engine.getAutomaticAction(state)?.delayMs).toBe(liarsDeckRevealDurationMs(1));
+    expect(engine.getPlayerView(state, 'c').nextRoundInMs).toBe(liarsDeckRevealDurationMs(1));
+    clock.time = revealedAt + liarsDeckRouletteDurationMs(1) - 1;
+    expect(engine.applyAction(state, 'a', { type: 'next_liars_deck_round' })).toEqual({ valid: false, reason: 'Wait for the revolver to settle' });
+    expect(engine.getAutomaticAction(state)?.delayMs).toBe(liarsDeckRevealDurationMs(1) - liarsDeckRouletteDurationMs(1) + 1);
+    clock.time = revealedAt + liarsDeckRouletteDurationMs(1);
+    expect(engine.applyAction(state, 'b', { type: 'next_liars_deck_round' }).valid).toBe(false);
+    expect(engine.applyAction(state, 'a', { type: 'next_liars_deck_round' }).valid).toBe(true);
+    expect(state.round).toBe(2);
   });
 
   it('restricts mode selection to the host before play', () => {
@@ -113,9 +178,12 @@ describe('LiarsDeckEngine', () => {
   it('records each trigger pull in firing order and paces the reveal so every shot can be animated', () => {
     const chambers: Record<string, number> = { a: 6, b: 1, c: 3, d: 6 };
     let seat = 0;
-    const engine = new LiarsDeckEngine((cards) => cards, () => chambers[players[seat++]], () => 'A');
+    const clock = makeClock();
+    clock.frozen = true;
+    const engine = new LiarsDeckEngine((cards) => cards, () => chambers[players[seat++]], () => 'A', clock.now);
     const state = engine.initGame(players, {});
     engine.applyAction(state, 'a', { type: 'select_liars_deck_mode', mode: 'devil' });
+    clock.time = LIARS_DECK_DEAL_INTRO_MS;
     state.hands.a = [card('devil', 'devil'), card('a', 'Q')];
     engine.applyAction(state, 'a', { type: 'play_liars_deck', cardIds: ['devil'] });
     engine.applyAction(state, 'b', { type: 'call_liars_deck' });
@@ -169,18 +237,21 @@ describe('LiarsDeckEngine', () => {
     expect(engine.getAutomaticAction(state)?.action).toEqual({ type: 'next_liars_deck_round' });
   });
 
-  it.each(['classic', 'devil'] as const)('simulates a complete four-player %s match through a final survivor', (mode) => {
-    const { engine, state } = game(mode, 1);
+  it.each([
+    ['classic', 4], ['devil', 4], ['classic', 6], ['devil', 6], ['devil', 2],
+  ] as const)('simulates a complete %s match with %i players through a final survivor', (mode, seats) => {
+    const ids = ['a', 'b', 'c', 'd', 'e', 'f'].slice(0, seats);
+    const { engine, state } = game(mode, 1, ids);
     let actions = 0;
-    while (state.phase !== 'finished' && actions++ < 100) {
+    while (state.phase !== 'finished' && actions++ < 200) {
       const automatic = engine.getAutomaticAction(state);
       const action: LiarsDeckAction = automatic ? automatic.action as LiarsDeckAction
         : state.pendingClaim ? { type: 'call_liars_deck' }
           : { type: 'play_liars_deck', cardIds: [state.hands[state.currentTurnId][0].id] };
       expect(engine.applyAction(state, automatic?.playerId ?? state.currentTurnId, action).valid).toBe(true);
     }
-    expect(actions).toBeLessThan(100);
-    expect(state.eliminatedIds).toHaveLength(3);
+    expect(actions).toBeLessThan(200);
+    expect(state.eliminatedIds).toHaveLength(seats - 1);
     expect(engine.getResult(state)).toMatchObject({ isDraw: false, reason: 'last_player' });
   });
 });

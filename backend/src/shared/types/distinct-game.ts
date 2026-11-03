@@ -630,10 +630,25 @@ export interface LiarsDeckReveal {
 }
 export interface LiarsDeckShot { playerId: string; pull: number; fired: boolean }
 /** Client roulette presentation timings; the server reveal delay is derived from these so animations are never cut off. */
-export const LIARS_DECK_ROULETTE_TIMING = { introMs: 1_800, spinMs: 1_300, triggerMs: 700, resultMs: 900, settleMs: 2_200 } as const;
-export function liarsDeckRevealDurationMs(shotCount: number): number {
+export const LIARS_DECK_ROULETTE_TIMING = { introMs: 1_800, spinMs: 1_300, triggerMs: 700, resultMs: 900, settleMs: 6_000 } as const;
+/** Table-card announcement and deal shown before anyone may act in a fresh round. */
+export const LIARS_DECK_DEAL_INTRO_MS = 3_600;
+/** Time the revolver sequence occupies; the host may not skip ahead of it. */
+export function liarsDeckRouletteDurationMs(shotCount: number): number {
   const t = LIARS_DECK_ROULETTE_TIMING;
-  return t.introMs + shotCount * (t.spinMs + t.triggerMs + t.resultMs) + t.settleMs;
+  return shotCount > 0 ? t.introMs + shotCount * (t.spinMs + t.triggerMs + t.resultMs) : 0;
+}
+/** Full reveal: revolver sequence plus the pause before the next round deals automatically. */
+export function liarsDeckRevealDurationMs(shotCount: number): number {
+  return liarsDeckRouletteDurationMs(shotCount) + LIARS_DECK_ROULETTE_TIMING.settleMs;
+}
+export type LiarsDeckDeckCounts = Record<LiarsDeckCard['rank'], number>;
+/** Up to four seats use the standard 20-card deck; five or six seats use a proportionally scaled 30-card deck. */
+export function liarsDeckDeckCounts(activePlayers: number, mode: LiarsDeckMode | null, tableRank: LiarsDeckTableRank): LiarsDeckDeckCounts {
+  const large = activePlayers > 4;
+  const counts: LiarsDeckDeckCounts = { A: large ? 9 : 6, K: large ? 9 : 6, Q: large ? 9 : 6, joker: large ? 3 : 2, devil: 0 };
+  if (mode === 'devil') { counts[tableRank] -= 1; counts.devil = 1; }
+  return counts;
 }
 export interface LiarsDeckGameState {
   players: DistinctPlayer[];
@@ -652,6 +667,10 @@ export interface LiarsDeckGameState {
   lastReveal: LiarsDeckReveal | null;
   winnerId: string | null;
   finishReason: 'last_player' | 'surrender' | null;
+  /** Composition of the deck dealt this round (optional for states saved before deck scaling). */
+  deck?: LiarsDeckDeckCounts;
+  dealtAt?: number;
+  revealedAt?: number;
 }
 export interface LiarsDeckPlayerView {
   gameKey: 'liars-deck';
@@ -673,6 +692,11 @@ export interface LiarsDeckPlayerView {
   canDevilsDeal: boolean;
   forcedChallenge: boolean;
   winnerId: string | null;
+  deck: LiarsDeckDeckCounts;
+  /** Remaining table-card announcement time when this view was produced. */
+  roundIntroRemainingMs: number;
+  /** Time until the next round deals automatically when this view was produced (0 outside reveals). */
+  nextRoundInMs: number;
 }
 export interface LiarsDeckResult {
   gameKey: 'liars-deck'; winnerId: string; isDraw: false;

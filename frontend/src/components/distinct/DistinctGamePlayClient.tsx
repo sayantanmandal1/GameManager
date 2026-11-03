@@ -17,6 +17,7 @@ import { getSocket } from '@/lib/socket';
 import { DISTINCT_GAME_UI } from '@/lib/distinctGames';
 import { LOBBY_EVENTS, isPartnershipGameKey, type DistinctGameKey } from '@/shared';
 import { DistinctGameRenderer } from './DistinctGameRenderer';
+import { useServerCountdown } from './renderers/LiarsDeckRoundIntro';
 
 interface DistinctGamePlayClientProps {
   readonly gameKey: DistinctGameKey;
@@ -55,6 +56,8 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
     return initListeners();
   }, [code, gameKey, hasHydrated, initListeners, isAuthenticated, isConnected, router, setSession]);
   useEffect(() => () => reset(), [reset]);
+  const liarsDeckIntro = view && gameKey === 'liars-deck' && view.phase === 'playing' && 'roundIntroRemainingMs' in view ? view : null;
+  const liarsDeckIntroMs = useServerCountdown(liarsDeckIntro ? `intro:${liarsDeckIntro.round}` : null, liarsDeckIntro?.roundIntroRemainingMs ?? 0);
 
   if (!view) {
     return <GameConnectionState connected={isConnected} error={error} backHref={`/games/${gameKey}`} />;
@@ -77,6 +80,9 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
   }
   if (presentationHold) {
     statusText = 'The revolver is turning...';
+    statusClass = 'font-semibold';
+  } else if (liarsDeckIntro && liarsDeckIntroMs > 0) {
+    statusText = 'Dealing the cards...';
     statusClass = 'font-semibold';
   } else if (finished) {
     const isDraw = result?.isDraw || ('isDraw' in view && view.isDraw);

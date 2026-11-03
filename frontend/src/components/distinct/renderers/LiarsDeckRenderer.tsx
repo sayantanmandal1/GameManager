@@ -8,6 +8,7 @@ import { LiarsCharacterAvatar } from './LiarsCharacterAvatar';
 import { LiarTableScene } from './LiarTableScene';
 import { playLiarsBarVoice } from './liarsBarAssets';
 import { LiarsRouletteStage, useLiarsRoulette, withPendingShotsHidden } from './LiarsRoulette';
+import { LiarsDeckRoundIntro, deckSummary, useServerCountdown } from './LiarsDeckRoundIntro';
 import { useDistinctGameStore } from '@/stores/distinctGameStore';
 
 const RANK_LABELS = { A: 'Ace', K: 'King', Q: 'Queen', joker: 'Joker', devil: 'Devil' } as const;
@@ -24,6 +25,10 @@ export function LiarsDeckRenderer({ view, disabled, onAction }: Readonly<{
   const setPresentationHold = useDistinctGameStore((state) => state.setPresentationHold);
   const shots = view.lastReveal?.shots ?? [];
   const tablePlayers = withPendingShotsHidden(view.players, shots, roulette.resolvedCount);
+  const introMs = useServerCountdown(view.phase === 'playing' ? `intro:${view.round}` : null, view.roundIntroRemainingMs ?? 0);
+  const introActive = view.phase === 'playing' && introMs > 0;
+  const nextRoundMs = useServerCountdown(view.phase === 'reveal' ? `next:${view.round}:${shots.length}` : null, view.nextRoundInMs ?? 0);
+  const nextRoundLabel = nextRoundMs > 0 ? `Next round deals in ${Math.ceil(nextRoundMs / 1000)}s` : 'Dealing the next round…';
   useEffect(() => setPresentationHold(roulette.active), [roulette.active, setPresentationHold]);
   useEffect(() => () => setPresentationHold(false), [setPresentationHold]);
   useEffect(() => setSelectedIds([]), [view.round, view.currentTurnId, view.pileCount]);
@@ -46,7 +51,8 @@ export function LiarsDeckRenderer({ view, disabled, onAction }: Readonly<{
     <section className="w-full max-w-3xl rounded-3xl border border-[#d1af68]/25 bg-[#201a14] p-6 text-center">
       <p className="eyebrow text-[#e5bd72]">Liar&apos;s Deck</p>
       <h2 className="mt-3 text-2xl font-semibold">Choose the table rules</h2>
-      <p className="mt-3 text-sm leading-6 text-white/65">Five cards each. Play one to three as the table rank. Jokers are wild. A wrong call or a caught lie costs a chamber; the last survivor wins.</p>
+      <p className="mt-3 text-sm leading-6 text-white/65">Two to six players, five cards each. Play one to three as the table rank. Jokers are wild. A wrong call or a caught lie costs a chamber; the last survivor wins.</p>
+      <p className="mt-2 text-xs leading-5 text-white/55">Up to four players: 20 cards (6 Aces, 6 Kings, 6 Queens, 2 Jokers). Five or six players: 30 cards (9 of each rank, 3 Jokers).</p>
       {view.canAct ? <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <Button disabled={disabled} onClick={() => onAction({ type: 'select_liars_deck_mode', mode: 'classic' })}>Classic</Button>
         <Button variant="secondary" disabled={disabled} onClick={() => onAction({ type: 'select_liars_deck_mode', mode: 'devil' })}>Devil · Devil&apos;s Deal</Button>
@@ -58,7 +64,7 @@ export function LiarsDeckRenderer({ view, disabled, onAction }: Readonly<{
   return (
     <section className="w-full max-w-[64rem] space-y-4" aria-label="Liar's Deck table">
       <LiarTableScene kind="deck" players={tablePlayers} youId={view.youId} currentTurnId={view.currentTurnId} round={view.round} tableCount={view.pileCount} />
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className={`grid grid-cols-2 gap-2 ${tablePlayers.length > 4 ? 'sm:grid-cols-3 lg:grid-cols-6' : 'sm:grid-cols-4'}`}>
         {tablePlayers.map((player, index) => <div key={player.id} className={`flex min-w-0 items-center gap-2 rounded-xl border p-2 transition-opacity duration-500 sm:gap-3 sm:p-3 ${view.currentTurnId === player.id && view.phase === 'playing' ? 'border-[#dfbd70]/70 bg-[#dfbd70]/10' : 'border-white/10 bg-black/15'} ${player.active ? '' : 'opacity-45'}`}>
           <LiarsCharacterAvatar playerIndex={index} playerName={player.name} />
           <div className="min-w-0">
@@ -67,25 +73,26 @@ export function LiarsDeckRenderer({ view, disabled, onAction }: Readonly<{
           </div>
         </div>)}
       </div>
-      <div className="rounded-2xl border border-[#dfbd70]/20 bg-black/20 p-4 text-center">
+      {introActive ? <LiarsDeckRoundIntro view={view} remainingMs={introMs} /> : <div className="rounded-2xl border border-[#dfbd70]/20 bg-black/20 p-4 text-center">
         <p className="text-xs font-bold uppercase tracking-widest text-[#dfbd70]">{view.mode === 'devil' ? 'Devil' : 'Classic'} · Round {view.round}</p>
         <h2 className="mt-1 text-2xl font-semibold">{RANK_LABELS[view.tableRank]}&apos;s table</h2>
         <p className="mt-2 text-sm text-white/65">{view.pendingClaim ? `${name(view.pendingClaim.playerId)} claims ${view.pendingClaim.count} ${RANK_LABELS[view.tableRank]}${view.pendingClaim.count === 1 ? '' : 's'}` : 'Open the round with one to three cards.'}</p>
-      </div>
+        {view.deck && <p className="mt-2 text-xs text-white/50">Deck · {deckSummary(view.deck)}</p>}
+      </div>}
       {view.phase === 'playing' && <>
         <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-center">
           <p className="mb-3 text-xs font-bold uppercase tracking-widest text-white/60">Your private hand</p>
           <div className="flex flex-wrap justify-center gap-2" aria-label="Your private hand">
-            {view.yourHand.map((card) => <LiarsDeckCardFace key={card.id} card={card} selected={selectedIds.includes(card.id)} disabled={disabled || (selected.length >= 3 && !selectedIds.includes(card.id) && card.rank !== 'devil')} onClick={view.canPlay ? () => toggle(card) : undefined} />)}
+            {view.yourHand.map((card, index) => <span key={card.id} className={introActive ? 'liars-deal-in' : undefined} style={introActive ? { animationDelay: `${index * 140}ms` } : undefined}><LiarsDeckCardFace card={card} selected={selectedIds.includes(card.id)} disabled={disabled || introActive || (selected.length >= 3 && !selectedIds.includes(card.id) && card.rank !== 'devil')} onClick={view.canPlay ? () => toggle(card) : undefined} /></span>)}
             {view.yourHand.length === 0 && <p className="py-4 text-sm text-white/65">{view.players.find((player) => player.id === view.youId)?.active ? 'Your hand is empty. You sit out until the next round.' : 'You are spectating this match.'}</p>}
           </div>
-          {view.canPlay && <p className="mt-3 text-xs text-white/65">{selected.length}/3 selected · cards are played face down</p>}
+          {view.canPlay && !introActive && <p className="mt-3 text-xs text-white/65">{selected.length}/3 selected · cards are played face down</p>}
         </div>
         {view.forcedChallenge && <p role="status" className="text-center text-sm font-semibold text-[#f2d18a]">You hold the last hand. The previous claim must be challenged after a short pause.</p>}
         {view.canAct && <div className="flex flex-wrap justify-center gap-3">
-          <Button disabled={disabled || !view.canPlay || selected.length < 1 || selected.length > 3} onClick={() => onAction({ type: 'play_liars_deck', cardIds: selected.map((card) => card.id) })}>Play selected</Button>
-          <Button variant="danger" disabled={disabled || !view.canChallenge} onClick={() => onAction({ type: 'call_liars_deck' })}>Call Liar!</Button>
-          {view.mode === 'devil' && <Button variant="secondary" disabled={disabled || !view.canDevilsDeal} onClick={() => onAction({ type: 'devils_deal' })}>Devil&apos;s Deal</Button>}
+          <Button disabled={disabled || introActive || !view.canPlay || selected.length < 1 || selected.length > 3} onClick={() => onAction({ type: 'play_liars_deck', cardIds: selected.map((card) => card.id) })}>Play selected</Button>
+          <Button variant="danger" disabled={disabled || introActive || !view.canChallenge} onClick={() => onAction({ type: 'call_liars_deck' })}>Call Liar!</Button>
+          {view.mode === 'devil' && <Button variant="secondary" disabled={disabled || introActive || !view.canDevilsDeal} onClick={() => onAction({ type: 'devils_deal' })}>Devil&apos;s Deal</Button>}
         </div>}
       </>}
       {view.lastReveal && (view.phase === 'reveal' || view.phase === 'finished') && <div className="rounded-2xl border border-[#d1af68]/30 bg-[#241c15] p-5 text-center">
@@ -96,14 +103,15 @@ export function LiarsDeckRenderer({ view, disabled, onAction }: Readonly<{
           <p className="mt-2 text-sm text-white/65">{view.lastReveal.riskPlayerIds.map(name).join(', ')} took a chamber risk.</p>
           {view.lastReveal.eliminatedIds.length > 0 && <p className="mt-2 text-sm text-red-300">Eliminated: {view.lastReveal.eliminatedIds.map(name).join(', ')}</p>}
         </>}
-        {view.phase === 'reveal' && !roulette.active && <p className="mt-3 text-xs text-white/55">A fresh round starts in a few seconds.</p>}
+        {view.phase === 'reveal' && !roulette.active && <p role="timer" aria-live="off" className="mt-3 text-xs font-semibold text-[#e5bd72]">{nextRoundLabel}</p>}
         {view.phase === 'reveal' && !roulette.active && view.youId === view.hostId && <Button className="mt-4" disabled={disabled} variant="secondary" onClick={() => onAction({ type: 'next_liars_deck_round' })}>Next round</Button>}
       </div>}
       {view.phase === 'reveal' && !view.lastReveal && <div role="status" className="rounded-2xl border border-[#d1af68]/30 bg-[#241c15] p-5 text-center">
-        <p className="text-sm text-white/80">A player resigned. The remaining players continue with a fresh round in a few seconds.</p>
+        <p className="text-sm text-white/80">A player resigned. The remaining players continue with a fresh round.</p>
+        <p className="mt-2 text-xs font-semibold text-[#e5bd72]">{nextRoundLabel}</p>
         {view.youId === view.hostId && <Button className="mt-4" disabled={disabled} variant="secondary" onClick={() => onAction({ type: 'next_liars_deck_round' })}>Next round</Button>}
       </div>}
-      <details className="rounded-2xl border border-white/10 p-4 text-sm text-white/65"><summary className="cursor-pointer font-semibold">Table rules</summary><p className="mt-3 leading-6">Only the next player may challenge the latest claim. Any off-rank card makes a mixed claim a lie; Jokers always match. Empty hands are skipped. The last player still holding cards must challenge the previous claim. Chamber positions stay secret and do not reset between rounds. Bluff is a separate game and is unchanged.</p></details>
+      <details className="rounded-2xl border border-white/10 p-4 text-sm text-white/65"><summary className="cursor-pointer font-semibold">Table rules</summary><p className="mt-3 leading-6">Only the next player may challenge the latest claim. Any off-rank card makes a mixed claim a lie; Jokers always match. Empty hands are skipped. The last player still holding cards must challenge the previous claim. Chamber positions stay secret and do not reset between rounds. Each round opens by turning over the table card and announcing the deck: 20 cards for up to four players, 30 cards for five or six. Bluff is a separate game and is unchanged.</p></details>
     </section>
   );
 }

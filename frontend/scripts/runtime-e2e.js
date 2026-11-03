@@ -1277,7 +1277,7 @@ async function verifyDistinctGames(
     },
     {
       gameKey: 'liars-deck',
-      expectedMaxPlayers: 4,
+      expectedMaxPlayers: 6,
       action: { type: 'select_liars_deck_mode', mode: 'devil' },
       assertInitial: (alphaView, betaView) => {
         assert.equal(alphaView.phase, 'setup');

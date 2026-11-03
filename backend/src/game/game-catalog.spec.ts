@@ -80,7 +80,7 @@ describe('game catalog', () => {
     expect(added.every((game) => game.gameKey === game.key)).toBe(true);
     expect(added.every((game) => game.modes.length === 1 && game.modes[0].key === 'online')).toBe(true);
     expect(new Set(games.map((game) => game.key)).size).toBe(47);
-    expect(added.find((game) => game.key === 'liars-deck')).toMatchObject({ minPlayers: 2, maxPlayers: 4 });
+    expect(added.find((game) => game.key === 'liars-deck')).toMatchObject({ minPlayers: 2, maxPlayers: 6 });
     expect(added.find((game) => game.key === 'liars-dice')).toMatchObject({ minPlayers: 2, maxPlayers: 4 });
     expect(added.find((game) => game.key === 'hangman')).toMatchObject({ minPlayers: 2, maxPlayers: 8 });
     expect(added.find((game) => game.key === 'go-fish')).toMatchObject({ minPlayers: 2, maxPlayers: 5 });

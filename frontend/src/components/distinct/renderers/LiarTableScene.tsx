@@ -218,7 +218,7 @@ function createTable(THREE: typeof import('three'), canvas: HTMLCanvasElement, i
     disposedGeometries.clear();
     disposedMaterials.clear();
     if (props.kind === 'deck') {
-      for (let index = 0; index < Math.min(props.tableCount ?? 0, 20); index += 1) {
+      for (let index = 0; index < Math.min(props.tableCount ?? 0, 30); index += 1) {
         const card = mesh(new THREE.BoxGeometry(0.5, 0.018, 0.75), material('#912f38'), pieces);
         card.position.set((index % 3 - 1) * 0.08, 1.29 + index * 0.02, 0);
         card.rotation.y = index * 0.13;

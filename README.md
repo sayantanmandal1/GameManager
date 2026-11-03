@@ -43,7 +43,7 @@ The website and native app share a graphite-and-pearl visual system with restrai
 | Crazy Eights | 2–5 | Ordinary cards, suit/rank matching, suit-changing eights, and draw play. |
 | Five-Dice Yacht | 2–8 | Three-roll turns and thirteen standard scorecard categories. |
 | Liar's Dice | 2–4 | Classic and Traditional tables, five private dice, two poison penalties, wild ones, and Spot on. |
-| Liar's Deck | 2–4 | Separate Classic and Devil tables, five-card hands, hidden claims, persistent chamber risk, and Devil's Deal. |
+| Liar's Deck | 2–6 | Separate Classic and Devil tables, five-card hands from a 20-card deck (30 cards at 5–6 players), a dealt-table intro, hidden claims, persistent chamber risk, Devil's Deal, and a next-round countdown. |
 | Farkle | 2–8 | Standard scoring groups, hot dice, entry threshold, and a 10,000-point final round. |
 | Shut the Box | 2–4 | Per-player tiles, exact roll combinations, and lowest open-tile score. |
 | Draw Dominoes | 2–4 | Double-six draw set, oriented open-end play, and blocked pip scoring. |
