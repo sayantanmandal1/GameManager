@@ -3,6 +3,7 @@ import type {
   LiarsDeckAction, LiarsDeckCard, LiarsDeckGameState, LiarsDeckPlayerView,
   LiarsDeckResult, LiarsDeckTableRank,
 } from '../../../shared';
+import { liarsDeckRevealDurationMs } from '../../../shared';
 import type { DistinctActionResult, DistinctAutomaticAction, DistinctGameAdapter } from '../distinct-game.adapter';
 import { hasExactActionShape } from '../action-shape';
 import { secureShuffle } from '../standard-cards';
@@ -72,7 +73,7 @@ export class LiarsDeckEngine implements DistinctGameAdapter<LiarsDeckGameState, 
         kind: 'devils_deal', callerId: playerId, claimantId: playerId,
         cards, tableRank: state.tableRank, successful,
         riskPlayerIds: successful ? this.activeIds(state).filter((id) => id !== playerId) : [playerId],
-        eliminatedIds: [],
+        eliminatedIds: [], shots: [],
       });
     }
     if (action.type !== 'play_liars_deck' || !hasExactActionShape(action, 'play_liars_deck', ['cardIds'])) {
@@ -109,6 +110,7 @@ export class LiarsDeckEngine implements DistinctGameAdapter<LiarsDeckGameState, 
       lastReveal: state.lastReveal ? {
         ...state.lastReveal, cards: state.lastReveal.cards.map((card) => ({ ...card })),
         riskPlayerIds: [...state.lastReveal.riskPlayerIds], eliminatedIds: [...state.lastReveal.eliminatedIds],
+        shots: (state.lastReveal.shots ?? []).map((shot) => ({ ...shot })),
       } : null,
       canAct: state.phase === 'setup' ? playerId === state.hostId : canAct,
       canChallenge: canAct && !!state.pendingClaim && state.pendingClaim.playerId !== playerId,
@@ -119,7 +121,7 @@ export class LiarsDeckEngine implements DistinctGameAdapter<LiarsDeckGameState, 
   }
 
   getAutomaticAction(state: LiarsDeckGameState): DistinctAutomaticAction | null {
-    if (state.phase === 'reveal') return { playerId: state.hostId, action: { type: 'next_liars_deck_round' }, delayMs: 5_000 };
+    if (state.phase === 'reveal') return { playerId: state.hostId, action: { type: 'next_liars_deck_round' }, delayMs: this.revealDelay(state) };
     if (state.phase === 'playing' && this.forcedChallenge(state)) {
       return { playerId: state.currentTurnId, action: { type: 'call_liars_deck' }, delayMs: randomInt(1_500, 3_001) };
     }
@@ -159,14 +161,16 @@ export class LiarsDeckEngine implements DistinctGameAdapter<LiarsDeckGameState, 
     return this.resolve(state, {
       kind: devil ? 'devil' : 'challenge', callerId: playerId, claimantId: claim.playerId,
       cards: claim.cards, tableRank: state.tableRank, successful: devil || successful,
-      riskPlayerIds, eliminatedIds: [],
+      riskPlayerIds, eliminatedIds: [], shots: [],
     });
   }
 
   private resolve(state: LiarsDeckGameState, reveal: NonNullable<LiarsDeckGameState['lastReveal']>): DistinctActionResult<LiarsDeckResult> {
     for (const id of reveal.riskPlayerIds) {
       state.pulls[id] += 1;
-      if (state.pulls[id] >= state.chambers[id]) {
+      const fired = state.pulls[id] >= state.chambers[id];
+      reveal.shots.push({ playerId: id, pull: state.pulls[id], fired });
+      if (fired) {
         state.eliminatedIds.push(id);
         state.hands[id] = [];
         reveal.eliminatedIds.push(id);
@@ -178,6 +182,10 @@ export class LiarsDeckEngine implements DistinctGameAdapter<LiarsDeckGameState, 
     state.currentTurnId = state.eliminatedIds.includes(starter) ? this.nextActive(state, starter) : starter;
     state.phase = 'reveal';
     return { valid: true };
+  }
+
+  private revealDelay(state: LiarsDeckGameState): number {
+    return state.lastReveal ? liarsDeckRevealDurationMs(state.lastReveal.shots?.length ?? 0) : 5_000;
   }
 
   private deal(state: LiarsDeckGameState): void {

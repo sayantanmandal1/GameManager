@@ -613,6 +613,14 @@ textarea:focus-visible {
   }
 }
 
+/* Liar's Deck revolver: transform/opacity only so the sequence stays on the compositor. */
+.liars-cylinder-spin { animation: liars-cylinder-spin 1.25s cubic-bezier(0.15, 0.7, 0.25, 1) both; transform-origin: center; }
+@keyframes liars-cylinder-spin { from { transform: rotate(0deg); } to { transform: rotate(1500deg); } }
+.liars-trigger-tension { animation: liars-trigger-tension 0.35s ease-in-out infinite alternate; }
+@keyframes liars-trigger-tension { from { transform: translateX(-1px) scale(1); } to { transform: translateX(1px) scale(1.04); } }
+.liars-muzzle-flash { background: radial-gradient(circle at 50% 45%, rgba(255, 214, 140, 0.85), rgba(226, 73, 47, 0.45) 35%, transparent 70%); animation: liars-muzzle-flash 0.7s ease-out both; }
+@keyframes liars-muzzle-flash { 0% { opacity: 1; } 100% { opacity: 0; } }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

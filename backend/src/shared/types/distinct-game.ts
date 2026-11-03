@@ -625,6 +625,15 @@ export interface LiarsDeckReveal {
   successful: boolean;
   riskPlayerIds: string[];
   eliminatedIds: string[];
+  /** Trigger pulls in firing order; never exposes a chamber that did not fire. */
+  shots: LiarsDeckShot[];
+}
+export interface LiarsDeckShot { playerId: string; pull: number; fired: boolean }
+/** Client roulette presentation timings; the server reveal delay is derived from these so animations are never cut off. */
+export const LIARS_DECK_ROULETTE_TIMING = { introMs: 1_800, spinMs: 1_300, triggerMs: 700, resultMs: 900, settleMs: 2_200 } as const;
+export function liarsDeckRevealDurationMs(shotCount: number): number {
+  const t = LIARS_DECK_ROULETTE_TIMING;
+  return t.introMs + shotCount * (t.spinMs + t.triggerMs + t.resultMs) + t.settleMs;
 }
 export interface LiarsDeckGameState {
   players: DistinctPlayer[];

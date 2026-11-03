@@ -31,6 +31,7 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
   const view = useDistinctGameStore((state) => state.view);
   const result = useDistinctGameStore((state) => state.result);
   const error = useDistinctGameStore((state) => state.error);
+  const presentationHold = useDistinctGameStore((state) => state.presentationHold);
   const setSession = useDistinctGameStore((state) => state.setSession);
   const initListeners = useDistinctGameStore((state) => state.initListeners);
   const act = useDistinctGameStore((state) => state.act);
@@ -60,6 +61,7 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
   }
 
   const finished = view.phase === 'finished' || !!result;
+  const showFinish = finished && !presentationHold;
   let currentTurnId: string | null = null;
   if ('currentActorId' in view) currentTurnId = view.currentActorId;
   else if ('currentTurnId' in view) currentTurnId = view.currentTurnId;
@@ -73,7 +75,10 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
     statusText = ui.prompt;
     statusClass = 'font-semibold';
   }
-  if (finished) {
+  if (presentationHold) {
+    statusText = 'The revolver is turning...';
+    statusClass = 'font-semibold';
+  } else if (finished) {
     const isDraw = result?.isDraw || ('isDraw' in view && view.isDraw);
     statusText = isDraw ? 'Draw game' : `${winner?.name ?? 'Player'} wins`;
     statusClass = 'text-lg font-bold';
@@ -101,7 +106,7 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
       <div className={`mx-auto grid gap-5 ${gameLayoutClass}`}>
         <section className="flex min-w-0 flex-col items-center">
           <div data-monopoly-game-header={isMonopoly ? 'true' : undefined} className={`glass-chrome game-toolbar w-full rounded-2xl border border-white/10 ${isMonopoly ? 'mb-0 max-w-[112rem] px-2 py-1.5 sm:mb-2 sm:px-3 sm:py-2' : `max-w-[56rem] px-3 py-2 ${isBridge ? 'mb-2' : 'mb-3 sm:mb-4'}`}`}>
-            <button type="button" onClick={leaveTable} className="-ml-2 min-h-11 rounded-md px-2 text-sm font-semibold text-game-muted hover:bg-white/5 hover:text-white lg:min-h-0">{finished ? 'Lobby' : 'Exit table'}</button>
+            <button type="button" onClick={leaveTable} className="-ml-2 min-h-11 rounded-md px-2 text-sm font-semibold text-game-muted hover:bg-white/5 hover:text-white lg:min-h-0">{showFinish ? 'Lobby' : 'Exit table'}</button>
             <div className="min-w-0 text-center"><p className="truncate text-xs font-bold" style={{ color: ui.accent }}>{ui.name.toUpperCase()}</p><p className={`${isMonopoly ? 'text-[11px] uppercase' : 'text-sm'} text-game-muted`}>Room {code}</p></div>
             {!isBridge && <Button variant="ghost" size="sm" className="-mr-2 min-h-11 lg:min-h-9" onClick={() => setConfirmSurrender(true)}>Resign</Button>}
           </div>
@@ -122,7 +127,7 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
             {!isConnected && <p role="status" className="text-sm text-game-muted">Connection lost. Reconnecting before your next move.</p>}
             {!isMonopoly && <p className={statusClass}>{statusText}</p>}
             {error && <p role="alert" className="mt-1 text-sm text-red-300">{error}</p>}
-            {finished && <RematchButton lobbyCode={code} className="mt-4" />}
+            {showFinish && <RematchButton lobbyCode={code} className="mt-4" />}
           </div>
         </section>
         {!hasIntegratedWideSurface && <aside className="space-y-4"><VoiceChat roomId={code} /><GameChat lobbyCode={code} /></aside>}

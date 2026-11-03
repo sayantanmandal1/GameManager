@@ -1,4 +1,5 @@
 import type { LiarsDeckAction, LiarsDeckCard, LiarsDeckMode } from '../../../shared';
+import { liarsDeckRevealDurationMs } from '../../../shared';
 import { LiarsDeckEngine } from './liars-deck.engine';
 
 describe('LiarsDeckEngine', () => {
@@ -107,6 +108,30 @@ describe('LiarsDeckEngine', () => {
     engine.applyAction(state, 'a', { type: 'play_liars_deck', cardIds: [state.hands.a[0].id] });
     engine.applyAction(state, 'b', { type: 'call_liars_deck' });
     expect(state.eliminatedIds).toContain('b');
+  });
+
+  it('records each trigger pull in firing order and paces the reveal so every shot can be animated', () => {
+    const chambers: Record<string, number> = { a: 6, b: 1, c: 3, d: 6 };
+    let seat = 0;
+    const engine = new LiarsDeckEngine((cards) => cards, () => chambers[players[seat++]], () => 'A');
+    const state = engine.initGame(players, {});
+    engine.applyAction(state, 'a', { type: 'select_liars_deck_mode', mode: 'devil' });
+    state.hands.a = [card('devil', 'devil'), card('a', 'Q')];
+    engine.applyAction(state, 'a', { type: 'play_liars_deck', cardIds: ['devil'] });
+    engine.applyAction(state, 'b', { type: 'call_liars_deck' });
+    expect(state.lastReveal?.shots).toEqual([
+      { playerId: 'b', pull: 1, fired: true },
+      { playerId: 'c', pull: 1, fired: false },
+      { playerId: 'd', pull: 1, fired: false },
+    ]);
+    expect(state.lastReveal?.eliminatedIds).toEqual(['b']);
+    const view = engine.getPlayerView(state, 'c');
+    expect(view.lastReveal?.shots).toEqual(state.lastReveal?.shots);
+    expect(JSON.stringify(view)).not.toContain('chamber');
+    const reveal = engine.getAutomaticAction(state)!;
+    expect(reveal.action).toEqual({ type: 'next_liars_deck_round' });
+    expect(reveal.delayMs).toBe(liarsDeckRevealDurationMs(3));
+    expect(reveal.delayMs).toBeGreaterThan(liarsDeckRevealDurationMs(1));
   });
 
   it('requires a lone Devil card and exempts hands already safely emptied from a Devil challenge', () => {

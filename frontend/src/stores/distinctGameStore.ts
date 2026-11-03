@@ -17,6 +17,9 @@ interface DistinctGameStoreState {
   view: DistinctGamePlayerView | null;
   result: DistinctGameResult | null;
   error: string | null;
+  /** True while a renderer is playing a result-revealing sequence (e.g. Liar's Deck roulette). */
+  presentationHold: boolean;
+  setPresentationHold: (hold: boolean) => void;
   setSession: (lobbyCode: string, gameKey: DistinctGameKey) => void;
   act: (action: DistinctGameAction) => void;
   surrender: () => void;
@@ -32,10 +35,14 @@ const INITIAL = {
   view: null,
   result: null,
   error: null,
+  presentationHold: false,
 };
 
 export const useDistinctGameStore = create<DistinctGameStoreState>()((set, get) => ({
   ...INITIAL,
+  setPresentationHold: (presentationHold) => {
+    if (get().presentationHold !== presentationHold) set({ presentationHold });
+  },
   setSession: (lobbyCode, expectedGameKey) =>
     set((state) =>
       state.lobbyCode === lobbyCode && state.expectedGameKey === expectedGameKey

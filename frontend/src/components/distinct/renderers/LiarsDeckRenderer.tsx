@@ -7,6 +7,8 @@ import { CardFace } from './CardFace';
 import { LiarsCharacterAvatar } from './LiarsCharacterAvatar';
 import { LiarTableScene } from './LiarTableScene';
 import { playLiarsBarVoice } from './liarsBarAssets';
+import { LiarsRouletteStage, useLiarsRoulette, withPendingShotsHidden } from './LiarsRoulette';
+import { useDistinctGameStore } from '@/stores/distinctGameStore';
 
 const RANK_LABELS = { A: 'Ace', K: 'King', Q: 'Queen', joker: 'Joker', devil: 'Devil' } as const;
 
@@ -18,6 +20,12 @@ export function LiarsDeckRenderer({ view, disabled, onAction }: Readonly<{
   const claimSpeakerIndex = claimSpeakerId ? view.players.findIndex((player) => player.id === claimSpeakerId) : -1;
   const claimVoiceKey = claimSpeakerIndex >= 0 ? `${view.round}:${view.pileCount}:${claimSpeakerId}` : null;
   const lastClaimVoiceKey = useRef(claimVoiceKey);
+  const roulette = useLiarsRoulette(view);
+  const setPresentationHold = useDistinctGameStore((state) => state.setPresentationHold);
+  const shots = view.lastReveal?.shots ?? [];
+  const tablePlayers = withPendingShotsHidden(view.players, shots, roulette.resolvedCount);
+  useEffect(() => setPresentationHold(roulette.active), [roulette.active, setPresentationHold]);
+  useEffect(() => () => setPresentationHold(false), [setPresentationHold]);
   useEffect(() => setSelectedIds([]), [view.round, view.currentTurnId, view.pileCount]);
   useEffect(() => {
     if (claimSpeakerIndex < 0 || !claimVoiceKey || claimVoiceKey === lastClaimVoiceKey.current) return;
@@ -49,13 +57,13 @@ export function LiarsDeckRenderer({ view, disabled, onAction }: Readonly<{
 
   return (
     <section className="w-full max-w-[64rem] space-y-4" aria-label="Liar's Deck table">
-      <LiarTableScene kind="deck" players={view.players} youId={view.youId} currentTurnId={view.currentTurnId} round={view.round} tableCount={view.pileCount} />
+      <LiarTableScene kind="deck" players={tablePlayers} youId={view.youId} currentTurnId={view.currentTurnId} round={view.round} tableCount={view.pileCount} />
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {view.players.map((player, index) => <div key={player.id} className={`flex min-w-0 items-center gap-2 rounded-xl border p-2 sm:gap-3 sm:p-3 ${view.currentTurnId === player.id && view.phase === 'playing' ? 'border-[#dfbd70]/70 bg-[#dfbd70]/10' : 'border-white/10 bg-black/15'} ${player.active ? '' : 'opacity-45'}`}>
+        {tablePlayers.map((player, index) => <div key={player.id} className={`flex min-w-0 items-center gap-2 rounded-xl border p-2 transition-opacity duration-500 sm:gap-3 sm:p-3 ${view.currentTurnId === player.id && view.phase === 'playing' ? 'border-[#dfbd70]/70 bg-[#dfbd70]/10' : 'border-white/10 bg-black/15'} ${player.active ? '' : 'opacity-45'}`}>
           <LiarsCharacterAvatar playerIndex={index} playerName={player.name} />
           <div className="min-w-0">
             <p className="truncate text-sm font-bold" title={player.name}>{player.name}{player.id === view.youId ? ' · you' : ''}</p>
-            <p className="mt-1 text-xs text-white/65">{player.active ? `${player.handCount} ${player.handCount === 1 ? 'card' : 'cards'} · ${player.pulls}/6 chambers` : 'Eliminated'}</p>
+            <p className="mt-1 text-xs text-white/65">{player.active ? `${player.handCount} ${player.handCount === 1 ? 'card' : 'cards'} · ${player.pulls}/6 pulls` : 'Eliminated'}</p>
           </div>
         </div>)}
       </div>
@@ -80,14 +88,16 @@ export function LiarsDeckRenderer({ view, disabled, onAction }: Readonly<{
           {view.mode === 'devil' && <Button variant="secondary" disabled={disabled || !view.canDevilsDeal} onClick={() => onAction({ type: 'devils_deal' })}>Devil&apos;s Deal</Button>}
         </div>}
       </>}
-      {view.lastReveal && (view.phase === 'reveal' || view.phase === 'finished') && <div role="status" className="rounded-2xl border border-[#d1af68]/30 bg-[#241c15] p-5 text-center">
+      {view.lastReveal && (view.phase === 'reveal' || view.phase === 'finished') && <div className="rounded-2xl border border-[#d1af68]/30 bg-[#241c15] p-5 text-center">
         <p className="text-xs font-bold uppercase tracking-widest text-[#e5bd72]">{view.lastReveal.kind === 'devils_deal' ? "Devil's Deal" : view.lastReveal.kind === 'devil' ? 'Devil revealed' : 'Claim revealed'}</p>
         <div className="my-4 flex flex-wrap justify-center gap-2" aria-label="Revealed cards">{view.lastReveal.cards.map((card) => <LiarsDeckCardFace key={card.id} card={card} />)}</div>
-        <p className="text-sm text-white/80">{view.lastReveal.kind === 'devils_deal' ? (view.lastReveal.successful ? 'All four cards were lies.' : 'At least one card was truthful. The deal failed.') : view.lastReveal.kind === 'devil' ? `${name(view.lastReveal.claimantId)} played the Devil.` : view.lastReveal.successful ? `${name(view.lastReveal.claimantId)} was bluffing.` : `${name(view.lastReveal.claimantId)} told the truth.`}</p>
-        <p className="mt-2 text-sm text-white/65">{view.lastReveal.riskPlayerIds.map(name).join(', ')} took a chamber risk.</p>
-        {view.lastReveal.eliminatedIds.length > 0 && <p className="mt-2 text-sm text-red-300">Eliminated: {view.lastReveal.eliminatedIds.map(name).join(', ')}</p>}
-        {view.phase === 'reveal' && <p className="mt-3 text-xs text-white/55">A fresh round starts in a few seconds.</p>}
-        {view.phase === 'reveal' && view.youId === view.hostId && <Button className="mt-4" disabled={disabled} variant="secondary" onClick={() => onAction({ type: 'next_liars_deck_round' })}>Next round</Button>}
+        <p role="status" className="text-sm text-white/80">{view.lastReveal.kind === 'devils_deal' ? (view.lastReveal.successful ? 'All four cards were lies.' : 'At least one card was truthful. The deal failed.') : view.lastReveal.kind === 'devil' ? `${name(view.lastReveal.claimantId)} played the Devil.` : view.lastReveal.successful ? `${name(view.lastReveal.claimantId)} was bluffing.` : `${name(view.lastReveal.claimantId)} told the truth.`}</p>
+        {shots.length > 0 ? <LiarsRouletteStage view={view} progress={roulette} /> : <>
+          <p className="mt-2 text-sm text-white/65">{view.lastReveal.riskPlayerIds.map(name).join(', ')} took a chamber risk.</p>
+          {view.lastReveal.eliminatedIds.length > 0 && <p className="mt-2 text-sm text-red-300">Eliminated: {view.lastReveal.eliminatedIds.map(name).join(', ')}</p>}
+        </>}
+        {view.phase === 'reveal' && !roulette.active && <p className="mt-3 text-xs text-white/55">A fresh round starts in a few seconds.</p>}
+        {view.phase === 'reveal' && !roulette.active && view.youId === view.hostId && <Button className="mt-4" disabled={disabled} variant="secondary" onClick={() => onAction({ type: 'next_liars_deck_round' })}>Next round</Button>}
       </div>}
       {view.phase === 'reveal' && !view.lastReveal && <div role="status" className="rounded-2xl border border-[#d1af68]/30 bg-[#241c15] p-5 text-center">
         <p className="text-sm text-white/80">A player resigned. The remaining players continue with a fresh round in a few seconds.</p>
