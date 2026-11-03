@@ -39,7 +39,8 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
   const [confirmSurrender, setConfirmSurrender] = useState(false);
   const isBridge = gameKey === 'contract-bridge';
   const isMonopoly = gameKey === 'monopoly';
-  const hasIntegratedCardTable = isPartnershipGameKey(gameKey) || gameKey === 'hearts' || isMonopoly;
+  const isLiarTable = gameKey === 'liars-dice' || gameKey === 'liars-deck';
+  const hasIntegratedCardTable = isPartnershipGameKey(gameKey) || gameKey === 'hearts' || isLiarTable || isMonopoly;
   const hasIntegratedWideSurface = isBridge || isMonopoly;
 
   useEffect(() => {
@@ -128,7 +129,7 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
       </div>
 
       <Modal isOpen={confirmSurrender && !isBridge} onClose={() => setConfirmSurrender(false)} title="Resign this match?">
-        <p className="mt-2 text-sm text-game-muted">Your opponent will be awarded the win.</p>
+        <p className="mt-2 text-sm text-game-muted">{isLiarTable ? 'You will leave this match. The remaining players continue until one survivor remains.' : 'Your opponent will be awarded the win.'}</p>
         <div className="mt-5 flex justify-center gap-3"><Button variant="secondary" onClick={() => setConfirmSurrender(false)}>Cancel</Button><Button variant="danger" onClick={() => { surrender(); setConfirmSurrender(false); }}>Resign</Button></div>
       </Modal>
     </main>

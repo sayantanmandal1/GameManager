@@ -20,6 +20,7 @@ import type {
   HeartsPlayerView,
   HexPlayerView,
   LiarsDicePlayerView,
+  LiarsDeckPlayerView,
   MancalaPlayerView,
   MemoryMatchPlayerView,
   MonopolyPlayerView,
@@ -59,6 +60,7 @@ import { HangmanRenderer } from './renderers/HangmanRenderer';
 import { HeartsRenderer } from './renderers/HeartsRenderer';
 import { HexRenderer } from './renderers/HexRenderer';
 import { LiarsDiceRenderer } from './renderers/LiarsDiceRenderer';
+import { LiarsDeckRenderer } from './renderers/LiarsDeckRenderer';
 import { MancalaRenderer } from './renderers/MancalaRenderer';
 import { MemoryMatchRenderer } from './renderers/MemoryMatchRenderer';
 import { MonopolyRenderer } from './renderers/MonopolyRenderer';
@@ -116,6 +118,8 @@ export function DistinctGameRenderer({ gameKey, view, disabled, onAction }: Read
       return <YachtRenderer view={view as YachtPlayerView} disabled={disabled} onAction={onAction} />;
     case 'liars-dice':
       return <LiarsDiceRenderer view={view as LiarsDicePlayerView} disabled={disabled} onAction={onAction} />;
+    case 'liars-deck':
+      return <LiarsDeckRenderer view={view as LiarsDeckPlayerView} disabled={disabled} onAction={onAction} />;
     case 'farkle':
       return <FarkleRenderer view={view as FarklePlayerView} disabled={disabled} onAction={onAction} />;
     case 'shut-the-box':

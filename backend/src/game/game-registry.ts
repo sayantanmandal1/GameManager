@@ -19,6 +19,7 @@ import { GoFishEngine } from './engines/gofish/go-fish.engine';
 import { CrazyEightsEngine } from './engines/crazyeights/crazy-eights.engine';
 import { FiveDiceYachtEngine } from './engines/yacht/five-dice-yacht.engine';
 import { LiarsDiceEngine } from './engines/liarsdice/liars-dice.engine';
+import { LiarsDeckEngine } from './engines/liarsdeck/liars-deck.engine';
 import { FarkleEngine } from './engines/farkle/farkle.engine';
 import { ShutTheBoxEngine } from './engines/shutthebox/shut-the-box.engine';
 import { DrawDominoesEngine } from './engines/drawdominoes/draw-dominoes.engine';
@@ -87,6 +88,7 @@ export class GameRegistry {
       asRuntimeDistinctGameAdapter(new CrazyEightsEngine()),
       asRuntimeDistinctGameAdapter(new FiveDiceYachtEngine()),
       asRuntimeDistinctGameAdapter(new LiarsDiceEngine()),
+      asRuntimeDistinctGameAdapter(new LiarsDeckEngine()),
       asRuntimeDistinctGameAdapter(new FarkleEngine()),
       asRuntimeDistinctGameAdapter(new ShutTheBoxEngine()),
       asRuntimeDistinctGameAdapter(new DrawDominoesEngine()),

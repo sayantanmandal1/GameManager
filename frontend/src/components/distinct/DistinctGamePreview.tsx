@@ -1,5 +1,9 @@
 import type { DistinctGameKey } from '@/shared';
+import { CARD_SUITS } from '@/shared';
 import { ExpansionGamePreview, isExpansionGameKey } from './ExpansionGamePreview';
+import { CardFace } from './renderers/CardFace';
+import { LiarDie } from './renderers/LiarTableScene';
+import { LiarsDeckCardFace } from './renderers/LiarsDeckRenderer';
 
 export function DistinctGamePreview({ gameKey }: Readonly<{ gameKey: DistinctGameKey }>) {
   if (isExpansionGameKey(gameKey)) return <ExpansionGamePreview gameKey={gameKey} />;
@@ -61,16 +65,19 @@ function CompactGamePreview({ gameKey }: Readonly<{ gameKey: DistinctGameKey }>)
     return <div className="flex aspect-square w-full max-w-sm flex-col items-center justify-center border border-white/15 bg-[#e9e3ce] p-8 text-[#292824] shadow-2xl"><div className="mb-8 h-40 w-32 border-l-8 border-t-8 border-[#292824] after:ml-[7.5rem] after:block after:h-12 after:w-1 after:bg-[#292824]" /><p className="font-mono text-4xl font-black tracking-[0.2em]">_ A _ E</p><p className="mt-5 text-sm font-bold">3 / 8 misses</p></div>;
   }
   if (gameKey === 'go-fish') {
-    return <div className="relative aspect-[4/3] w-full max-w-md overflow-hidden border border-white/15 bg-[#276650] shadow-2xl">{['A', 'A', 'A', 'A'].map((rank, index) => <span key={index} className="absolute flex h-40 w-24 items-start border-2 border-[#1e241f] bg-[#f5f1e7] p-3 text-3xl font-black text-[#b83f39] shadow-xl" style={{ left: `${18 + index * 16}%`, top: `${20 + Math.abs(index - 1.5) * 6}%`, transform: `rotate(${(index - 1.5) * 8}deg)` }}>{rank}</span>)}</div>;
+    return <div className="relative aspect-[4/3] w-full max-w-md overflow-hidden border border-white/15 bg-[#276650] shadow-2xl">{CARD_SUITS.map((suit, index) => <span key={suit} className="absolute w-[23%]" style={{ left: `${15 + index * 16}%`, top: `${20 + Math.abs(index - 1.5) * 6}%`, transform: `rotate(${(index - 1.5) * 8}deg)` }}><CardFace card={{ id: suit, rank: 'A', suit }} size="fluid" /></span>)}</div>;
   }
   if (gameKey === 'crazy-eights') {
-    return <div className="flex aspect-square w-full max-w-sm items-center justify-center border border-white/15 bg-[#351f21] shadow-2xl"><div className="flex h-64 w-40 flex-col justify-between border-4 border-[#1f201c] bg-[#f5f1e7] p-5 text-[#c63f37] shadow-2xl"><span className="text-5xl font-black">8</span><span className="self-center text-7xl">♥</span><span className="self-end rotate-180 text-5xl font-black">8</span></div></div>;
+    return <div className="flex aspect-square w-full max-w-sm items-center justify-center border border-white/15 bg-[#351f21] shadow-2xl"><div className="w-[42%]"><CardFace card={{ id: 'preview-8-hearts', rank: '8', suit: 'hearts' }} size="fluid" /></div></div>;
   }
   if (gameKey === 'five-dice-yacht') {
     return <div className="grid aspect-square w-full max-w-sm grid-cols-2 place-items-center gap-4 border border-white/15 bg-[#30301b] p-10 shadow-2xl">{[1, 3, 4, 5].map((die) => <span key={die} className="flex aspect-square w-full items-center justify-center bg-[#f5f1e7] text-6xl font-black text-[#28281b] shadow-lg">{die}</span>)}</div>;
   }
   if (gameKey === 'liars-dice') {
-    return <div className="flex aspect-square w-full max-w-sm flex-col items-center justify-center border border-white/15 bg-[#302039] shadow-2xl"><div className="h-44 w-44 rounded-b-[5rem] border-4 border-[#d0a96b] bg-[#6d3f30] shadow-xl" /><div className="mt-5 flex gap-3">{[2, 5, 3].map((die, index) => <span key={index} className="flex h-14 w-14 items-center justify-center bg-[#f5f1e7] text-2xl font-black text-[#292329]">{die}</span>)}</div></div>;
+    return <div className="flex aspect-square w-full max-w-sm flex-col items-center justify-center border border-white/15 bg-[#302039] shadow-2xl"><div className="h-44 w-44 rounded-b-[5rem] border-4 border-[#d0a96b] bg-[#6d3f30] shadow-xl" /><div className="mt-5 flex gap-3">{[2, 5, 3].map((die, index) => <LiarDie key={index} value={die} label={`Preview die: ${die}`} />)}</div></div>;
+  }
+  if (gameKey === 'liars-deck') {
+    return <div aria-label="Liar's Deck preview" className="flex aspect-square w-full max-w-sm flex-col items-center justify-center gap-6 rounded-2xl border border-[#d1af68]/30 bg-[#19392d] shadow-2xl"><p className="text-sm font-bold tracking-widest text-[#e5bd72]">ACE&apos;S TABLE</p><div className="flex gap-2"><LiarsDeckCardFace card={{ id: 'preview-ace', rank: 'A' }} /><LiarsDeckCardFace card={{ id: 'preview-king', rank: 'K' }} /><LiarsDeckCardFace card={{ id: 'preview-devil', rank: 'devil' }} /></div><p className="text-xs font-semibold text-white/65">CLASSIC · DEVIL&apos;S DEAL</p></div>;
   }
   if (gameKey === 'farkle') {
     return <div className="grid aspect-square w-full max-w-sm grid-cols-3 place-items-center gap-3 border border-white/15 bg-[#34251a] p-9 shadow-2xl">{[1, 5, 2, 2, 2, 6].map((die, index) => <span key={index} className={`flex aspect-square w-full items-center justify-center text-4xl font-black shadow-lg ${die === 1 || die === 5 || die === 2 ? 'bg-[#ff9f52] text-[#2b2018]' : 'bg-[#f5f1e7] text-[#29231e]'}`}>{die}</span>)}</div>;

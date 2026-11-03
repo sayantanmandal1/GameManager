@@ -7,8 +7,8 @@ describe('game catalog', () => {
   const registry = new GameRegistry();
   const games = getGameCatalog(registry);
 
-  it('exposes exactly the existing eight plus thirty-eight distinct games', () => {
-    expect(games).toHaveLength(46);
+  it('exposes exactly the existing eight plus thirty-nine distinct games', () => {
+    expect(games).toHaveLength(47);
     expect(games.map((game) => game.key)).toEqual([
       'bingo',
       'chess',
@@ -30,6 +30,7 @@ describe('game catalog', () => {
       'crazy-eights',
       'five-dice-yacht',
       'liars-dice',
+      'liars-deck',
       'farkle',
       'shut-the-box',
       'draw-dominoes',
@@ -74,11 +75,13 @@ describe('game catalog', () => {
 
   it('derives distinct capacities from their registered adapters', () => {
     const added = games.filter((game) => game.gameType === GameType.DISTINCT);
-    expect(added).toHaveLength(38);
+    expect(added).toHaveLength(39);
     expect(added.every((game) => game.minPlayers >= 2 && game.maxPlayers <= 10)).toBe(true);
     expect(added.every((game) => game.gameKey === game.key)).toBe(true);
     expect(added.every((game) => game.modes.length === 1 && game.modes[0].key === 'online')).toBe(true);
-    expect(new Set(games.map((game) => game.key)).size).toBe(46);
+    expect(new Set(games.map((game) => game.key)).size).toBe(47);
+    expect(added.find((game) => game.key === 'liars-deck')).toMatchObject({ minPlayers: 2, maxPlayers: 4 });
+    expect(added.find((game) => game.key === 'liars-dice')).toMatchObject({ minPlayers: 2, maxPlayers: 4 });
     expect(added.find((game) => game.key === 'hangman')).toMatchObject({ minPlayers: 2, maxPlayers: 8 });
     expect(added.find((game) => game.key === 'go-fish')).toMatchObject({ minPlayers: 2, maxPlayers: 5 });
     expect(added.find((game) => game.key === 'draw-dominoes')).toMatchObject({ minPlayers: 2, maxPlayers: 4 });
@@ -100,7 +103,7 @@ describe('game catalog', () => {
   });
 
   it('returns the count from the REST controller', () => {
-    expect(new GameCatalogController(registry).getCatalog()).toEqual({ games, total: 46 });
+    expect(new GameCatalogController(registry).getCatalog()).toEqual({ games, total: 47 });
   });
 
   // Mirrors mobileapp/src/services/catalog.ts. Installed Android apps skip any

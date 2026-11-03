@@ -11,6 +11,7 @@ export const DISTINCT_GAME_KEYS = [
   'crazy-eights',
   'five-dice-yacht',
   'liars-dice',
+  'liars-deck',
   'farkle',
   'shut-the-box',
   'draw-dominoes',
@@ -287,18 +288,58 @@ export interface YachtPlayerView {
 }
 
 export interface LiarsDiceBid { quantity: number; face: number; bidderId: string }
+export type LiarsDiceMode = 'classic' | 'traditional';
+export interface LiarsDiceReveal {
+  bid: LiarsDiceBid; callerId: string; kind: 'challenge' | 'spot_on';
+  dice: Record<string, number[]>; actual: number; successful: boolean; penalizedIds: string[];
+}
 export type LiarsDiceAction =
+  | { type: 'select_liars_dice_mode'; mode: LiarsDiceMode }
   | { type: 'bid'; quantity: number; face: number }
-  | { type: 'challenge' };
+  | { type: 'challenge' }
+  | { type: 'spot_on' }
+  | { type: 'next_liars_dice_round' };
 export interface LiarsDiceResult {
   gameKey: 'liars-dice'; winnerId: string; isDraw: false;
   reason: 'last_player' | 'surrender'; rounds: number;
 }
 export interface LiarsDicePlayerView {
   gameKey: 'liars-dice'; players: Array<DistinctPlayer & { diceCount: number }>;
+  hostId: string; mode: LiarsDiceMode | null; penalties: Record<string, number>;
   youId: string; yourDice: number[]; currentTurnId: string; currentBid: LiarsDiceBid | null;
-  round: number; phase: 'playing' | 'finished'; winnerId: string | null;
+  round: number; phase: 'setup' | 'playing' | 'reveal' | 'finished'; winnerId: string | null;
   canAct: boolean; totalDice: number; lastResolution: string | null;
+  lastReveal: LiarsDiceReveal | null; canChallenge: boolean; canSpotOn: boolean;
+}
+
+export type LiarsDeckMode = 'classic' | 'devil';
+export type LiarsDeckTableRank = 'A' | 'K' | 'Q';
+export interface LiarsDeckCard { id: string; rank: LiarsDeckTableRank | 'joker' | 'devil' }
+export type LiarsDeckAction =
+  | { type: 'select_liars_deck_mode'; mode: LiarsDeckMode }
+  | { type: 'play_liars_deck'; cardIds: string[] }
+  | { type: 'call_liars_deck' }
+  | { type: 'devils_deal' }
+  | { type: 'next_liars_deck_round' };
+export interface LiarsDeckReveal {
+  kind: 'challenge' | 'devil' | 'devils_deal'; callerId: string; claimantId: string;
+  cards: LiarsDeckCard[]; tableRank: LiarsDeckTableRank; successful: boolean;
+  riskPlayerIds: string[]; eliminatedIds: string[];
+}
+export interface LiarsDeckPlayerView {
+  gameKey: 'liars-deck';
+  players: Array<DistinctPlayer & { handCount: number; pulls: number; active: boolean }>;
+  hostId: string; mode: LiarsDeckMode | null;
+  phase: 'setup' | 'playing' | 'reveal' | 'finished';
+  youId: string; yourHand: LiarsDeckCard[]; tableRank: LiarsDeckTableRank; pileCount: number;
+  pendingClaim: { playerId: string; count: number } | null;
+  currentTurnId: string; round: number; lastReveal: LiarsDeckReveal | null;
+  canAct: boolean; canChallenge: boolean; canPlay: boolean; canDevilsDeal: boolean;
+  forcedChallenge: boolean; winnerId: string | null;
+}
+export interface LiarsDeckResult {
+  gameKey: 'liars-deck'; winnerId: string; isDraw: false;
+  reason: 'last_player' | 'surrender'; rounds: number;
 }
 
 export type FarkleAction =
@@ -994,6 +1035,7 @@ export interface DistinctGameContractMap {
   'crazy-eights': { action: CrazyEightsAction; view: CrazyEightsPlayerView; result: CrazyEightsResult };
   'five-dice-yacht': { action: YachtAction; view: YachtPlayerView; result: YachtResult };
   'liars-dice': { action: LiarsDiceAction; view: LiarsDicePlayerView; result: LiarsDiceResult };
+  'liars-deck': { action: LiarsDeckAction; view: LiarsDeckPlayerView; result: LiarsDeckResult };
   farkle: { action: FarkleAction; view: FarklePlayerView; result: FarkleResult };
   'shut-the-box': { action: ShutTheBoxAction; view: ShutTheBoxPlayerView; result: ShutTheBoxResult };
   'draw-dominoes': { action: DrawDominoesAction; view: DrawDominoesPlayerView; result: DrawDominoesResult };

@@ -1,4 +1,6 @@
-import type { DistinctGameKey, MonopolyPlayer } from '@/shared';
+import type { CardSuit, DistinctGameKey, MonopolyPlayer } from '@/shared';
+import { CARD_RANKS } from '@/shared';
+import { CardBack, CardFace } from './renderers/CardFace';
 import { MonopolyBoard } from './renderers/MonopolyBoard';
 import { buildMonopolyCanonicalPreviewBoard } from './renderers/monopolyBoardData';
 
@@ -87,11 +89,9 @@ export function ExpansionGamePreview({ gameKey }: Readonly<{ gameKey: ExpansionG
 
 function HeartsPreview() {
   const cards = [
-    { key: 'heart', rank: 'A', suit: '♥' },
-    { key: 'queen', rank: 'Q', suit: '♠' },
-    { key: 'club', rank: '2', suit: '♣' },
+    'A♥', 'Q♠', '2♣',
   ];
-  return <div className="flex aspect-[4/3] w-full max-w-md items-center justify-center gap-2 border border-white/15 bg-[#342024] shadow-2xl">{cards.map((card) => <span key={card.key} className={`flex h-44 w-28 flex-col justify-between border-2 border-[#201b1b] bg-[#f5f1e7] p-4 text-4xl font-black shadow-xl ${card.suit === '♥' ? 'text-[#c64243]' : 'text-[#222420]'}`}><span>{card.rank}</span><span className="self-center">{card.suit}</span></span>)}</div>;
+  return <div className="flex aspect-[4/3] w-full max-w-md items-center justify-center gap-2 border border-white/15 bg-[#342024] shadow-2xl">{cards.map((card) => <PreviewCard key={card} card={card} className="!w-[25%]" />)}</div>;
 }
 
 function SpadesPreview() {
@@ -100,15 +100,15 @@ function SpadesPreview() {
 
 function GinRummyPreview() {
   const cards = ['3♥', '4♥', '5♥', '7♣', '7♦', '7♠'];
-  return <div className="aspect-[4/3] w-full max-w-md border border-white/15 bg-[#193129] p-7 shadow-2xl"><div className="flex justify-center gap-1">{cards.map((face) => <span key={face} className={`flex h-32 w-16 items-start border bg-[#f5f1e7] p-2 text-xl font-black shadow-lg ${face.includes('♥') || face.includes('♦') ? 'text-[#c64243]' : 'text-[#242722]'}`}>{face}</span>)}</div><p className="mt-6 text-center text-sm font-bold text-[#77cfa8]">TWO MELDS · 6 DEADWOOD</p></div>;
+  return <div className="aspect-[4/3] w-full max-w-md border border-white/15 bg-[#193129] p-7 shadow-2xl"><div className="flex justify-center gap-1">{cards.map((face) => <PreviewCard key={face} card={face} className="!w-[15%]" />)}</div><p className="mt-6 text-center text-sm font-bold text-[#77cfa8]">TWO MELDS · 6 DEADWOOD</p></div>;
 }
 
 function CardWarPreview() {
-  return <div className="grid aspect-[4/3] w-full max-w-md grid-cols-2 place-items-center gap-8 border border-white/15 bg-[#34271c] p-8 shadow-2xl"><span className="flex h-48 w-28 items-start border-2 border-[#241c14] bg-[#f5f1e7] p-4 text-5xl font-black text-[#22231f] shadow-xl">K</span><span className="flex h-48 w-28 items-start border-2 border-[#241c14] bg-[#f5f1e7] p-4 text-5xl font-black text-[#c64243] shadow-xl">9</span><strong className="col-span-2 text-[#f0b25d]">BATTLE 12 · POT 2</strong></div>;
+  return <div className="grid aspect-[4/3] w-full max-w-md grid-cols-2 place-items-center gap-8 border border-white/15 bg-[#34271c] p-8 shadow-2xl"><PreviewCard card="K♠" className="!w-full max-w-28" /><PreviewCard card="9♥" className="!w-full max-w-28" /><strong className="col-span-2 text-[#f0b25d]">BATTLE 12 · POT 2</strong></div>;
 }
 
 function OldMaidPreview() {
-  return <div className="relative aspect-square w-full max-w-sm border border-white/15 bg-[#34212d] shadow-2xl"><span className="absolute left-[12%] top-[28%] flex h-44 w-28 items-center justify-center border-2 border-[#1e171b] bg-[#512b40] text-5xl font-black">?</span><span className="absolute left-[36%] top-[20%] flex h-44 w-28 flex-col justify-between border-2 border-[#1e171b] bg-[#f5f1e7] p-4 text-4xl font-black text-[#c64243] shadow-xl"><span>Q</span><span className="self-center">♥</span></span><span className="absolute left-[60%] top-[28%] flex h-44 w-28 items-center justify-center border-2 border-[#1e171b] bg-[#512b40] text-5xl font-black">?</span></div>;
+  return <div className="relative aspect-square w-full max-w-sm border border-white/15 bg-[#34212d] shadow-2xl"><PreviewBack className="absolute left-[12%] top-[28%] !w-[28%]" /><PreviewCard card="Q♥" className="absolute left-[36%] top-[20%] !w-[28%]" /><PreviewBack className="absolute left-[60%] top-[28%] !w-[28%]" /></div>;
 }
 
 function HexPreview() {
@@ -298,10 +298,13 @@ function PreviewCard({ card, small = false, className = '' }: Readonly<{
   small?: boolean;
   className?: string;
 }>) {
-  const red = card.includes('♥') || card.includes('♦');
-  return <span className={`flex ${small ? 'h-16 w-10 text-sm' : 'h-28 w-16 text-xl'} shrink-0 items-start rounded-md border-2 border-[#ddd5c4] bg-[#fffdf7] p-1.5 font-black shadow-lg ${red ? 'text-[#c64243]' : 'text-[#20251f]'} ${className}`}>{card}</span>;
+  const suitBySymbol: Record<string, CardSuit> = { '♣': 'clubs', '♦': 'diamonds', '♥': 'hearts', '♠': 'spades' };
+  const suit = suitBySymbol[card.slice(-1)];
+  const rank = CARD_RANKS.find((value) => value === card.slice(0, -1));
+  if (!suit || !rank) throw new Error(`Invalid preview card: ${card}`);
+  return <span className={`block ${small ? 'w-10' : 'w-16'} shrink-0 ${className}`}><CardFace card={{ id: card, rank, suit }} size="fluid" /></span>;
 }
 
 function PreviewBack({ className = '' }: Readonly<{ className?: string }>) {
-  return <span className={`h-28 w-16 shrink-0 rounded-md border-2 border-white bg-[#173d61] p-1 shadow-lg ${className}`}><span className="block h-full rounded-sm border border-[#e7cb72] bg-[repeating-linear-gradient(45deg,#a92736_0,#a92736_4px,#173d61_4px,#173d61_8px)]" /></span>;
+  return <span className={`block w-16 shrink-0 ${className}`}><CardBack className="!h-auto !w-full aspect-[2/3]" /></span>;
 }

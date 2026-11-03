@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import type { CardRank, GoFishAction, GoFishPlayerView } from '@/shared';
+import { CardFace } from './CardFace';
 
 interface Props { view: GoFishPlayerView; disabled: boolean; onAction: (action: GoFishAction) => void }
 
@@ -17,7 +18,7 @@ export function GoFishRenderer({ view, disabled, onAction }: Props) {
         {view.players.map((player) => <div key={player.id} className="flex items-center justify-between border-b border-white/12 px-3 py-2"><span className="truncate font-semibold">{player.name}</span><span className="text-sm text-white/60">{player.handCount} cards / {player.books.length} books</span></div>)}
       </div>
       <div className="mt-6 flex min-h-28 flex-wrap justify-center gap-2" aria-label="Your hand">
-        {view.yourHand.map((card) => <span key={card.id} className={`flex h-24 w-16 flex-col justify-between border bg-[#f5f1e7] p-2 font-black shadow-lg ${card.suit === 'hearts' || card.suit === 'diamonds' ? 'text-[#c63f37]' : 'text-[#1a211d]'}`}><span>{card.rank}</span><span className="text-xs uppercase">{card.suit[0]}</span></span>)}
+        {view.yourHand.map((card) => <CardFace key={card.id} card={card} />)}
       </div>
       {view.canAct && (
         <div className="mx-auto mt-6 grid max-w-xl gap-3 sm:grid-cols-[1fr_1fr_auto]">

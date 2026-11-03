@@ -70,7 +70,7 @@ async function main() {
     await verifyVoiceRelay(alphaSocket, betaSocket);
 
     console.log(
-      'Runtime E2E passed: 46-game catalog, rematch, lobby, reconnect, eight existing games, thirty-eight distinct games, Monopoly bots, voice.',
+      'Runtime E2E passed: 47-game catalog, rematch, lobby, reconnect, eight existing games, thirty-nine distinct games, Monopoly bots, voice.',
     );
   } finally {
     alphaSocket.disconnect();
@@ -331,7 +331,7 @@ async function verifyCatalog() {
   const response = await fetch(`${API_URL}/games/catalog`);
   assert.equal(response.status, 200);
   const catalog = await response.json();
-  assert.equal(catalog.total, 46);
+  assert.equal(catalog.total, 47);
   assert.deepEqual(
     catalog.games.map((game) => game.key),
     [
@@ -355,6 +355,7 @@ async function verifyCatalog() {
       'crazy-eights',
       'five-dice-yacht',
       'liars-dice',
+      'liars-deck',
       'farkle',
       'shut-the-box',
       'draw-dominoes',
@@ -1260,15 +1261,33 @@ async function verifyDistinctGames(
     },
     {
       gameKey: 'liars-dice',
-      expectedMaxPlayers: 6,
-      action: { type: 'bid', quantity: 1, face: 1 },
+      expectedMaxPlayers: 4,
+      action: { type: 'select_liars_dice_mode', mode: 'traditional' },
       assertInitial: (_alphaView, betaView) => {
-        assert.equal(betaView.yourDice.length, 5);
+        assert.equal(betaView.phase, 'setup');
+        assert.equal(betaView.yourDice.length, 0);
         assert.equal(Object.prototype.hasOwnProperty.call(betaView.players[0], 'dice'), false);
       },
       assertTransition: (view) => {
-        assert.deepEqual(view.currentBid, { quantity: 1, face: 1, bidderId: alpha.user.id });
-        assert.equal(view.currentTurnId, beta.user.id);
+        assert.equal(view.mode, 'traditional');
+        assert.equal(view.phase, 'playing');
+        assert.equal(view.yourDice.length, 5);
+        assert.equal(view.penalties[alpha.user.id], 0);
+      },
+    },
+    {
+      gameKey: 'liars-deck',
+      expectedMaxPlayers: 4,
+      action: { type: 'select_liars_deck_mode', mode: 'devil' },
+      assertInitial: (alphaView, betaView) => {
+        assert.equal(alphaView.phase, 'setup');
+        assert.equal(betaView.canAct, false);
+        assert.equal(Object.prototype.hasOwnProperty.call(betaView, 'chambers'), false);
+      },
+      assertTransition: (view) => {
+        assert.equal(view.mode, 'devil');
+        assert.equal(view.yourHand.length, 5);
+        assert.equal(view.phase, 'playing');
       },
     },
     {

@@ -213,6 +213,13 @@ const DISTINCT_PRESENTATION = {
     accent: '#db8cf0',
     surface: '#302039',
   },
+  'liars-deck': {
+    name: "Liar's Deck",
+    mark: 'LD',
+    description: 'Classic or Devil tables: bluff with five cards and survive the reveal.',
+    accent: '#e5bd72',
+    surface: '#292018',
+  },
   farkle: {
     name: 'Farkle',
     mark: 'K',

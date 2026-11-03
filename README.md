@@ -12,7 +12,7 @@ The website and native app share a graphite-and-pearl visual system with restrai
 - Native design tokens: `mobileapp/src/theme.ts`.
 - Motion respects the system reduced-motion preference. Web chrome also supports reduced transparency and increased contrast.
 - Shared dialogs support Escape, focus containment/restoration, and keyboard-accessible dismissal.
-- Gameplay chrome uses the same surface hierarchy across the 38 distinct-game tables, legacy online games, and offline/bot modes. Felt, wood, neon boards, suit colors, and the light Photobooth workspace intentionally retain their identities.
+- Gameplay chrome uses the same surface hierarchy across the 39 distinct-game tables, legacy online games, and offline/bot modes. Felt, wood, neon boards, suit colors, and the light Photobooth workspace intentionally retain their identities.
 - Mandatory game decisions and completion dialogs trap keyboard focus without offering an invalid dismissal. Cancellable dialogs retain Escape, backdrop dismissal, and focus restoration.
 - Monopoly purchase, auction, and trade decisions use the shared mandatory dialog with inert background content. Online game loading states offer retry and a route back to games.
 - Navigation and gameplay toolbars reflow with enlarged text. Sudoku's mobile number pad uses two rows for larger touch targets; native gameplay text and header sizing follow Android's font scale.
@@ -42,7 +42,8 @@ The website and native app share a graphite-and-pearl visual system with restrai
 | Go Fish | 2–5 | Shuffled 52-card deck, rank requests, private hands, books, and score resolution. |
 | Crazy Eights | 2–5 | Ordinary cards, suit/rank matching, suit-changing eights, and draw play. |
 | Five-Dice Yacht | 2–8 | Three-roll turns and thirteen standard scorecard categories. |
-| Liar's Dice | 2–6 | Private dice, ascending bids, challenges, die loss, and elimination rounds. |
+| Liar's Dice | 2–4 | Classic and Traditional tables, five private dice, two poison penalties, wild ones, and Spot on. |
+| Liar's Deck | 2–4 | Separate Classic and Devil tables, five-card hands, hidden claims, persistent chamber risk, and Devil's Deal. |
 | Farkle | 2–8 | Standard scoring groups, hot dice, entry threshold, and a 10,000-point final round. |
 | Shut the Box | 2–4 | Per-player tiles, exact roll combinations, and lowest open-tile score. |
 | Draw Dominoes | 2–4 | Double-six draw set, oriented open-end play, and blocked pip scoring. |
@@ -70,7 +71,7 @@ The website and native app share a graphite-and-pearl visual system with restrai
 | Monopoly | 2–4 | Classic forty-space property board, host-added bots, secure dice, auctions, rent, jail, cards, finite buildings, mortgages, trades, debt, and bankruptcy. |
 | Wrongway | 2 | Neon 9×9 pawn race with straight jumps, blocked-jump diagonals, ten walls each, and guaranteed open routes. |
 
-The library contains **46 implemented games**: the original eight plus 38 separately registered multiplayer rules engines. Global six-digit room joining works across the library, and every multiplayer completion screen offers unanimous in-room rematch without repeating lobby ready/start steps. Hearts, Spades, Euchre, and Whist share a responsive felt table with three hidden opponent hands and the local hand face-up. Bridge uses a content-sized table with a separate hand tray, fitting all thirteen cards on laptop screens and providing horizontal hand scrolling on smaller screens. Dummy and partner hands remain available through their permitted hand tabs rather than overlapping the table. Auction suits have large vector symbols and visible names; secondary deal controls expand below the hand, automatically opening for partner requests. All standard-deck games use original mirrored card artwork with rank-correct pip counts and illustrated court cards, shared by the website and Android game views. Bridge, Spades, Euchre, and Whist require players to choose balanced two-versus-two partnerships in the lobby before the host can start.
+The library contains **47 implemented games**: the original eight plus 39 separately registered multiplayer rules engines. Global six-digit room joining works across the library, and every multiplayer completion screen offers unanimous in-room rematch without repeating lobby ready/start steps. Hearts, Spades, Euchre, and Whist share a responsive felt table with three hidden opponent hands and the local hand face-up. Bridge uses a content-sized table with a separate hand tray, fitting all thirteen cards on laptop screens and providing horizontal hand scrolling on smaller screens. Dummy and partner hands remain available through their permitted hand tabs rather than overlapping the table. Auction suits have large vector symbols and visible names; secondary deal controls expand below the hand, automatically opening for partner requests. All standard-deck games, including Go Fish, the Sevens layout, and landing-page previews, use original mirrored card artwork with rank-correct pip counts and illustrated court cards, shared by the website and Android game views. Bridge, Spades, Euchre, and Whist require players to choose balanced two-versus-two partnerships in the lobby before the host can start.
 
 Expired or unavailable rooms show the server error with retry and return-to-library actions instead of an indefinite lobby spinner.
 
@@ -94,6 +95,21 @@ Across all Bridge modes, a single legal card plays automatically after a randomi
 - A made Home contract doubles its complete point award when doubled and quadruples it when redoubled. Ordinary surrender after the auction continues to award the remaining tricks and score the contract normally.
 - Rubber and Duplicate keep their existing hand and surrender rules.
 
+### Liar tables
+
+Liar's Deck is a separate game; Bluff retains its chosen-rank passing rules.
+
+- Hosts choose Classic or Devil in Deck, or Classic or Traditional in Dice, before the first round.
+- Dice keeps five dice per surviving player. Bid quantity must strictly increase; the face may change. A successful challenge penalizes the bidder, otherwise the caller. Two poison penalties eliminate a player. Traditional counts ones as wild without double counting; an exact Spot-on call penalizes everyone except the caller, while an incorrect one penalizes only the caller.
+- Deck uses six Aces, six Kings, six Queens and two Jokers, dealing five cards each. The table rank changes on redeal. Players submit one to three cards face down; only the next player may challenge the latest claim. A single off-rank, non-wild card makes the whole claim false. Empty hands are skipped; the last remaining hand must challenge, with a randomized 1.5–3 second pause.
+- Chamber positions are generated privately once per match and never reset by redealing. Only the number of used chambers and eliminations are public.
+- Devil replaces one table-rank card with a special Devil card, keeping twenty cards and the same number of matching cards. It must be played alone. When challenged, other players still holding cards take the chamber risk; previously emptied hands are exempt.
+- Devil's Deal consumes a held Devil card and reveals the last four cards already on the table. All four must be lies against the current table rank; success puts all other survivors at risk, failure puts only the caller at risk. Fewer than four table cards cannot trigger it.
+- Reveals remain visible for five seconds before automatic continuation; the host can advance sooner. Old revealed dice never expose the next round's private rolls. Resigning removes only that player while a multiplayer match continues.
+- Both tables use an original procedural 3D tavern with original figures, cups, cards and dice. The renderer respects reduced motion and caps pixel density; unsupported WebGL shows an explicit notice without removing accessible game controls. No proprietary Liar's Bar models, textures, animations or audio are bundled.
+
+Rules references: the official [remaster announcement](https://store.steampowered.com/news/app/3097560/view/714531147199024883) (also available in the [official RSS feed](https://store.steampowered.com/feeds/news/app/3097560/?l=english)), the community [Deck rules summary](https://steamcommunity.com/sharedfiles/filedetails/?id=3344163995), and the community [mode guide](https://steamcommunity.com/sharedfiles/filedetails/?id=3377103757). The remaster explicitly describes the all-four-lies Devil's Deal outcome, but does not publish a complete executable specification. The gate/consumption and failure behavior above are explicit implementation choices based on the community [Devil's Deal explanation](https://steamcommunity.com/app/3097560/discussions/0/565869956174986510/), not a claim of independently certified parity with every commercial-game edge case.
+
 ---
 
 ## Architecture
@@ -114,9 +130,9 @@ Across all Bridge modes, a single legal card plays automatically after a randomi
 - **Server-authoritative**: All game state lives on the server; clients receive only their own view.
 - **Distinct-game framework**: Thirty-eight games use one lifecycle and Socket.IO namespace while retaining separate engines, strongly typed contracts, and unique ruleset IDs.
 - **Private projections**: Hands, fleets, secret codes, phrases, and dice are redacted per player; all random outcomes are generated server-side.
-- **Shared catalog**: `GET /games/catalog` is the source for the web and mobile 46-game shelves; lobby records persist the validated distinct-game key.
+- **Shared catalog**: `GET /games/catalog` is the source for the web and mobile 47-game shelves; lobby records persist the validated distinct-game key.
 - **WebRTC voice chat**: Peer-to-peer mesh topology (≤ 8 players), signaling through Socket.IO.
-- **Crossplay**: Android and browser users share the same 46-game library, authentication, lobby, game UI, rematch, and Socket.IO contracts.
+- **Crossplay**: Android and browser users share the same 47-game library, authentication, lobby, game UI, rematch, and Socket.IO contracts.
 - **Secure mobile session**: Guest credentials are stored with the platform keystore via `expo-secure-store`.
 - **Self-healing guest sessions**: Expired JWTs or cleaned-up guest rows renew once with the existing username; transient outages do not silently replace identity.
 
@@ -254,7 +270,7 @@ cd ../mobileapp
 npm run typecheck
 npx expo export --platform android
 
-# Production-like REST and Socket.IO flow (46-entry catalog, rematch,
+# Production-like REST and Socket.IO flow (47-entry catalog, rematch,
 # reconnect, all multiplayer games, and voice signaling)
 cd ../frontend
 npm run test:e2e:runtime
