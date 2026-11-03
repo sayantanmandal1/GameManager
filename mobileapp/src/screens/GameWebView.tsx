@@ -14,7 +14,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import type { WebViewNavigation } from 'react-native-webview';
-import { WEB_ORIGIN, WEB_URL } from '../config';
+import { isGameWebUrl, WEB_ORIGIN_WHITELIST, WEB_URL } from '../config';
 import { colors } from '../theme';
 import type { GuestSession, WebDestination } from '../types';
 import { isGuestSession } from '../services/auth';
@@ -63,7 +63,7 @@ export function GameWebView({ destination, session, onSessionChange, onClose }: 
   };
 
   const allowNavigation = (request: { url: string }): boolean => {
-    if (request.url === 'about:blank' || request.url.startsWith(WEB_ORIGIN)) return true;
+    if (request.url === 'about:blank' || isGameWebUrl(request.url)) return true;
     if (request.url.startsWith('https://')) Linking.openURL(request.url).catch(() => undefined);
     return false;
   };
@@ -136,12 +136,12 @@ export function GameWebView({ destination, session, onSessionChange, onClose }: 
           mediaCapturePermissionGrantType="grantIfSameHostElsePrompt"
           setSupportMultipleWindows={false}
           javaScriptCanOpenWindowsAutomatically={false}
-          originWhitelist={[`${WEB_ORIGIN}/*`]}
+          originWhitelist={WEB_ORIGIN_WHITELIST}
           onShouldStartLoadWithRequest={allowNavigation}
           onNavigationStateChange={handleNavigation}
           onMessage={(event) => {
             // Only the trusted GameVerse origin may use the native bridge.
-            if (!event.nativeEvent.url?.startsWith(WEB_ORIGIN)) return;
+            if (!isGameWebUrl(event.nativeEvent.url)) return;
             handleMessage(event.nativeEvent.data);
           }}
           onLoadStart={(event) => {

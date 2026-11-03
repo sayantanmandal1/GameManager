@@ -12,6 +12,16 @@ export const WEB_URL = requireHttpsUrl(
 );
 
 export const WEB_ORIGIN = new URL(WEB_URL).origin;
+export const WEB_ORIGIN_WHITELIST = [WEB_ORIGIN];
+
+export function isGameWebUrl(raw: string | undefined): boolean {
+  if (!raw) return false;
+  try {
+    return new URL(raw).origin === WEB_ORIGIN;
+  } catch {
+    return false;
+  }
+}
 
 function requireHttpsUrl(raw: string, variableName: string): string {
   const normalized = raw.trim().replace(/\/$/, '');

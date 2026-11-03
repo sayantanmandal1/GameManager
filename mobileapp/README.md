@@ -38,11 +38,14 @@ Gameplay uses the shared web route in the same-origin WebView, so rule controls,
 
 Loading and error overlays are confined to the WebView area, preserving safe-area headers. Android history changes honor the event's actual loading state so moving from a lobby into a game cannot leave a loading overlay over an already playable table.
 
+The WebView allowlist contains the web origin, not a path pattern: React Native WebView matches origins only. Same-origin reloads and game navigation stay in the app rather than opening the browser. Navigation and native-bridge messages additionally check exact parsed origins, excluding lookalike hosts, changed ports, and HTTP downgrades.
+
 ## Development
 
 ```powershell
 npm ci
 npm run typecheck
+npm test
 npm start
 ```
 

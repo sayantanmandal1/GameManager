@@ -69,6 +69,10 @@ jobs:
         working-directory: mobileapp
         run: npm run typecheck
 
+      - name: Test native navigation policy
+        working-directory: mobileapp
+        run: npm test
+
       - name: Audit critical production dependencies
         working-directory: mobileapp
         run: npm audit --omit=dev --audit-level=critical
