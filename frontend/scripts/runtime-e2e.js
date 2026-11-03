@@ -2277,12 +2277,14 @@ async function verifyContractBridge(clients) {
       0,
     );
     if (cardsRemaining === 4) {
+      // Four human-paced automatic plays can exceed the default 10-second wait.
       latest = await waitForEvent(
         clients[0].socket,
         'distinct:state',
         (payload) => payload.gameId === gameId
           && payload.view?.phase === 'deal_complete',
         'Bridge final forced-card autoplay',
+        20_000,
       );
       break;
     }
@@ -2714,12 +2716,12 @@ function emitDistinctActionExpectError(actor, payload, expectedMessage) {
   });
 }
 
-function waitForEvent(socket, event, predicate = () => true, label = event) {
+function waitForEvent(socket, event, predicate = () => true, label = event, timeoutMs = TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       cleanup();
       reject(new Error(`Timed out waiting for ${label}`));
-    }, TIMEOUT_MS);
+    }, timeoutMs);
     const onEvent = (payload) => {
       if (!predicate(payload)) return;
       cleanup();
