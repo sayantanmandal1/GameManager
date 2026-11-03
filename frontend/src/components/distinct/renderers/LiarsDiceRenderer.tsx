@@ -37,7 +37,7 @@ export function LiarsDiceRenderer({ view, disabled, onAction }: Props) {
       </div>
       <div className="rounded-2xl border border-[#dfbd70]/20 bg-black/20 px-4 py-4 text-center">
         <p className="text-xs font-bold text-white/65">{view.mode === 'traditional' ? 'TRADITIONAL · ONES ARE WILD' : 'CLASSIC · NO WILD DICE'}</p>
-        <p className="mt-1 text-3xl font-black text-[#db8cf0]">{view.currentBid ? `${view.currentBid.quantity} dice showing ${view.currentBid.face}` : 'Open the bidding'}</p>
+        <p className="mt-1 text-3xl font-black text-[#db8cf0]">{view.currentBid ? `${view.currentBid.quantity} ${view.currentBid.quantity === 1 ? 'die' : 'dice'} showing ${view.currentBid.face}` : 'Open the bidding'}</p>
         <p className="mt-2 text-sm text-white/45">Round {view.round} / {view.totalDice} dice remain</p>
       </div>
       {view.phase === 'playing' && view.yourDice.length > 0 && <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-center">
@@ -58,7 +58,7 @@ export function LiarsDiceRenderer({ view, disabled, onAction }: Props) {
         </div>
       )}
       {view.lastReveal && (view.phase === 'reveal' || view.phase === 'finished') && <section role="status" className="rounded-2xl border border-[#d1af68]/30 bg-[#241c15] p-5 text-center" aria-label="Dice reveal">
-        <p className="text-sm font-bold text-[#e5bd72]">{view.lastReveal.kind === 'spot_on' ? 'Spot on' : 'Challenge'} · {view.lastReveal.actual} matching dice</p>
+        <p className="text-sm font-bold text-[#e5bd72]">{view.lastReveal.kind === 'spot_on' ? 'Spot on' : 'Challenge'} · {view.lastReveal.actual} matching {view.lastReveal.actual === 1 ? 'die' : 'dice'}</p>
         <p className="mt-2 text-sm text-white/75">{view.lastResolution}</p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">{Object.entries(view.lastReveal.dice).map(([id, dice]) => <div key={id}><p className="mb-2 truncate text-xs font-bold">{playerName(id)}</p><div className="flex flex-wrap justify-center gap-1">{dice.map((die, index) => <LiarDie key={index} value={die} label={`${playerName(id)} revealed die ${index + 1}: ${die}`} />)}</div></div>)}</div>
         {view.phase === 'reveal' && <p className="mt-4 text-xs text-white/55">All surviving players keep five dice. A new round starts in a few seconds.</p>}

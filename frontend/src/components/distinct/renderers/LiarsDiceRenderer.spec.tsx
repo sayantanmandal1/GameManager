@@ -15,6 +15,16 @@ const view: LiarsDicePlayerView = {
 };
 
 describe('Liar dice table', () => {
+  it.each([0, 1, 2])('uses the correct wording for a %i-die reveal and its bid', (actual) => {
+    const bid = { quantity: Math.max(1, actual), face: 4, bidderId: 'b' };
+    render(<LiarsDiceRenderer view={{
+      ...view, phase: 'reveal', canAct: false, currentBid: bid,
+      lastReveal: { bid, callerId: 'a', kind: 'challenge', dice: { a: [actual > 0 ? 4 : 3, 2, 3, 5, 6], b: [actual > 1 ? 4 : 2, 2, 3, 5, 6] }, actual, successful: actual < bid.quantity, penalizedIds: [actual < bid.quantity ? 'b' : 'a'] },
+    }} disabled={false} onAction={jest.fn()} />);
+    expect(screen.getByText(`${bid.quantity} ${bid.quantity === 1 ? 'die' : 'dice'} showing 4`)).toBeInTheDocument();
+    expect(screen.getByText(`Challenge · ${actual} matching ${actual === 1 ? 'die' : 'dice'}`)).toBeInTheDocument();
+  });
+
   it('lets the host continue after a resignation without an old dice reveal', () => {
     const onAction = jest.fn();
     render(<LiarsDiceRenderer view={{ ...view, phase: 'reveal', canAct: false, lastResolution: 'Bob resigned. The remaining players continue.' }} disabled={false} onAction={onAction} />);

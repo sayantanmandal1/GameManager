@@ -15,6 +15,15 @@ const view: LiarsDeckPlayerView = {
 };
 
 describe("Liar's Deck table", () => {
+  it('uses singular wording for the last card without changing empty or larger hand counts', () => {
+    const players = view.players.map((player, index) => ({ ...player, handCount: index === 0 ? 1 : 0 }));
+    const { rerender } = render(<LiarsDeckRenderer view={{ ...view, players }} disabled={false} onAction={jest.fn()} />);
+    expect(screen.getByText('1 card · 0/6 chambers')).toBeInTheDocument();
+    expect(screen.getByText('0 cards · 0/6 chambers')).toBeInTheDocument();
+    rerender(<LiarsDeckRenderer view={view} disabled={false} onAction={jest.fn()} />);
+    expect(screen.getAllByText('5 cards · 0/6 chambers')).toHaveLength(2);
+  });
+
   it('explains a resignation pause and lets the host continue without revealed cards', () => {
     const onAction = jest.fn();
     render(<LiarsDeckRenderer view={{ ...view, phase: 'reveal', canAct: false }} disabled={false} onAction={onAction} />);

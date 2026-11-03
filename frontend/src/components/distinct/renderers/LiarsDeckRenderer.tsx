@@ -42,7 +42,7 @@ export function LiarsDeckRenderer({ view, disabled, onAction }: Readonly<{
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {view.players.map((player) => <div key={player.id} className={`min-w-0 rounded-xl border p-3 ${view.currentTurnId === player.id && view.phase === 'playing' ? 'border-[#dfbd70]/70 bg-[#dfbd70]/10' : 'border-white/10 bg-black/15'} ${player.active ? '' : 'opacity-45'}`}>
           <p className="truncate text-sm font-bold" title={player.name}>{player.name}{player.id === view.youId ? ' · you' : ''}</p>
-          <p className="mt-1 text-xs text-white/65">{player.active ? `${player.handCount} cards · ${player.pulls}/6 chambers` : 'Eliminated'}</p>
+          <p className="mt-1 text-xs text-white/65">{player.active ? `${player.handCount} ${player.handCount === 1 ? 'card' : 'cards'} · ${player.pulls}/6 chambers` : 'Eliminated'}</p>
         </div>)}
       </div>
       <div className="rounded-2xl border border-[#dfbd70]/20 bg-black/20 p-4 text-center">
