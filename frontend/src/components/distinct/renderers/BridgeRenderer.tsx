@@ -488,8 +488,8 @@ function Auction({ view, disabled, onAction, playerName }: Readonly<{
             </div>
           )}
           {selectedStrain && (
-            <div>
-              <div className="mb-2 grid grid-cols-[2.75rem_minmax(0,1fr)] items-center gap-2">
+            <div className="lg:flex lg:items-center lg:gap-3">
+              <div className="mb-2 grid grid-cols-[2.75rem_minmax(0,1fr)] items-center gap-2 lg:mb-0 lg:w-56 lg:shrink-0">
                 <button
                   type="button"
                   aria-label="Back to suits"
@@ -504,7 +504,7 @@ function Auction({ view, disabled, onAction, playerName }: Readonly<{
                   {STRAIN_NAMES[selectedStrain]} · choose level
                 </p>
               </div>
-              <div className="mx-auto grid max-w-2xl grid-cols-4 gap-2 sm:grid-cols-7" aria-label="Contract levels">
+              <div className="mx-auto grid w-full max-w-2xl grid-cols-4 gap-2 sm:grid-cols-7" aria-label="Contract levels">
                 {Array.from({ length: 7 }, (_, index) => index + 1).map((level) => (
                   <button
                     key={level}
