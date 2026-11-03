@@ -149,7 +149,7 @@ jobs:
           set -euo pipefail
           chmod +x gradlew
           ./gradlew --no-daemon clean assembleRelease \
-            -PreactNativeArchitectures=armeabi-v7a,arm64-v8a
+            -PreactNativeArchitectures=armeabi-v7a,arm64-v8a,x86_64
 
       - name: Prepare APK
         id: apk
@@ -162,6 +162,10 @@ jobs:
           mkdir -p "$output_dir"
           cp mobileapp/android/app/build/outputs/apk/release/app-release.apk "$output_path"
           test -s "$output_path"
+          apk_files="$(unzip -Z1 "$output_path")"
+          for abi in armeabi-v7a arm64-v8a x86_64; do
+            grep -Fxq "lib/${abi}/libreactnative.so" <<< "$apk_files"
+          done
           echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
           echo "path=$output_path" >> "$GITHUB_OUTPUT"
           echo "sha256=$(sha256sum "$output_path" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"

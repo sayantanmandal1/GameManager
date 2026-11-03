@@ -79,7 +79,7 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
   }
   let gameLayoutClass = 'max-w-7xl lg:grid-cols-[minmax(0,1fr)_20rem]';
   if (hasIntegratedWideSurface) gameLayoutClass = isMonopoly ? 'max-w-[112rem]' : 'max-w-[100rem]';
-  if (isBridge) gameLayoutClass = 'max-w-[100rem] lg:h-full';
+  if (isBridge) gameLayoutClass = 'max-w-[100rem]';
 
   const leaveTable = () => {
     const socket = getSocket();
@@ -96,9 +96,9 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
   };
 
   return (
-    <main data-monopoly-play-shell={isMonopoly ? 'true' : undefined} className={`game-play-shell min-h-screen text-game-text ${isBridge ? 'px-3 py-3 sm:px-6 sm:py-4 lg:h-dvh lg:overflow-hidden lg:py-2' : isMonopoly ? 'px-0 py-0 sm:px-6 sm:py-3' : 'px-3 py-3 sm:px-6 sm:py-4'}`} style={{ '--table-accent': ui.accent } as CSSProperties}>
+    <main data-monopoly-play-shell={isMonopoly ? 'true' : undefined} className={`game-play-shell min-h-screen text-game-text ${isBridge ? 'px-3 py-3 sm:px-6 sm:py-4 lg:py-2' : isMonopoly ? 'px-0 py-0 sm:px-6 sm:py-3' : 'px-3 py-3 sm:px-6 sm:py-4'}`} style={{ '--table-accent': ui.accent } as CSSProperties}>
       <div className={`mx-auto grid gap-5 ${gameLayoutClass}`}>
-        <section className={`flex min-w-0 flex-col items-center ${isBridge ? 'lg:h-full lg:min-h-0' : ''}`}>
+        <section className="flex min-w-0 flex-col items-center">
           <div data-monopoly-game-header={isMonopoly ? 'true' : undefined} className={`glass-chrome game-toolbar w-full rounded-2xl border border-white/10 ${isMonopoly ? 'mb-0 max-w-[112rem] px-2 py-1.5 sm:mb-2 sm:px-3 sm:py-2' : `max-w-[56rem] px-3 py-2 ${isBridge ? 'mb-2' : 'mb-3 sm:mb-4'}`}`}>
             <button type="button" onClick={leaveTable} className="-ml-2 min-h-11 rounded-md px-2 text-sm font-semibold text-game-muted hover:bg-white/5 hover:text-white lg:min-h-0">{finished ? 'Lobby' : 'Exit table'}</button>
             <div className="min-w-0 text-center"><p className="truncate text-xs font-bold" style={{ color: ui.accent }}>{ui.name.toUpperCase()}</p><p className={`${isMonopoly ? 'text-[11px] uppercase' : 'text-sm'} text-game-muted`}>Room {code}</p></div>

@@ -13,8 +13,9 @@ import type {
   StandardCard,
 } from '@/shared';
 import { BRIDGE_DEFAULT_HOME_RULES, BRIDGE_MAX_SURRENDER_THRESHOLD, BRIDGE_STRAINS } from '@/shared';
-import { CardTable } from './CardTable';
+import { BridgeTable } from './BridgeTable';
 import { CardFace } from './CardFace';
+import { SuitSymbol } from './PlayingCardArtwork';
 
 interface Props {
   readonly view: BridgePlayerView;
@@ -76,8 +77,9 @@ export function BridgeRenderer({ view, disabled, onAction }: Props) {
   }, [view.actingHand, view.currentTurnId, view.trick.length, view.lastTrick?.completedAt]);
 
   const trickRevealActive = !!view.trickDisplayUntil && clock < view.trickDisplayUntil;
-  const canPlayOwn = view.canAct && view.actingHand === 'own' && !trickRevealActive;
-  const canPlayDummy = view.canAct && view.actingHand === 'dummy' && !trickRevealActive;
+  const playingCards = view.phase === 'opening_lead' || view.phase === 'playing';
+  const canPlayOwn = playingCards && view.canAct && view.actingHand === 'own' && !trickRevealActive;
+  const canPlayDummy = playingCards && view.canAct && view.actingHand === 'dummy' && !trickRevealActive;
   const yourTeam = view.players.find((player) => player.id === view.youId)?.team ?? 0;
   const yourVotes = view.surrenderVotes[yourTeam];
   const hasVotedToSurrender = yourVotes.includes(view.youId);
@@ -184,7 +186,6 @@ export function BridgeRenderer({ view, disabled, onAction }: Props) {
     handCount: player.handCount,
     detail: `${player.seat} · ${player.tricksWon} tricks`,
   }));
-  const revealedHands = buildRevealedHands(view);
   const activeSeatId = view.currentTurnId;
   const handOptions = buildHandOptions(view);
   const selectedHand = handOptions.find((option) => option.id === handView)
@@ -195,14 +196,12 @@ export function BridgeRenderer({ view, disabled, onAction }: Props) {
   const selectedCard = selectedHand.cards.find((card) => card.id === selectedCardId) ?? null;
 
   return (
-    <div data-bridge-table className="w-full min-w-0 max-w-[96rem] lg:h-full">
-      <CardTable
+    <div data-bridge-table className="w-full min-w-0 max-w-[96rem]">
+      <BridgeTable
         players={tablePlayers}
         youId={view.youId}
         currentTurnId={activeSeatId}
-        revealedHands={revealedHands}
-        expandedHandRail
-        wideCenter={view.phase === 'auction'}
+        attention={!!view.undoRequest || partnerHasVoted}
         topRail={(
           <NetScore
             hostName={host.name}
@@ -241,6 +240,7 @@ export function BridgeRenderer({ view, disabled, onAction }: Props) {
               onAction({ type: 'play_bridge_card', cardId: selectedCard.id });
             }}
             oneCardAutoPlay={oneCardAutoPlay}
+            auction={view.phase === 'auction'}
           />
         )}
         bottomRail={(
@@ -477,10 +477,11 @@ function Auction({ view, disabled, onAction, playerName }: Readonly<{
                     type="button"
                     disabled={disabled || !legalStrains.has(strain)}
                     onClick={() => setSelectedStrain(strain)}
-                    className={`min-h-11 rounded border px-1 text-base font-black disabled:cursor-not-allowed disabled:opacity-15 ${strain === 'hearts' || strain === 'diamonds' ? 'border-red-300/25 text-red-200' : 'border-white/15 text-white'}`}
+                    className={`flex min-h-16 min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-1 py-2 font-bold disabled:cursor-not-allowed disabled:opacity-30 ${strain === 'hearts' || strain === 'diamonds' ? 'border-red-300/30 text-[#ffb5b5]' : 'border-white/25 text-white'}`}
                     aria-label={`Choose ${STRAIN_NAMES[strain]}`}
                   >
-                    {STRAIN_LABELS[strain]}
+                    {strain === 'notrump' ? <span className="flex h-8 items-center text-2xl">NT</span> : <SuitSymbol suit={strain} className="h-8 w-8" />}
+                    <span className="text-[11px] sm:text-xs">{strain === 'notrump' ? 'No trump' : STRAIN_NAMES[strain]}</span>
                   </button>
                 ))}
               </div>
@@ -498,7 +499,10 @@ function Auction({ view, disabled, onAction, playerName }: Readonly<{
                 >
                   <ArrowLeft className="h-5 w-5" aria-hidden="true" />
                 </button>
-                <p className="min-w-0 text-sm font-bold">{STRAIN_LABELS[selectedStrain]} {STRAIN_NAMES[selectedStrain]} · choose level</p>
+                <p className="flex min-w-0 flex-wrap items-center gap-2 text-sm font-bold">
+                  {selectedStrain !== 'notrump' && <SuitSymbol suit={selectedStrain} className="h-7 w-7 shrink-0" />}
+                  {STRAIN_NAMES[selectedStrain]} · choose level
+                </p>
               </div>
               <div className="mx-auto grid max-w-2xl grid-cols-4 gap-2 sm:grid-cols-7" aria-label="Contract levels">
                 {Array.from({ length: 7 }, (_, index) => index + 1).map((level) => (
@@ -528,7 +532,7 @@ function Auction({ view, disabled, onAction, playerName }: Readonly<{
   );
 }
 
-function BridgeHandTray({ options, activeView, onViewChange, legalCardIds, canPlay, disabled, selectedCardId, onSelect, onConfirm, oneCardAutoPlay }: Readonly<{
+function BridgeHandTray({ options, activeView, onViewChange, legalCardIds, canPlay, disabled, selectedCardId, onSelect, onConfirm, oneCardAutoPlay, auction }: Readonly<{
   options: Array<{ id: HandView; label: string; cards: StandardCard[]; readOnly: boolean }>;
   activeView: HandView;
   onViewChange: (view: HandView) => void;
@@ -539,6 +543,7 @@ function BridgeHandTray({ options, activeView, onViewChange, legalCardIds, canPl
   onSelect: (cardId: string | null) => void;
   onConfirm: () => void;
   oneCardAutoPlay: boolean;
+  auction: boolean;
 }>) {
   const option = options.find((entry) => entry.id === activeView) ?? options[0];
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -578,12 +583,13 @@ function BridgeHandTray({ options, activeView, onViewChange, legalCardIds, canPl
       </>
     );
   } else {
-    handAction = <span className="text-white/65">{option.readOnly ? 'Visible for reference' : 'Waiting for this hand to act'}</span>;
+    handAction = <span className="text-white/65">{auction ? 'Review your hand · choose a call above' : option.readOnly ? 'Visible for reference' : 'Waiting for this hand to act'}</span>;
   }
   return (
     <div className="w-full min-w-0" aria-label={`${option.label} cards`}>
-      {options.length > 1 && (
-        <div className="mb-2 flex flex-wrap justify-center gap-2" role="tablist" aria-label="Visible Bridge hands">
+      <div className="mb-1 flex min-w-0 flex-wrap items-center justify-center gap-x-4 gap-y-1">
+        {options.length > 1 && (
+        <div className="flex flex-wrap justify-center gap-2" role="tablist" aria-label="Visible Bridge hands">
           {options.map((entry) => (
             <button
               key={entry.id}
@@ -597,7 +603,11 @@ function BridgeHandTray({ options, activeView, onViewChange, legalCardIds, canPl
             </button>
           ))}
         </div>
-      )}
+        )}
+        <div className={`flex flex-wrap items-center justify-center gap-2 px-2 text-xs ${canPlay ? 'min-h-11' : 'min-h-6'}`}>
+          {handAction}
+        </div>
+      </div>
       {sorted.length === 0 ? (
         <div className="flex min-h-24 items-center justify-center text-sm text-white/65">This hand is empty</div>
       ) : (
@@ -614,11 +624,11 @@ function BridgeHandTray({ options, activeView, onViewChange, legalCardIds, canPl
             </div>
           )}
           <div ref={scrollRef} role="region" aria-label={`${option.label} scroll area`} tabIndex={0} onScroll={(event) => setHandScroll(readHandScroll(event.currentTarget))} className="max-w-full overflow-x-auto overscroll-x-contain px-2 pb-2 pt-2 [scrollbar-width:thin] lg:pt-0" data-bridge-hand-scroll>
-            <div className="mx-auto flex w-max min-w-full items-end justify-start gap-2 sm:justify-center">
+            <div className="bridge-hand-cards mx-auto flex w-max min-w-full items-end justify-start gap-2">
             {sorted.map((card) => {
               const playable = canPlay && legal.has(card.id) && !oneCardAutoPlay;
               return (
-                <span key={card.id} className="snap-center">
+                <span key={card.id} className="bridge-hand-card snap-center">
                   <CardFace
                     card={card}
                     selected={card.id === selectedCardId}
@@ -632,9 +642,6 @@ function BridgeHandTray({ options, activeView, onViewChange, legalCardIds, canPl
           </div>
         </>
       )}
-      <div className="flex min-h-11 flex-wrap items-center justify-center gap-2 px-2 text-xs">
-        {handAction}
-      </div>
     </div>
   );
 }
@@ -649,7 +656,7 @@ function NetScore({ hostName, score, hostTricks, opponentTricks, vulnerable, rub
   hostTeam: 0 | 1;
 }>) {
   return (
-    <div className="min-w-0 max-w-full rounded-lg border border-white/15 bg-[#0d2c24]/95 px-4 py-2 text-center shadow-lg" aria-label="Host team net score">
+    <div className="flex min-w-0 max-w-full flex-wrap items-center justify-center gap-x-3 rounded-lg border border-white/15 bg-[#0d2c24]/95 px-3 py-1 text-center" aria-label="Host team net score">
       <p className="break-words text-[11px] font-bold uppercase text-white/70">{hostName} team net{vulnerable ? ' · Vul' : ''}</p>
       <p className={`text-base font-black ${score < 0 ? 'text-red-200' : 'text-[#f6df9c]'}`}>{signed(score)} <span className="text-[11px] font-semibold text-white/65">· tricks {hostTricks}–{opponentTricks}</span></p>
       {rubber && <p className="text-[11px] text-white/65">{rubber.belowLine[hostTeam]} below · {rubber.gamesWon[hostTeam]} games</p>}
@@ -729,17 +736,6 @@ function compareCards(left: StandardCard, right: StandardCard): number {
 
 function signed(value: number): string {
   return value > 0 ? `+${value}` : String(value);
-}
-
-function buildRevealedHands(view: BridgePlayerView): Record<string, StandardCard[]> {
-  const revealedHands: Record<string, StandardCard[]> = {};
-  if (view.contract && view.dummyRevealed && view.contract.dummyId !== view.youId) {
-    revealedHands[view.contract.dummyId] = view.dummyHand;
-  }
-  if (view.contract && view.partnerHand.length > 0 && view.contract.declarerId !== view.youId) {
-    revealedHands[view.contract.declarerId] = view.partnerHand;
-  }
-  return revealedHands;
 }
 
 function buildHandOptions(view: BridgePlayerView): Array<{

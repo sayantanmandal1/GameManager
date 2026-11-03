@@ -665,6 +665,33 @@ textarea:focus-visible {
 
 .photobooth-material { --material-bg: #faf8f6; }
 
+.bridge-hand-cards {
+  padding: 4px;
+}
+
+@media (min-width: 1024px) {
+  .bridge-hand-cards {
+    width: 100%;
+    justify-content: center;
+    gap: clamp(4px, 0.6vw, 10px);
+  }
+  .bridge-hand-card {
+    flex: 0 1 68px;
+    min-width: 44px;
+  }
+  .bridge-hand-card > * {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 2 / 3;
+  }
+}
+
+@media (min-width: 1024px) and (max-height: 800px) {
+  .bridge-hand-card { flex-basis: 64px; }
+  .bridge-table [data-card-table-center] { padding-block: 6px; }
+  .bridge-table [data-card-table-hand] { padding-block: 4px; }
+}
+
 button:not(:disabled):active, a[href]:active, [role='button']:active {
   filter: brightness(0.9);
 }

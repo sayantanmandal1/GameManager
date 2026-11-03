@@ -64,6 +64,8 @@ Optional GitHub Actions variables:
 
 Every pushed commit receives a `mobile-<commit SHA>` prerelease with the APK attached, and the workflow run also retains the APK as an artifact. Pushes to `master` additionally refresh the rolling `mobile-latest` release with a stable `GameVerse.apk` asset that the website download page links to.
 
+The release APK includes ARMv7, ARM64, and x86_64 native libraries so the same app runs on physical Android devices and x86_64 phone/tablet emulators without ARM translation.
+
 ## Dependency audit note
 
 `npm audit --omit=dev` currently reports advisories through Expo 57's Metro/config toolchain. npm's suggested remediation is a forced downgrade to Expo 53 and React Native 0.72, which is incompatible with this SDK 57 Android project. Keep Expo SDK patches current and review the audit after Expo publishes a compatible Metro/config fix; do not apply `npm audit fix --force`.

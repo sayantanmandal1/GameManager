@@ -270,7 +270,7 @@ describe('BridgeRenderer', () => {
         legalBids: [{ level: 1, strain: 'clubs' }], yourHand: [aceHearts],
       })} disabled={false} onAction={jest.fn()} />);
 
-      expect(screen.getByRole('region', { name: 'Card table' })).toHaveAttribute('data-card-table-layout', 'compact');
+      expect(screen.getByRole('region', { name: 'Card table' })).toHaveAttribute('data-card-table-layout', 'bridge');
       expect(screen.getByLabelText('Opponents')).toBeInTheDocument();
       expect(container.querySelector('[data-card-table-center]')).toContainElement(screen.getByLabelText('Bridge auction'));
       expect(container.querySelector('[data-card-table-hand]')).toContainElement(screen.getByLabelText('A of hearts'));
@@ -331,6 +331,19 @@ describe('BridgeRenderer', () => {
 
     expect(screen.getAllByLabelText(/^A of /).map((card) => card.getAttribute('aria-label')))
       .toEqual(['A of spades', 'A of hearts', 'A of clubs', 'A of diamonds']);
+  });
+
+  it('uses large vector bidding suits with visible names and no card-play controls during auction', () => {
+    const { container } = render(<BridgeRenderer view={view({
+      mode: 'duplicate', phase: 'auction', actingHand: 'own', yourHand: [aceHearts],
+      legalBids: [{ level: 1, strain: 'hearts' }], canPass: true,
+    })} disabled={false} onAction={jest.fn()} />);
+    const hearts = screen.getByRole('button', { name: 'Choose Hearts' });
+    expect(hearts).toHaveTextContent('Hearts');
+    expect(hearts.querySelector('svg')).toHaveClass('h-8', 'w-8');
+    expect(screen.queryByRole('button', { name: 'Play selected' })).not.toBeInTheDocument();
+    expect(container.querySelectorAll('[data-bridge-hand-scroll]')).toHaveLength(1);
+    expect(container.querySelector('[data-card-table-hand]')?.parentElement).not.toHaveClass('overflow-hidden');
   });
 
   it('keeps dummy hidden before the lead and identifies a forced dummy play', () => {
@@ -598,7 +611,7 @@ describe('BridgeRenderer', () => {
       canAct: false,
     })} disabled={false} onAction={jest.fn()} />);
 
-    expect(screen.getByLabelText('2 revealed cards')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Partner (2)' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: 'Partner (2)' }));
     const partnerHand = screen.getByLabelText('Partner cards');
     expect(within(partnerHand).getByLabelText('A of spades')).toBeInTheDocument();
