@@ -60,10 +60,24 @@ export function GameWebView({ destination, session, onSessionChange, onClose }: 
 
   const handleNavigation = (navigation: WebViewNavigation) => {
     setCanGoBack(navigation.canGoBack);
+    if (!navigation.loading) setLoading(false);
   };
 
-  const allowNavigation = (request: { url: string }): boolean => {
-    if (request.url === 'about:blank' || isGameWebUrl(request.url)) return true;
+  const reload = () => {
+    setLoading(true);
+    setLoadError(null);
+    webView.current?.reload();
+  };
+
+  const allowNavigation = (request: { url: string; isTopFrame?: boolean }): boolean => {
+    if (request.url === 'about:blank') return true;
+    if (isGameWebUrl(request.url)) {
+      if (request.isTopFrame) {
+        setLoading(true);
+        setLoadError(null);
+      }
+      return true;
+    }
     if (request.url.startsWith('https://')) Linking.openURL(request.url).catch(() => undefined);
     return false;
   };
@@ -108,7 +122,7 @@ export function GameWebView({ destination, session, onSessionChange, onClose }: 
             <Text style={styles.crossplay}>LIVE CROSSPLAY</Text>
           </View>
           <Pressable
-            onPress={() => webView.current?.reload()}
+            onPress={reload}
             style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
             accessibilityRole="button"
             accessibilityLabel="Reload game"
@@ -144,17 +158,15 @@ export function GameWebView({ destination, session, onSessionChange, onClose }: 
             if (!isGameWebUrl(event.nativeEvent.url)) return;
             handleMessage(event.nativeEvent.data);
           }}
-          onLoadStart={(event) => {
-            // Android also emits this event for completed-page history changes.
-            setLoading(event.nativeEvent.loading);
-            setLoadError(null);
+          onLoadProgress={(event) => {
+            if (event.nativeEvent.progress === 1) setLoading(false);
           }}
           onLoadEnd={() => setLoading(false)}
           onError={() => {
             setLoading(false);
             setLoadError('The game page could not be loaded.');
           }}
-          onRenderProcessGone={() => webView.current?.reload()}
+          onRenderProcessGone={reload}
           renderError={() => <View />}
         />
 
@@ -174,7 +186,7 @@ export function GameWebView({ destination, session, onSessionChange, onClose }: 
           <View style={styles.errorOverlay}>
             <Text style={styles.errorTitle}>Connection problem</Text>
             <Text style={styles.errorText}>{loadError}</Text>
-            <Pressable onPress={() => webView.current?.reload()} style={styles.retryButton} accessibilityRole="button">
+            <Pressable onPress={reload} style={styles.retryButton} accessibilityRole="button">
               <Text style={styles.retryText}>Try again</Text>
             </Pressable>
             <Pressable onPress={onClose} style={styles.secondaryButton} accessibilityRole="button">

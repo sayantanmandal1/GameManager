@@ -69,7 +69,7 @@ jobs:
         working-directory: mobileapp
         run: npm run typecheck
 
-      - name: Test native navigation policy
+      - name: Test native navigation and loading
         working-directory: mobileapp
         run: npm test
 

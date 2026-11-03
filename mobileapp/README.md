@@ -36,7 +36,7 @@ Both values must use HTTPS. These are public application endpoints, not secrets.
 
 Gameplay uses the shared web route in the same-origin WebView, so rule controls, rematch state, accessibility, and visual fixes remain identical on web and mobile.
 
-Loading and error overlays are confined to the WebView area, preserving safe-area headers. Android history changes honor the event's actual loading state so moving from a lobby into a game cannot leave a loading overlay over an already playable table.
+Loading and error overlays are confined to the WebView area, preserving safe-area headers. Only top-frame document requests and explicit reloads start the native loading overlay. Android emits load-start events for SPA history changes, sometimes with a stale loading flag, so those events must not cover an already playable table. Page completion, completed navigation, and 100% load progress clear the overlay. Retry and renderer recovery reset loading and error state together.
 
 The WebView allowlist contains the web origin, not a path pattern: React Native WebView matches origins only. Same-origin reloads and game navigation stay in the app rather than opening the browser. Navigation and native-bridge messages additionally check exact parsed origins, excluding lookalike hosts, changed ports, and HTTP downgrades.
 
