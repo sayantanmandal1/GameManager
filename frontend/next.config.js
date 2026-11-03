@@ -13,12 +13,13 @@ const contentSecurityPolicy = [
   "form-action 'self'",
   "frame-ancestors 'none'",
   "object-src 'none'",
-  "script-src 'self' 'unsafe-inline'",
+  // wasm-unsafe-eval only permits WebAssembly compilation (the Liar's Bar model decoder), not JS eval.
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",
   "img-src 'self' data: blob:",
   "media-src 'self' blob:",
-  `connect-src 'self' ${apiOrigin} ${configuredWsOrigin.origin}`,
+  `connect-src 'self' blob: ${apiOrigin} ${configuredWsOrigin.origin}`,
   "worker-src 'self' blob:",
   "manifest-src 'self'",
 ].join('; ');

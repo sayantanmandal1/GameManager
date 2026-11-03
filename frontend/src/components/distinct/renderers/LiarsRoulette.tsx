@@ -70,6 +70,24 @@ export function withPendingShotsHidden(players: LiarsDeckPlayerView['players'], 
   return players.map((player) => (pending.has(player.id) ? { ...player, pulls: Math.max(0, player.pulls - 1), active: true } : player));
 }
 
+/** Narration for the current trigger pull, or the final outcome once every pull has been shown. */
+export function rouletteHeadline(view: LiarsDeckPlayerView, progress: RouletteProgress) {
+  const shots = view.lastReveal?.shots ?? [];
+  const name = (id: string) => view.players.find((player) => player.id === id)?.name ?? 'Player';
+  const current = progress.active && progress.step !== 'intro' ? shots[progress.shotIndex] : null;
+  if (current) {
+    const who = current.playerId === view.youId ? 'You' : name(current.playerId);
+    if (progress.step === 'spin') return `${who} spin${who === 'You' ? '' : 's'} the cylinder`;
+    if (progress.step === 'trigger') return `${who} pull${who === 'You' ? '' : 's'} the trigger…`;
+    return current.fired ? `BANG — ${name(current.playerId)} is out` : `Click — ${name(current.playerId)} survives`;
+  }
+  if (!progress.active) {
+    const eliminated = shots.filter((shot) => shot.fired).map((shot) => name(shot.playerId));
+    return eliminated.length ? `Eliminated: ${eliminated.join(', ')}` : 'Every chamber was empty. Everyone survives.';
+  }
+  return `${shots.length === 1 ? name(shots[0].playerId) : `${shots.length} players`} must face the revolver`;
+}
+
 function Cylinder({ spinning, chamberLit, fired }: Readonly<{ spinning: boolean; chamberLit: boolean; fired: boolean }>) {
   return (
     <svg viewBox="0 0 120 120" aria-hidden="true" className={`h-28 w-28 sm:h-36 sm:w-36 ${spinning ? 'liars-cylinder-spin' : ''}`}>
@@ -111,17 +129,7 @@ export function LiarsRouletteStage({ view, progress }: Readonly<{ view: LiarsDec
   const seat = (id: string) => view.players.findIndex((player) => player.id === id);
   const current = progress.active && progress.step !== 'intro' ? shots[progress.shotIndex] : null;
   const showOutcome = progress.step === 'result';
-
-  let headline = `${shots.length === 1 ? name(shots[0].playerId) : `${shots.length} players`} must face the revolver`;
-  if (current) {
-    const who = current.playerId === view.youId ? 'You' : name(current.playerId);
-    if (progress.step === 'spin') headline = `${who} spin${who === 'You' ? '' : 's'} the cylinder`;
-    else if (progress.step === 'trigger') headline = `${who} pull${who === 'You' ? '' : 's'} the trigger…`;
-    else headline = current.fired ? `BANG — ${name(current.playerId)} is out` : `Click — ${name(current.playerId)} survives`;
-  } else if (!progress.active) {
-    const eliminated = shots.filter((shot) => shot.fired).map((shot) => name(shot.playerId));
-    headline = eliminated.length ? `Eliminated: ${eliminated.join(', ')}` : 'Every chamber was empty. Everyone survives.';
-  }
+  const headline = rouletteHeadline(view, progress);
 
   return (
     <div ref={stageRef} className="relative mt-4 overflow-hidden rounded-2xl border border-white/10 bg-black/35 px-3 py-4 sm:px-5" data-roulette-step={progress.active ? progress.step : 'done'}>

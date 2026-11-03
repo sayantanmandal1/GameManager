@@ -1,22 +1,29 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LiarsDeckAction, LiarsDeckCard, LiarsDeckPlayerView } from '@/shared';
 import { Button } from '@/components/ui/Button';
-import { CardFace } from './CardFace';
 import { LiarsCharacterAvatar } from './LiarsCharacterAvatar';
 import { LiarTableScene } from './LiarTableScene';
 import { playLiarsBarVoice } from './liarsBarAssets';
 import { LiarsRouletteStage, useLiarsRoulette, withPendingShotsHidden } from './LiarsRoulette';
 import { LiarsDeckRoundIntro, deckSummary, useServerCountdown } from './LiarsDeckRoundIntro';
+import { LIARS_RANK_LABELS as RANK_LABELS, LiarsDeckCardFace, LiarsDeckSetupPanel, liarsRevealSummary, liarsRevealTitle } from './LiarsDeckPanels';
+import { LiarsBarStage3D, useLiarsStageMode } from './LiarsBarStage3D';
 import { useDistinctGameStore } from '@/stores/distinctGameStore';
 
-const RANK_LABELS = { A: 'Ace', K: 'King', Q: 'Queen', joker: 'Joker', devil: 'Devil' } as const;
+export { LiarsDeckCardFace } from './LiarsDeckPanels';
+
+const RULES_TEXT = 'Only the next player may challenge the latest claim. Any off-rank card makes a mixed claim a lie; Jokers always match. Empty hands are skipped. The last player still holding cards must challenge the previous claim. Chamber positions stay secret and do not reset between rounds. Each round opens by turning over the table card and announcing the deck: 20 cards for up to four players, 30 cards for five or six. Bluff is a separate game and is unchanged.';
 
 export function LiarsDeckRenderer({ view, disabled, onAction }: Readonly<{
   view: LiarsDeckPlayerView; disabled: boolean; onAction: (action: LiarsDeckAction) => void;
 }>) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const { mode: stageMode, setPreferred } = useLiarsStageMode();
+  const [stageFailed, setStageFailed] = useState(false);
+  const stage3d = stageMode === 'on' && !stageFailed;
+  const handleStageUnavailable = useCallback(() => setStageFailed(true), []);
   const claimSpeakerId = view.pendingClaim?.count === 3 ? view.pendingClaim.playerId : null;
   const claimSpeakerIndex = claimSpeakerId ? view.players.findIndex((player) => player.id === claimSpeakerId) : -1;
   const claimVoiceKey = claimSpeakerIndex >= 0 ? `${view.round}:${view.pileCount}:${claimSpeakerId}` : null;
@@ -35,8 +42,8 @@ export function LiarsDeckRenderer({ view, disabled, onAction }: Readonly<{
   useEffect(() => {
     if (claimSpeakerIndex < 0 || !claimVoiceKey || claimVoiceKey === lastClaimVoiceKey.current) return;
     lastClaimVoiceKey.current = claimVoiceKey;
-    playLiarsBarVoice(claimSpeakerIndex, 'threeCards');
-  }, [claimSpeakerIndex, claimVoiceKey]);
+    if (!stage3d) playLiarsBarVoice(claimSpeakerIndex, 'threeCards');
+  }, [claimSpeakerIndex, claimVoiceKey, stage3d]);
   const selected = view.yourHand.filter((card) => selectedIds.includes(card.id));
   const name = (id: string) => view.players.find((player) => player.id === id)?.name ?? 'Player';
   const toggle = (card: LiarsDeckCard) => {
@@ -47,22 +54,28 @@ export function LiarsDeckRenderer({ view, disabled, onAction }: Readonly<{
     });
   };
 
-  if (view.phase === 'setup') return (
-    <section className="w-full max-w-3xl rounded-3xl border border-[#d1af68]/25 bg-[#201a14] p-6 text-center">
-      <p className="eyebrow text-[#e5bd72]">Liar&apos;s Deck</p>
-      <h2 className="mt-3 text-2xl font-semibold">Choose the table rules</h2>
-      <p className="mt-3 text-sm leading-6 text-white/65">Two to six players, five cards each. Play one to three as the table rank. Jokers are wild. A wrong call or a caught lie costs a chamber; the last survivor wins.</p>
-      <p className="mt-2 text-xs leading-5 text-white/55">Up to four players: 20 cards (6 Aces, 6 Kings, 6 Queens, 2 Jokers). Five or six players: 30 cards (9 of each rank, 3 Jokers).</p>
-      {view.canAct ? <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        <Button disabled={disabled} onClick={() => onAction({ type: 'select_liars_deck_mode', mode: 'classic' })}>Classic</Button>
-        <Button variant="secondary" disabled={disabled} onClick={() => onAction({ type: 'select_liars_deck_mode', mode: 'devil' })}>Devil · Devil&apos;s Deal</Button>
-      </div> : <p role="status" className="mt-6 text-sm text-[#e5bd72]">Waiting for {name(view.hostId)} to choose Classic or Devil.</p>}
-      <p className="mt-4 text-xs leading-5 text-white/55">Devil adds a single special card, played alone. A challenged Devil puts opponents still holding cards at risk. Devil&apos;s Deal instead reveals the last four table cards: if all four are lies, every other survivor takes the risk.</p>
+  const rules = <details className="rounded-2xl border border-white/10 p-4 text-sm text-white/65"><summary className="cursor-pointer font-semibold">Table rules</summary><p className="mt-3 leading-6">{RULES_TEXT}</p></details>;
+
+  if (stage3d) return (
+    <section className="w-full space-y-4" aria-label="Liar's Deck table">
+      <LiarsBarStage3D view={view} disabled={disabled} onAction={onAction} roulette={roulette} tablePlayers={tablePlayers} introMs={introMs} introActive={introActive}
+        nextRoundLabel={nextRoundLabel} selectedIds={selectedIds} onToggle={toggle} onUnavailable={handleStageUnavailable} onClassicView={() => setPreferred('2d')} />
+      {rules}
     </section>
+  );
+
+  const viewToggle = stageMode === 'off' && <div className="flex justify-end"><button type="button" className="rounded-full border border-[#dfbd70]/30 px-3 py-1.5 text-xs font-semibold text-[#f2d18a] transition hover:bg-[#dfbd70]/10" onClick={() => setPreferred('3d')}>3D table</button></div>;
+
+  if (view.phase === 'setup') return (
+    <div className="w-full max-w-3xl space-y-3">
+      {viewToggle}
+      <LiarsDeckSetupPanel view={view} disabled={disabled} onAction={onAction} />
+    </div>
   );
 
   return (
     <section className="w-full max-w-[64rem] space-y-4" aria-label="Liar's Deck table">
+      {viewToggle}
       <LiarTableScene kind="deck" players={tablePlayers} youId={view.youId} currentTurnId={view.currentTurnId} round={view.round} tableCount={view.pileCount} />
       <div className={`grid grid-cols-2 gap-2 ${tablePlayers.length > 4 ? 'sm:grid-cols-3 lg:grid-cols-6' : 'sm:grid-cols-4'}`}>
         {tablePlayers.map((player, index) => <div key={player.id} className={`flex min-w-0 items-center gap-2 rounded-xl border p-2 transition-opacity duration-500 sm:gap-3 sm:p-3 ${view.currentTurnId === player.id && view.phase === 'playing' ? 'border-[#dfbd70]/70 bg-[#dfbd70]/10' : 'border-white/10 bg-black/15'} ${player.active ? '' : 'opacity-45'}`}>
@@ -96,9 +109,9 @@ export function LiarsDeckRenderer({ view, disabled, onAction }: Readonly<{
         </div>}
       </>}
       {view.lastReveal && (view.phase === 'reveal' || view.phase === 'finished') && <div className="rounded-2xl border border-[#d1af68]/30 bg-[#241c15] p-5 text-center">
-        <p className="text-xs font-bold uppercase tracking-widest text-[#e5bd72]">{view.lastReveal.kind === 'devils_deal' ? "Devil's Deal" : view.lastReveal.kind === 'devil' ? 'Devil revealed' : 'Claim revealed'}</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-[#e5bd72]">{liarsRevealTitle(view.lastReveal)}</p>
         <div className="my-4 flex flex-wrap justify-center gap-2" aria-label="Revealed cards">{view.lastReveal.cards.map((card) => <LiarsDeckCardFace key={card.id} card={card} />)}</div>
-        <p role="status" className="text-sm text-white/80">{view.lastReveal.kind === 'devils_deal' ? (view.lastReveal.successful ? 'All four cards were lies.' : 'At least one card was truthful. The deal failed.') : view.lastReveal.kind === 'devil' ? `${name(view.lastReveal.claimantId)} played the Devil.` : view.lastReveal.successful ? `${name(view.lastReveal.claimantId)} was bluffing.` : `${name(view.lastReveal.claimantId)} told the truth.`}</p>
+        <p role="status" className="text-sm text-white/80">{liarsRevealSummary(view, view.lastReveal)}</p>
         {shots.length > 0 ? <LiarsRouletteStage view={view} progress={roulette} /> : <>
           <p className="mt-2 text-sm text-white/65">{view.lastReveal.riskPlayerIds.map(name).join(', ')} took a chamber risk.</p>
           {view.lastReveal.eliminatedIds.length > 0 && <p className="mt-2 text-sm text-red-300">Eliminated: {view.lastReveal.eliminatedIds.map(name).join(', ')}</p>}
@@ -111,25 +124,7 @@ export function LiarsDeckRenderer({ view, disabled, onAction }: Readonly<{
         <p className="mt-2 text-xs font-semibold text-[#e5bd72]">{nextRoundLabel}</p>
         {view.youId === view.hostId && <Button className="mt-4" disabled={disabled} variant="secondary" onClick={() => onAction({ type: 'next_liars_deck_round' })}>Next round</Button>}
       </div>}
-      <details className="rounded-2xl border border-white/10 p-4 text-sm text-white/65"><summary className="cursor-pointer font-semibold">Table rules</summary><p className="mt-3 leading-6">Only the next player may challenge the latest claim. Any off-rank card makes a mixed claim a lie; Jokers always match. Empty hands are skipped. The last player still holding cards must challenge the previous claim. Chamber positions stay secret and do not reset between rounds. Each round opens by turning over the table card and announcing the deck: 20 cards for up to four players, 30 cards for five or six. Bluff is a separate game and is unchanged.</p></details>
+      {rules}
     </section>
   );
-}
-
-export function LiarsDeckCardFace({ card, selected = false, disabled = false, onClick }: Readonly<{
-  card: LiarsDeckCard; selected?: boolean; disabled?: boolean; onClick?: () => void;
-}>) {
-  if (card.rank !== 'joker' && card.rank !== 'devil') {
-    return <CardFace card={{ id: card.id, rank: card.rank, suit: 'spades' }} label={`${RANK_LABELS[card.rank]} card`} selected={selected} disabled={disabled} onClick={onClick} />;
-  }
-  const content = <>
-    <span className="text-[9px] font-black uppercase">{card.rank}</span>
-    <svg viewBox="0 0 64 64" aria-hidden="true" className="h-11 w-11">
-      <path d={card.rank === 'devil' ? 'M15 8L24 19H40L49 8L46 32L38 51H26L18 32ZM24 30L29 33M40 30L35 33M27 42H37' : 'M11 20L24 29L32 10L40 29L53 20L45 48H19ZM19 52H45'} fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
-    </svg>
-    <span className="self-end rotate-180 text-[9px] font-black uppercase">{card.rank}</span>
-  </>;
-  const className = `flex h-24 w-16 shrink-0 flex-col items-center justify-between rounded-xl border border-black/15 bg-[#fff4d8] p-1.5 shadow-lg ${card.rank === 'devil' ? 'text-[#ac3037]' : 'text-[#433364]'} ${selected ? 'outline outline-4 outline-game-blue' : ''} disabled:opacity-45`;
-  return onClick ? <button type="button" className={className} aria-label={`${RANK_LABELS[card.rank]} card`} aria-pressed={selected} disabled={disabled} onClick={onClick}>{content}</button>
-    : <span className={className} aria-label={`${RANK_LABELS[card.rank]} card`}>{content}</span>;
 }

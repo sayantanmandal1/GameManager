@@ -330,7 +330,7 @@ export interface LiarsDeckReveal {
 }
 export interface LiarsDeckShot { playerId: string; pull: number; fired: boolean }
 /** Client roulette presentation timings; the server reveal delay is derived from these so animations are never cut off. */
-export const LIARS_DECK_ROULETTE_TIMING = { introMs: 1_800, spinMs: 1_300, triggerMs: 700, resultMs: 900, settleMs: 6_000 } as const;
+export const LIARS_DECK_ROULETTE_TIMING = { introMs: 1_800, spinMs: 3_000, triggerMs: 1_000, resultMs: 2_400, settleMs: 6_000 } as const;
 /** Table-card announcement and deal shown before anyone may act in a fresh round. */
 export const LIARS_DECK_DEAL_INTRO_MS = 3_600;
 /** Time the revolver sequence occupies; the host may not skip ahead of it. */

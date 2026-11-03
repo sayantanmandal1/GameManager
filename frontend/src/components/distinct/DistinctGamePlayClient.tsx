@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
@@ -56,6 +56,12 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
     return initListeners();
   }, [code, gameKey, hasHydrated, initListeners, isAuthenticated, isConnected, router, setSession]);
   useEffect(() => () => reset(), [reset]);
+  // On short screens the rematch controls sit below the table; bring them into view once when the game ends.
+  const revealFinish = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    node.scrollIntoView?.({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
+  }, []);
   const liarsDeckIntro = view && gameKey === 'liars-deck' && view.phase === 'playing' && 'roundIntroRemainingMs' in view ? view : null;
   const liarsDeckIntroMs = useServerCountdown(liarsDeckIntro ? `intro:${liarsDeckIntro.round}` : null, liarsDeckIntro?.roundIntroRemainingMs ?? 0);
 
@@ -133,7 +139,7 @@ export function DistinctGamePlayClient({ gameKey, code }: DistinctGamePlayClient
             {!isConnected && <p role="status" className="text-sm text-game-muted">Connection lost. Reconnecting before your next move.</p>}
             {!isMonopoly && <p className={statusClass}>{statusText}</p>}
             {error && <p role="alert" className="mt-1 text-sm text-red-300">{error}</p>}
-            {showFinish && <RematchButton lobbyCode={code} className="mt-4" />}
+            {showFinish && <div ref={revealFinish}><RematchButton lobbyCode={code} className="mt-4" /></div>}
           </div>
         </section>
         {!hasIntegratedWideSurface && <aside className="space-y-4"><VoiceChat roomId={code} /><GameChat lobbyCode={code} /></aside>}
