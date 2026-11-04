@@ -1,14 +1,27 @@
 'use client';
 
+import Image from 'next/image';
 import type { LiarsDeckAction, LiarsDeckCard, LiarsDeckPlayerView } from '@/shared';
 import { Button } from '@/components/ui/Button';
 import { CardFace } from './CardFace';
 
 export const LIARS_RANK_LABELS = { A: 'Ace', K: 'King', Q: 'Queen', joker: 'Joker', devil: 'Devil' } as const;
 
-export function LiarsDeckCardFace({ card, selected = false, disabled = false, onClick }: Readonly<{
-  card: LiarsDeckCard; selected?: boolean; disabled?: boolean; onClick?: () => void;
+/** Original Liar's Bar card art (desktop 3D table); the Devil card keeps the drawn face. */
+function LiarsDeckCardArt({ card, selected, disabled, onClick }: Readonly<{
+  card: LiarsDeckCard; selected: boolean; disabled: boolean; onClick?: () => void;
 }>) {
+  const label = `${LIARS_RANK_LABELS[card.rank]} card`;
+  const className = `relative block h-24 w-[70px] shrink-0 overflow-hidden rounded-lg border border-black/40 bg-[#e9e1d2] shadow-[0_8px_18px_rgba(0,0,0,0.45)] ${selected ? 'outline outline-4 outline-game-blue' : ''} disabled:opacity-45`;
+  const art = <Image src={`/liars-bar/cards/${card.rank}.webp`} alt="" width={240} height={330} sizes="70px" draggable={false} className="pointer-events-none h-full w-full object-cover" />;
+  return onClick ? <button type="button" className={className} aria-label={label} aria-pressed={selected} disabled={disabled} onClick={onClick}>{art}</button>
+    : <span className={className} role="img" aria-label={label}>{art}</span>;
+}
+
+export function LiarsDeckCardFace({ card, selected = false, disabled = false, art = false, onClick }: Readonly<{
+  card: LiarsDeckCard; selected?: boolean; disabled?: boolean; art?: boolean; onClick?: () => void;
+}>) {
+  if (art && card.rank !== 'devil') return <LiarsDeckCardArt card={card} selected={selected} disabled={disabled} onClick={onClick} />;
   if (card.rank !== 'joker' && card.rank !== 'devil') {
     return <CardFace card={{ id: card.id, rank: card.rank, suit: 'spades' }} label={`${LIARS_RANK_LABELS[card.rank]} card`} selected={selected} disabled={disabled} onClick={onClick} />;
   }

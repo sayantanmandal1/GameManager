@@ -5,10 +5,13 @@ import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js
 import type { LiarsBarSfx } from './liarsBarAssets';
 import { STAGE_TABLE_TOP, stageSeatAngles, stageSeatRadius, stageTableRadius, type StageBase, type StageCardRank, type StageSeat, type StageSnapshot } from './liarsStageModel';
 
-const MODEL_BYTES: Record<string, number> = { bristle: 755_000, toar: 828_000, scubby: 1_153_000, foxy: 1_143_000, gerk: 1_436_000, cupcake: 1_090_000 };
+const MODEL_BYTES: Record<string, number> = { bristle: 929_000, toar: 1_005_000, scubby: 1_319_000, foxy: 1_306_000, gerk: 1_584_000, cupcake: 1_261_000 };
 const LOOPING = new Set(['idle', 'look', 'nocard', 'lobby', 'win', 'face']);
-const CARD_W = 0.11;
+const CARD_W = 0.12;
 const CARD_H = 0.165;
+const CARD_ART = '/liars-bar/cards';
+/** Fallback moments (s) inside the original clips: hammer cock in `roulet`, trigger in `dead`/`empty`. */
+const GUN_TIMES = { cock: 3.2, shot: 0.33, click: 0.33 };
 const gltfCache = new Map<string, Promise<GLTF>>();
 
 function loadCharacter(id: string, onBytes: (bytes: number) => void): Promise<GLTF> {
@@ -50,6 +53,7 @@ interface Actor {
   cards: THREE.Object3D[];
   head: THREE.Object3D | null;
   muzzle: THREE.Object3D | null;
+  gunTimes: typeof GUN_TIMES;
   chair: THREE.Group;
   throwSoundAt: number;
   throwLandAt: number;
@@ -75,7 +79,7 @@ export class LiarsStageEngine {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(48, 16 / 9, 0.05, 40);
-  private readonly clock = new THREE.Clock();
+  private readonly clock = new THREE.Timer();
   private readonly owned = new Set<{ dispose: () => void }>();
   private readonly actors = new Map<string, Actor>();
   private readonly tweens: Tween[] = [];
@@ -90,6 +94,7 @@ export class LiarsStageEngine {
   private readonly dust: THREE.Points;
   private readonly cardBack: THREE.MeshStandardMaterial;
   private readonly cardEdge: THREE.MeshStandardMaterial;
+  private readonly cardAtlas: THREE.MeshStandardMaterial;
   private readonly faceMaterials = new Map<StageCardRank, THREE.MeshStandardMaterial>();
   private readonly cardGeometry = new THREE.BoxGeometry(CARD_W, 0.0025, CARD_H);
   private readonly resize: ResizeObserver;
@@ -118,14 +123,16 @@ export class LiarsStageEngine {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     canvas.addEventListener('webglcontextlost', this.handleLost);
 
     this.scene.background = new THREE.Color(0x0a0705);
     this.scene.fog = new THREE.FogExp2(0x0a0705, 0.085);
-    this.cardBack = this.own(new THREE.MeshStandardMaterial({ map: this.own(cardBackTexture()), roughness: 0.62 }));
+    this.cardBack = this.own(new THREE.MeshStandardMaterial({ map: this.own(cardArtTexture(`${CARD_ART}/back.webp`)), roughness: 0.62 }));
     this.cardEdge = this.own(new THREE.MeshStandardMaterial({ color: 0xe9dcc0, roughness: 0.8 }));
+    // Original hand-card meshes sample a packed atlas (faces on the top row, backs below) in glTF UV space.
+    this.cardAtlas = this.own(new THREE.MeshStandardMaterial({ map: this.own(cardArtTexture(`${CARD_ART}/atlas.webp`, false)), roughness: 0.6 }));
     this.own(this.cardGeometry);
     this.buildRoom();
     this.flash = new THREE.PointLight(0xffb066, 0, 4, 1.6);
@@ -220,7 +227,7 @@ export class LiarsStageEngine {
 
   throwCards(id: string, count: number) {
     const actor = this.actors.get(id);
-    const now = this.clock.elapsedTime;
+    const now = this.clock.getElapsed();
     if (!actor || actor.seat.you) {
       this.pendingLand.push({ at: now + 0.55, count });
       this.flyFromCamera(count);
@@ -254,28 +261,32 @@ export class LiarsStageEngine {
     }
   }
 
-  /** Raises the revolver to the temple and waits for the result. */
+  /** Raises the revolver to the temple; the hammer cocks where the original clip draws it back. */
   aim(id: string) {
     const actor = this.actors.get(id);
-    if (!actor || actor.seat.you) return;
-    this.playOnce(actor, 'roulet', { hold: true });
+    const other = actor && !actor.seat.you ? actor : null;
+    this.later((other?.gunTimes.cock ?? GUN_TIMES.cock) * 1000, () => this.options.onSound('revolver-cock', 0.55));
+    if (other) this.playOnce(other, 'roulet', { hold: true });
   }
 
   fire(id: string) {
     const actor = this.actors.get(id);
-    const at = new THREE.Vector3();
-    if (actor && !actor.seat.you) {
-      actor.base = 'dead';
-      if (actor.currentName !== 'dead') this.startClip(actor, 'dead', { fade: 0.06 });
-      actor.busy = false;
-      actor.hold = false;
-      (actor.muzzle ?? actor.head ?? actor.holder).getWorldPosition(at);
-      this.later(820, () => this.options.onSound('head-fall', 0.75));
-    } else {
-      this.camera.getWorldPosition(at);
-      at.y -= 0.1;
+    const other = actor && !actor.seat.you ? actor : null;
+    if (other) {
+      other.base = 'dead';
+      if (other.currentName !== 'dead') this.startClip(other, 'dead', { fade: 0.06 });
+      other.busy = false;
+      other.hold = false;
     }
-    this.later(actor && !actor.seat.you ? 140 : 40, () => {
+    const shotMs = other ? other.gunTimes.shot * 1000 : 40;
+    this.later(shotMs, () => {
+      this.options.onSound('gunshot', 0.72);
+      const at = new THREE.Vector3();
+      if (other) (other.muzzle ?? other.head ?? other.holder).getWorldPosition(at);
+      else {
+        this.camera.getWorldPosition(at);
+        at.y -= 0.1;
+      }
       this.flash.position.copy(at);
       this.flashSprite.position.copy(at);
       this.tween(0.32, (t) => {
@@ -286,13 +297,16 @@ export class LiarsStageEngine {
       });
       this.kick(0.03);
     });
+    if (other) this.later(Math.max(820, shotMs + 480), () => this.options.onSound('head-fall', 0.75));
   }
 
   click(id: string) {
     const actor = this.actors.get(id);
-    if (!actor || actor.seat.you) return;
-    actor.hold = false;
-    this.playOnce(actor, 'empty');
+    const other = actor && !actor.seat.you ? actor : null;
+    this.later(other ? other.gunTimes.click * 1000 : 40, () => this.options.onSound('dry-fire', 0.8));
+    if (!other) return;
+    other.hold = false;
+    this.playOnce(other, 'empty');
   }
 
   setPointer(x: number, y: number) {
@@ -304,6 +318,7 @@ export class LiarsStageEngine {
     cancelAnimationFrame(this.frame);
     this.resize.disconnect();
     for (const timer of this.timers) clearTimeout(timer);
+    this.clock.dispose();
     this.canvas.removeEventListener('webglcontextlost', this.handleLost);
     this.canvas.removeEventListener('pointermove', this.handlePointer);
     this.canvas.removeEventListener('pointerleave', this.handleLeave);
@@ -339,7 +354,7 @@ export class LiarsStageEngine {
   }
 
   private tween(duration: number, update: (t: number) => void, done?: () => void) {
-    this.tweens.push({ start: this.clock.elapsedTime, duration, update, done });
+    this.tweens.push({ start: this.clock.getElapsed(), duration, update, done });
   }
 
   private kick(amount: number) {
@@ -488,26 +503,29 @@ export class LiarsStageEngine {
     let head: THREE.Object3D | null = null;
     let muzzle: THREE.Object3D | null = null;
     let cardGroup: THREE.Object3D | null = null;
-    const props: THREE.Object3D[] = [];
+    let handGun: THREE.Object3D | null = null;
     model.traverse((node) => {
       if (/(HumanHead|RHINO_Head)$/.test(node.name)) head = node;
       if (/^Kartlar/.test(node.name) && node.parent && /^KartsParent/.test(node.parent.name)) cardGroup = node;
-      if (node.userData?.gvMin) props.push(node);
+      if (node.userData?.gvProp === 'ElRevolver') handGun = node;
       const mesh = node as THREE.SkinnedMesh;
       if (mesh.isMesh) {
         mesh.castShadow = true;
         mesh.frustumCulled = false;
+        if ((mesh.material as THREE.Material).name === 'gv_cards') mesh.material = this.cardAtlas;
       }
     });
-    for (const prop of props) {
-      const name = String(prop.userData.gvProp ?? prop.name);
-      if (/^kart/.test(name)) prop.add(this.propCard(prop.userData));
-      else if (/Revolver/.test(name)) {
-        const gun = this.propRevolver(prop.userData);
-        prop.add(gun.group);
-        if (/^ElRevolver/.test(name)) muzzle = gun.muzzle;
-      }
+    const gunParts: string[] = [];
+    if (handGun) {
+      muzzle = gunMuzzle(handGun);
+      (handGun as THREE.Object3D).traverse((node) => { if (/^(Hammer|Trigger)/.test(node.name)) gunParts.push(node.name); });
     }
+    const clipOf = (name: string) => actions.get(name)?.getClip();
+    const gunTimes = {
+      cock: Math.min(motionStart(clipOf('roulet'), gunParts, 1.5) ?? GUN_TIMES.cock, 3.9),
+      shot: motionStart(clipOf('dead'), gunParts) ?? GUN_TIMES.shot,
+      click: motionStart(clipOf('empty'), gunParts) ?? GUN_TIMES.click,
+    };
     const cards = cardGroup ? [...(cardGroup as THREE.Object3D).children]
       .filter((child) => /^kart\d/.test(child.name))
       .sort((a, b) => a.name.localeCompare(b.name)) : [];
@@ -522,7 +540,7 @@ export class LiarsStageEngine {
     const timing = throwClip ? propToggleTimes(throwClip, 'kartucan') : null;
     const actor: Actor = {
       seat, holder, model, mixer, actions, current: null, currentName: '', busy: false, hold: false, holdUntil: 0,
-      posture: 'down', base: 'idle', cards, head, muzzle, chair, angle,
+      posture: 'down', base: 'idle', cards, head, muzzle, gunTimes, chair, angle,
       throwSoundAt: timing?.on ?? 0.9, throwLandAt: timing?.off ?? 1.4,
     };
     mixer.addEventListener('finished', (event) => this.handleFinished(actor, event.action as THREE.AnimationAction));
@@ -585,111 +603,11 @@ export class LiarsStageEngine {
     return chair;
   }
 
-  private propCard(data: Record<string, unknown>) {
-    const min = data.gvMin as number[];
-    const max = data.gvMax as number[];
-    const [longAxis] = (data.gvL as number[]) ?? [1, 1];
-    const thinAxis = (data.gvW as number) ?? 2;
-    const size = [0, 1, 2].map((axis) => Math.max(max[axis] - min[axis], 0));
-    size[thinAxis] = Math.max(size[thinAxis], size[longAxis] * 0.006);
-    const geometry = new THREE.BoxGeometry(size[0], size[1], size[2]);
-    const uAxis = thinAxis === 0 ? 2 : 0;
-    const back = uAxis === longAxis ? this.rotatedBack() : this.cardBack;
-    const materials = [0, 1, 2, 3, 4, 5].map((face) => (Math.floor(face / 2) === thinAxis ? back : this.cardEdge));
-    const mesh = new THREE.Mesh(geometry, materials);
-    mesh.position.set((min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2);
-    mesh.castShadow = true;
-    mesh.frustumCulled = false;
-    mesh.userData.gvOwned = true;
-    return mesh;
-  }
-
-  private rotatedBackMaterial: THREE.MeshStandardMaterial | null = null;
-
-  private rotatedBack() {
-    if (!this.rotatedBackMaterial) {
-      const texture = this.own((this.cardBack.map as THREE.Texture).clone());
-      texture.center.set(0.5, 0.5);
-      texture.rotation = Math.PI / 2;
-      texture.needsUpdate = true;
-      this.rotatedBackMaterial = this.own(new THREE.MeshStandardMaterial({ map: texture, roughness: 0.62 }));
-    }
-    return this.rotatedBackMaterial;
-  }
-
-  private gunTemplate: { group: THREE.Group; muzzle: THREE.Vector3; box: THREE.Box3 } | null = null;
-
-  private propRevolver(data: Record<string, unknown>) {
-    if (!this.gunTemplate) this.gunTemplate = this.buildRevolver();
-    const min = data.gvMin as number[];
-    const max = data.gvMax as number[];
-    const [lAxis, lSign] = (data.gvL as number[]) ?? [0, 1];
-    const [hAxis, hSign] = (data.gvH as number[]) ?? [1, 1];
-    const axis = (index: number, sign: number) => new THREE.Vector3(index === 0 ? sign : 0, index === 1 ? sign : 0, index === 2 ? sign : 0);
-    const ex = axis(lAxis, lSign);
-    const ey = axis(hAxis, hSign);
-    const ez = new THREE.Vector3().crossVectors(ex, ey);
-    const extent = (index: number) => Math.max(max[index] - min[index], 1e-9);
-    const template = this.gunTemplate;
-    const size = template.box.getSize(new THREE.Vector3());
-    const center = template.box.getCenter(new THREE.Vector3());
-    const wAxis = [0, 1, 2].find((index) => index !== lAxis && index !== hAxis) ?? 2;
-    const group = new THREE.Group();
-    const body = template.group.clone();
-    group.add(body);
-    group.matrixAutoUpdate = false;
-    group.matrix
-      .makeTranslation((min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2)
-      .multiply(new THREE.Matrix4().makeBasis(ex, ey, ez))
-      .multiply(new THREE.Matrix4().makeScale(extent(lAxis) / size.x, extent(hAxis) / size.y, extent(wAxis) / size.z))
-      .multiply(new THREE.Matrix4().makeTranslation(-center.x, -center.y, -center.z));
-    const muzzle = new THREE.Object3D();
-    muzzle.position.copy(template.muzzle);
-    group.add(muzzle);
-    body.traverse((node) => {
-      const mesh = node as THREE.Mesh;
-      if (mesh.isMesh) {
-        mesh.castShadow = true;
-        mesh.frustumCulled = false;
-      }
-    });
-    return { group, muzzle };
-  }
-
-  /** Stylised single-action revolver, barrel along +X, top along +Y. */
-  private buildRevolver() {
-    const group = new THREE.Group();
-    const steel = this.own(new THREE.MeshStandardMaterial({ color: 0x2c2b2a, metalness: 0.92, roughness: 0.32 }));
-    const bright = this.own(new THREE.MeshStandardMaterial({ color: 0x8c8780, metalness: 0.95, roughness: 0.25 }));
-    const wood = this.own(new THREE.MeshStandardMaterial({ color: 0x5b3218, roughness: 0.55 }));
-    const add = (geometry: THREE.BufferGeometry, material: THREE.Material, x: number, y: number, z = 0, rz = 0, rx = 0) => {
-      const mesh = new THREE.Mesh(this.own(geometry), material);
-      mesh.position.set(x, y, z);
-      mesh.rotation.set(rx, 0, rz);
-      group.add(mesh);
-      return mesh;
-    };
-    add(new THREE.CylinderGeometry(0.042, 0.046, 0.56, 16), steel, 0.26, 0.24, 0, Math.PI / 2);
-    add(new THREE.BoxGeometry(0.4, 0.035, 0.05), steel, 0.2, 0.185);
-    add(new THREE.BoxGeometry(0.03, 0.04, 0.012), steel, 0.52, 0.285);
-    add(new THREE.BoxGeometry(0.24, 0.22, 0.1), steel, -0.08, 0.2);
-    add(new THREE.CylinderGeometry(0.095, 0.095, 0.17, 18), bright, 0.0, 0.2, 0, Math.PI / 2);
-    for (let index = 0; index < 6; index += 1) {
-      const angle = (index / 6) * Math.PI * 2;
-      add(new THREE.CylinderGeometry(0.017, 0.017, 0.012, 10), steel, 0.087, 0.2 + Math.sin(angle) * 0.058, Math.cos(angle) * 0.058, Math.PI / 2);
-    }
-    add(new THREE.BoxGeometry(0.06, 0.08, 0.03), steel, -0.2, 0.31, 0, 0.5);
-    add(new THREE.BoxGeometry(0.13, 0.36, 0.09), wood, -0.27, -0.06, 0, -0.32);
-    add(new THREE.TorusGeometry(0.06, 0.01, 8, 18, Math.PI), steel, -0.07, 0.08, 0, Math.PI);
-    add(new THREE.BoxGeometry(0.015, 0.06, 0.02), steel, -0.08, 0.06, 0, 0.3);
-    group.updateMatrixWorld(true);
-    return { group, muzzle: new THREE.Vector3(0.55, 0.24, 0), box: new THREE.Box3().setFromObject(group) };
-  }
-
   private faceMaterial(rank: StageCardRank) {
     let material = this.faceMaterials.get(rank);
     if (!material) {
-      material = this.own(new THREE.MeshStandardMaterial({ map: this.own(cardFaceTexture(rank)), roughness: 0.55 }));
+      const map = rank === 'devil' ? cardFaceTexture(rank) : cardArtTexture(`${CARD_ART}/${rank}.webp`);
+      material = this.own(new THREE.MeshStandardMaterial({ map: this.own(map), roughness: 0.55 }));
       this.faceMaterials.set(rank, material);
     }
     return material;
@@ -705,7 +623,7 @@ export class LiarsStageEngine {
   }
 
   private syncPile() {
-    const now = this.clock.elapsedTime;
+    const now = this.clock.getElapsed();
     this.pendingLand = this.pendingLand.filter((entry) => entry.at > now);
     const inFlight = this.pendingLand.reduce((sum, entry) => sum + entry.count, 0);
     const revealCount = this.revealGroup.children.length;
@@ -789,7 +707,7 @@ export class LiarsStageEngine {
     if (!actor.actions.has(name)) return;
     actor.busy = true;
     actor.hold = !!options.hold;
-    actor.holdUntil = this.clock.elapsedTime + 9;
+    actor.holdUntil = this.clock.getElapsed() + 9;
     actor.posture = name === 'throw' ? 'up' : 'down';
     this.startClip(actor, name, { speed: options.speed, fade: 0.2 });
   }
@@ -828,8 +746,8 @@ export class LiarsStageEngine {
 
   private readonly tick = () => {
     this.frame = requestAnimationFrame(this.tick);
-    const delta = Math.min(this.clock.getDelta(), 0.25);
-    const now = this.clock.elapsedTime;
+    const delta = Math.min(this.clock.update().getDelta(), 0.25);
+    const now = this.clock.getElapsed();
     for (const actor of this.actors.values()) {
       if (actor.hold && now > actor.holdUntil) {
         actor.hold = false;
@@ -982,37 +900,55 @@ function glowTexture() {
   });
 }
 
-function cardBackTexture() {
-  return canvasTexture(256, 384, (context) => {
-    context.fillStyle = '#efe2c4';
-    context.fillRect(0, 0, 256, 384);
-    context.fillStyle = '#5c1419';
-    context.fillRect(12, 12, 232, 360);
-    context.strokeStyle = 'rgba(224,182,98,0.35)';
-    context.lineWidth = 1.5;
-    for (let offset = -384; offset < 384; offset += 22) {
-      context.beginPath();
-      context.moveTo(12 + offset, 12);
-      context.lineTo(12 + offset + 360, 372);
-      context.moveTo(244 - offset, 12);
-      context.lineTo(244 - offset - 360, 372);
-      context.stroke();
+function cardArtTexture(url: string, flipY = true) {
+  const texture = new THREE.TextureLoader().load(url);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  texture.flipY = flipY;
+  return texture;
+}
+
+/** Marker at the barrel end of the original revolver mesh, from the bounds baked into its glTF extras. */
+function gunMuzzle(gun: THREE.Object3D) {
+  const data = gun.userData as { gvMin?: number[]; gvMax?: number[]; gvL?: number[]; gvH?: number[] };
+  const marker = new THREE.Object3D();
+  if (data.gvMin && data.gvMax) {
+    const [lAxis, lSign] = data.gvL ?? [0, 1];
+    const [hAxis, hSign] = data.gvH ?? [1, 1];
+    const point = [0, 1, 2].map((axis) => (data.gvMin![axis] + data.gvMax![axis]) / 2);
+    point[lAxis] = lSign > 0 ? data.gvMax[lAxis] : data.gvMin[lAxis];
+    point[hAxis] += hSign * 0.25 * (data.gvMax[hAxis] - data.gvMin[hAxis]);
+    marker.position.fromArray(point);
+  }
+  gun.add(marker);
+  return marker;
+}
+
+/** Start (s) of the first rotation/translation of any named part after `after`, or null if they never move. */
+function motionStart(clip: THREE.AnimationClip | undefined, parts: string[], after = 0) {
+  if (!clip || parts.length === 0) return null;
+  let start: number | null = null;
+  for (const track of clip.tracks) {
+    const dot = track.name.lastIndexOf('.');
+    if (!parts.includes(track.name.slice(0, dot)) || track.name.endsWith('.scale')) continue;
+    const size = track.getValueSize();
+    let reference = -1;
+    for (let index = 0; index < track.times.length; index += 1) {
+      if (track.times[index] < after) continue;
+      if (reference < 0) {
+        reference = index;
+        continue;
+      }
+      let delta = 0;
+      for (let k = 0; k < size; k += 1) delta = Math.max(delta, Math.abs(track.values[index * size + k] - track.values[reference * size + k]));
+      if (delta > 1e-3) {
+        const at = track.times[index - 1];
+        start = start === null ? at : Math.min(start, at);
+        break;
+      }
     }
-    context.strokeStyle = '#d9ae5e';
-    context.lineWidth = 4;
-    context.strokeRect(22, 22, 212, 340);
-    context.fillStyle = '#5c1419';
-    context.beginPath();
-    context.arc(128, 192, 54, 0, Math.PI * 2);
-    context.fill();
-    context.lineWidth = 5;
-    context.stroke();
-    context.fillStyle = '#d9ae5e';
-    context.font = 'bold 64px Georgia, serif';
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText('♠', 128, 196);
-  });
+  }
+  return start;
 }
 
 function cardFaceTexture(rank: StageCardRank) {

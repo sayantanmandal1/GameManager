@@ -117,16 +117,3 @@ export function playUnoPenalty() {
   playTone(320, 0.14, 'sawtooth', 0.1);
   setTimeout(() => playTone(220, 0.22, 'sawtooth', 0.09), 120);
 }
-
-// ─── Liar's Deck dry-trigger click ───
-function safely(play: () => void) {
-  if (typeof window === 'undefined' || typeof window.AudioContext === 'undefined') return;
-  try { play(); } catch { /* audio is decorative; autoplay or device limits must never break the table */ }
-}
-
-export function playRevolverClick() {
-  safely(() => {
-    playTone(1800, 0.025, 'square', 0.09);
-    playNoise(0.04, 0.05);
-  });
-}

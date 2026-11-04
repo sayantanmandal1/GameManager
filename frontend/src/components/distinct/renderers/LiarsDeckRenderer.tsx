@@ -18,7 +18,7 @@ import { useDistinctGameStore } from '@/stores/distinctGameStore';
 export { LiarsDeckCardFace } from './LiarsDeckPanels';
 
 const RULES_TEXT = 'Only the next player may challenge the latest claim. Any off-rank card makes a mixed claim a lie; Jokers always match. Empty hands are skipped. The last player still holding cards must challenge the previous claim. Chamber positions stay secret and do not reset between rounds. Each round opens by turning over the table card and announcing the deck: 20 cards for up to four players, 30 cards for five or six. Bluff is a separate game and is unchanged.';
-const AUDIO_PRELOAD = ['card-flip', 'card-pick', 'card-switch', 'card-throw', 'card-throw-soft', 'fist-table', 'gunshot', 'head-fall', 'heartbeat', 'last-round', 'liar-strike', 'new-round', 'reload', 'revolver-cock', 'roulette-sting', 'ui-click', 'ui-hover'] as const;
+const AUDIO_PRELOAD = ['card-flip', 'card-pick', 'card-switch', 'card-throw', 'card-throw-soft', 'dry-fire', 'fist-table', 'gunshot', 'head-fall', 'heartbeat', 'last-round', 'liar-strike', 'new-round', 'reload', 'revolver-cock', 'roulette-sting', 'ui-click', 'ui-hover'] as const;
 
 function useLiarsAudioCue(key: string | null, run: (key: string) => void) {
   const last = useRef(key);
@@ -39,7 +39,7 @@ export function LiarsDeckRenderer({ view, disabled, onAction }: Readonly<{
   const [stageFailed, setStageFailed] = useState(false);
   const stage3d = stageMode === 'on' && !stageFailed;
   const handleStageUnavailable = useCallback(() => setStageFailed(true), []);
-  const roulette = useLiarsRoulette(view);
+  const roulette = useLiarsRoulette(view, { gunAudio: !stage3d });
   const setPresentationHold = useDistinctGameStore((state) => state.setPresentationHold);
   const shots = view.lastReveal?.shots ?? [];
   const tablePlayers = withPendingShotsHidden(view.players, shots, roulette.resolvedCount);

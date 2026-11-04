@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { LIARS_DECK_ROULETTE_TIMING, type LiarsDeckPlayerView, type LiarsDeckShot } from '@/shared';
-import { playRevolverClick } from '@/lib/sounds';
 import { playLiarsBarHeartbeat, playLiarsBarSfx, stopLiarsBarHeartbeat } from './liarsBarAssets';
 import { LiarsCharacterAvatar } from './LiarsCharacterAvatar';
 
@@ -33,8 +32,9 @@ function revealKeyOf(view: LiarsDeckPlayerView): string | null {
 /**
  * Drives the trigger-pull sequence for the latest reveal. Reveals already on screen when the
  * table mounts (reload, late join) are shown settled so finished games never replay.
+ * With `gunAudio` off the 3D stage plays cock/shot/click itself, synced to the original clips.
  */
-export function useLiarsRoulette(view: LiarsDeckPlayerView): RouletteProgress {
+export function useLiarsRoulette(view: LiarsDeckPlayerView, { gunAudio = true }: { gunAudio?: boolean } = {}): RouletteProgress {
   const revealKey = revealKeyOf(view);
   const shots = view.lastReveal?.shots ?? [];
   const [mountedKey] = useState(revealKey);
@@ -50,14 +50,11 @@ export function useLiarsRoulette(view: LiarsDeckPlayerView): RouletteProgress {
   useEffect(() => {
     if (!active || !revealKey) return;
     if (stepName === 'intro') playLiarsBarSfx('roulette-sting', 0.55);
-    else if (stepName === 'trigger') playLiarsBarSfx('revolver-cock', 0.55);
-    else if (stepName === 'result') {
-      if (firedAtCurrent) playLiarsBarSfx('gunshot', 0.72);
-      else playRevolverClick();
-    }
+    else if (gunAudio && stepName === 'trigger') playLiarsBarSfx('revolver-cock', 0.55);
+    else if (gunAudio && stepName === 'result') playLiarsBarSfx(firedAtCurrent ? 'gunshot' : 'dry-fire', firedAtCurrent ? 0.72 : 0.8);
     const timer = setTimeout(() => setProgress({ key: revealKey, step: step + 1 }), STEP_MS[stepName]);
     return () => clearTimeout(timer);
-  }, [active, firedAtCurrent, revealKey, step, stepName]);
+  }, [active, firedAtCurrent, gunAudio, revealKey, step, stepName]);
 
   useEffect(() => {
     if (active && (stepName === 'spin' || stepName === 'trigger')) playLiarsBarHeartbeat();

@@ -72,7 +72,7 @@ export const LIARS_BAR_VOICE_LINES: Record<LiarsBarCharacterId, Record<LiarsBarL
   gerk: { turn: 2, liar: 1, devil: 1, preshot: 4, count: 5, plural: 3, singular: 3, relief: 1, bold: 2 },
 };
 export type LiarsBarLineGroup = 'turn' | 'liar' | 'devil' | 'preshot' | 'count' | 'plural' | 'singular' | 'relief' | 'bold';
-export type LiarsBarSfx = 'card-flip' | 'card-pick' | 'card-switch' | 'card-throw' | 'card-throw-soft' | 'fist-table' | 'head-fall'
+export type LiarsBarSfx = 'card-flip' | 'card-pick' | 'card-switch' | 'card-throw' | 'card-throw-soft' | 'dry-fire' | 'fist-table' | 'head-fall'
   | 'gunshot' | 'heartbeat' | 'last-round' | 'liar-strike' | 'new-round' | 'reload' | 'revolver-cock' | 'roulette-sting'
   | 'ui-click' | 'ui-hover' | 'winner';
 
@@ -129,6 +129,8 @@ let winnerAudio: HTMLAudioElement | null = null;
 let soundtrackAudio: HTMLAudioElement | null = null;
 let ambienceAudio: HTMLAudioElement | null = null;
 let heartbeatAudio: HTMLAudioElement | null = null;
+// Autoplay blocks and pause() racing a pending play() are expected, not failures.
+const IGNORED_PLAY_ERRORS = new Set(['NotAllowedError', 'AbortError']);
 let soundtrackIndex = 0;
 let soundtrackGeneration = 0;
 
@@ -161,7 +163,7 @@ export function playLiarsBarSfx(name: LiarsBarSfx, volume = 0.7) {
   }
   audio.volume = volume;
   void audio.play().catch((error: unknown) => {
-    if (error instanceof Error && error.name !== 'NotAllowedError') {
+    if (error instanceof Error && !IGNORED_PLAY_ERRORS.has(error.name)) {
       console.error(`Unable to play the Liar's Bar ${name} sound.`, error);
     }
   });
@@ -177,7 +179,7 @@ function startSoundtrackTrack(index: number, generation: number) {
     startSoundtrackTrack(soundtrackIndex, generation);
   }, { once: true });
   void audio.play().catch((error: unknown) => {
-    if (error instanceof Error && error.name !== 'NotAllowedError') {
+    if (error instanceof Error && !IGNORED_PLAY_ERRORS.has(error.name)) {
       console.error("Unable to play the Liar's Bar soundtrack.", error);
     }
   });
@@ -191,7 +193,7 @@ export function playLiarsBarMusic() {
     startSoundtrackTrack(soundtrackIndex, soundtrackGeneration);
   } else if (soundtrackAudio.paused) {
     void soundtrackAudio.play().catch((error: unknown) => {
-      if (error instanceof Error && error.name !== 'NotAllowedError') {
+      if (error instanceof Error && !IGNORED_PLAY_ERRORS.has(error.name)) {
         console.error("Unable to resume the Liar's Bar soundtrack.", error);
       }
     });
@@ -201,13 +203,13 @@ export function playLiarsBarMusic() {
     ambienceAudio.loop = true;
     ambienceAudio.volume = 0.12;
     void ambienceAudio.play().catch((error: unknown) => {
-      if (error instanceof Error && error.name !== 'NotAllowedError') {
+      if (error instanceof Error && !IGNORED_PLAY_ERRORS.has(error.name)) {
         console.error("Unable to play the Liar's Bar room ambience.", error);
       }
     });
   } else if (ambienceAudio.paused) {
     void ambienceAudio.play().catch((error: unknown) => {
-      if (error instanceof Error && error.name !== 'NotAllowedError') {
+      if (error instanceof Error && !IGNORED_PLAY_ERRORS.has(error.name)) {
         console.error("Unable to resume the Liar's Bar room ambience.", error);
       }
     });
@@ -220,7 +222,7 @@ export function playLiarsBarHeartbeat() {
   heartbeatAudio.loop = true;
   heartbeatAudio.volume = 0.28;
   void heartbeatAudio.play().catch((error: unknown) => {
-    if (error instanceof Error && error.name !== 'NotAllowedError') {
+    if (error instanceof Error && !IGNORED_PLAY_ERRORS.has(error.name)) {
       console.error("Unable to play the Liar's Bar roulette heartbeat.", error);
     }
   });

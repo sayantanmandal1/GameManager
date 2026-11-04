@@ -18,7 +18,7 @@ import type { LiarsStageEngine, StageTagPosition } from './liarsStageEngine';
 const VIEW_KEY = 'gameverse:liars-deck-view';
 const VIEW_EVENT = 'gameverse:liars-deck-view';
 const DESKTOP_QUERY = '(min-width: 1024px) and (hover: hover) and (pointer: fine)';
-const PRELOAD: LiarsBarSfx[] = ['card-flip', 'card-pick', 'card-switch', 'card-throw', 'card-throw-soft', 'fist-table', 'gunshot', 'head-fall', 'heartbeat', 'last-round', 'liar-strike', 'new-round', 'reload', 'revolver-cock', 'roulette-sting', 'ui-click', 'ui-hover'];
+const PRELOAD: LiarsBarSfx[] = ['card-flip', 'card-pick', 'card-switch', 'card-throw', 'card-throw-soft', 'dry-fire', 'fist-table', 'gunshot', 'head-fall', 'heartbeat', 'last-round', 'liar-strike', 'new-round', 'reload', 'revolver-cock', 'roulette-sting', 'ui-click', 'ui-hover'];
 let webglSupport: boolean | null = null;
 
 function hasWebGL() {
@@ -343,7 +343,7 @@ function StageHud({ view, disabled, onAction, roulette, tablePlayers, introMs, i
       {view.phase === 'setup' && <div className="pointer-events-auto w-full max-w-2xl"><LiarsDeckSetupPanel view={view} disabled={disabled} onAction={act} className="border-[#d1af68]/35 bg-[#16110c]/90 backdrop-blur-md" /></div>}
       {introActive && <div className="pointer-events-auto w-full max-w-xl opacity-95"><LiarsDeckRoundIntro view={view} remainingMs={introMs} /></div>}
       {reveal && <div className="pointer-events-auto flex w-full max-w-3xl items-center gap-5 rounded-3xl border border-[#d1af68]/30 bg-[#140f0b]/80 px-5 py-4 shadow-2xl backdrop-blur-md">
-        <div className="flex shrink-0 -space-x-4" aria-label="Revealed cards">{reveal.cards.map((card, index) => <span key={card.id} style={{ transform: `rotate(${(index - (reveal.cards.length - 1) / 2) * 6}deg)` }}><LiarsDeckCardFace card={card} /></span>)}</div>
+        <div className="flex shrink-0 -space-x-4" aria-label="Revealed cards">{reveal.cards.map((card, index) => <span key={card.id} style={{ transform: `rotate(${(index - (reveal.cards.length - 1) / 2) * 6}deg)` }}><LiarsDeckCardFace card={card} art /></span>)}</div>
         <div className="min-w-0 flex-1 text-center">
         <p className="text-xs font-bold uppercase tracking-widest text-[#e5bd72]">{liarsRevealTitle(reveal)}</p>
         <p role="status" className="mt-1 text-sm text-white/85">{liarsRevealSummary(view, reveal)}</p>
@@ -385,7 +385,7 @@ function StageHud({ view, disabled, onAction, roulette, tablePlayers, introMs, i
               const offset = index - (handCount - 1) / 2;
               const chosen = selectedIds.includes(card.id);
               return <span key={card.id} className={`-mx-1 transition-transform duration-200 ease-out hover:-translate-y-2 ${introActive ? 'liars-deal-in' : ''}`} style={{ transform: `rotate(${offset * 5}deg) translateY(${Math.abs(offset) * 5 - (chosen ? 18 : 0)}px)`, animationDelay: introActive ? `${index * 140}ms` : undefined }}>
-                <LiarsDeckCardFace card={card} selected={chosen} disabled={disabled || introActive || (selected.length >= 3 && !chosen && card.rank !== 'devil')} onClick={view.canPlay ? () => { playLiarsBarSfx('card-pick', 0.5); onToggle(card); } : undefined} />
+                <LiarsDeckCardFace card={card} art selected={chosen} disabled={disabled || introActive || (selected.length >= 3 && !chosen && card.rank !== 'devil')} onClick={view.canPlay ? () => { playLiarsBarSfx('card-pick', 0.5); onToggle(card); } : undefined} />
               </span>;
             })}
             {handCount === 0 && <p className="rounded-full bg-black/55 px-4 py-2 text-sm text-white/75">{you?.active ? 'Your hand is empty. You sit out until the next round.' : 'You are spectating this match.'}</p>}
