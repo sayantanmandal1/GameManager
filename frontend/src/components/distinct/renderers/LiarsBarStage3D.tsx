@@ -9,8 +9,8 @@ import { rouletteHeadline } from './LiarsRoulette';
 import { LiarsDeckRoundIntro } from './LiarsDeckRoundIntro';
 import { LIARS_RANK_LABELS, LiarsDeckCardFace, LiarsDeckSetupPanel, liarsRevealSummary, liarsRevealTitle } from './LiarsDeckPanels';
 import {
-  getLiarsBarCharacter, liarsBarClaimLines, playLiarsBarLines, playLiarsBarSfx, preloadLiarsBarSfx, randomLiarsBarLine,
-  stopLiarsBarLines, stopLiarsBarMusic, type LiarsBarSfx,
+  getLiarsBarCharacter, liarsBarClaimLines, playLiarsBarLines, playLiarsBarMusic, playLiarsBarSfx, preloadLiarsBarSfx, randomLiarsBarLine,
+  stopLiarsBarLines, type LiarsBarSfx,
 } from './liarsBarAssets';
 import { stageSeats, stageSnapshot } from './liarsStageModel';
 import type { LiarsStageEngine, StageTagPosition } from './liarsStageEngine';
@@ -18,7 +18,7 @@ import type { LiarsStageEngine, StageTagPosition } from './liarsStageEngine';
 const VIEW_KEY = 'gameverse:liars-deck-view';
 const VIEW_EVENT = 'gameverse:liars-deck-view';
 const DESKTOP_QUERY = '(min-width: 1024px) and (hover: hover) and (pointer: fine)';
-const PRELOAD: LiarsBarSfx[] = ['card-flip', 'card-pick', 'card-throw', 'fist-table', 'head-fall', 'last-round', 'liar-strike', 'new-round', 'reload', 'roulette-sting', 'ui-click', 'ui-hover'];
+const PRELOAD: LiarsBarSfx[] = ['card-flip', 'card-pick', 'card-switch', 'card-throw', 'card-throw-soft', 'fist-table', 'gunshot', 'head-fall', 'heartbeat', 'last-round', 'liar-strike', 'new-round', 'reload', 'revolver-cock', 'roulette-sting', 'ui-click', 'ui-hover'];
 let webglSupport: boolean | null = null;
 
 function hasWebGL() {
@@ -131,7 +131,6 @@ export function LiarsBarStage3D(props: Readonly<LiarsStageProps>) {
     return () => {
       for (const timer of pending) clearTimeout(timer);
       stopLiarsBarLines();
-      stopLiarsBarMusic();
     };
   }, []);
 
@@ -245,10 +244,7 @@ export function LiarsBarStage3D(props: Readonly<LiarsStageProps>) {
   const shooter = roulette.active && roulette.step !== 'intro' ? shots[roulette.shotIndex] : null;
   const rouletteKey = roulette.active ? `${revealKey}:${roulette.shotIndex}:${roulette.step}` : null;
   useCue(rouletteKey, () => {
-    if (roulette.step === 'intro') {
-      playLiarsBarSfx('roulette-sting', 0.55);
-      return;
-    }
+    if (roulette.step === 'intro') return;
     if (!shooter) return;
     if (roulette.step === 'spin') {
       engineRef.current?.aim(shooter.playerId);
@@ -322,6 +318,7 @@ function StageHud({ view, disabled, onAction, roulette, tablePlayers, introMs, i
   const reveal = view.lastReveal && (view.phase === 'reveal' || view.phase === 'finished') ? view.lastReveal : null;
   const shots = reveal?.shots ?? [];
   const act = (action: LiarsDeckAction) => {
+    playLiarsBarMusic();
     playLiarsBarSfx('ui-click', 0.5);
     onAction(action);
   };

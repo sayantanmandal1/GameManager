@@ -118,54 +118,15 @@ export function playUnoPenalty() {
   setTimeout(() => playTone(220, 0.22, 'sawtooth', 0.09), 120);
 }
 
-// ─── Liar's Deck revolver cues ───
+// ─── Liar's Deck dry-trigger click ───
 function safely(play: () => void) {
   if (typeof window === 'undefined' || typeof window.AudioContext === 'undefined') return;
   try { play(); } catch { /* audio is decorative; autoplay or device limits must never break the table */ }
-}
-
-export function playRevolverSpin() {
-  safely(() => {
-    for (let tick = 0; tick < 9; tick += 1) {
-      setTimeout(() => playTone(1400 - tick * 60, 0.03, 'square', 0.035), tick * (60 + tick * 12));
-    }
-  });
-}
-
-export function playRevolverCock() {
-  safely(() => {
-    playTone(900, 0.04, 'square', 0.07);
-    setTimeout(() => playTone(520, 0.05, 'square', 0.06), 70);
-  });
 }
 
 export function playRevolverClick() {
   safely(() => {
     playTone(1800, 0.025, 'square', 0.09);
     playNoise(0.04, 0.05);
-  });
-}
-
-export function playRevolverShot() {
-  safely(() => {
-    const ctx = getCtx();
-    const duration = 0.9;
-    const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * duration), ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 3);
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(5200, ctx.currentTime);
-    filter.frequency.exponentialRampToValueAtTime(260, ctx.currentTime + duration);
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.55, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-    source.connect(filter);
-    filter.connect(gain);
-    gain.connect(ctx.destination);
-    source.start();
-    playTone(70, 0.35, 'sine', 0.35);
   });
 }

@@ -68,16 +68,28 @@ describe("Liar's Deck table", () => {
     expect(screen.getAllByText('5 cards · 0/6 pulls')).toHaveLength(2);
   });
 
-  it('shows character portraits and plays the three-card voice cue only for a new claim', () => {
+  it('shows character portraits and plays the card and claim audio only for a new claim', () => {
+    const userAgent = navigator.userAgent;
+    const matchMedia = window.matchMedia;
+    Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'Chrome' });
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: () => ({ matches: false, addEventListener: jest.fn(), removeEventListener: jest.fn() }),
+    });
     const play = jest.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
-    const { rerender } = render(<LiarsDeckRenderer view={view} disabled={false} onAction={jest.fn()} />);
-    expect(screen.getAllByRole('img', { name: /portrait for/ })).toHaveLength(2);
+    try {
+      const { rerender } = render(<LiarsDeckRenderer view={view} disabled={false} onAction={jest.fn()} />);
+      expect(screen.getAllByRole('img', { name: /portrait for/ })).toHaveLength(2);
 
-    const claimView = { ...view, pileCount: 3, pendingClaim: { playerId: 'b', count: 3 } };
-    rerender(<LiarsDeckRenderer view={claimView} disabled={false} onAction={jest.fn()} />);
-    expect(play).toHaveBeenCalledTimes(1);
-    rerender(<LiarsDeckRenderer view={claimView} disabled={false} onAction={jest.fn()} />);
-    expect(play).toHaveBeenCalledTimes(1);
+      const claimView = { ...view, pileCount: 3, pendingClaim: { playerId: 'b', count: 3 } };
+      rerender(<LiarsDeckRenderer view={claimView} disabled={false} onAction={jest.fn()} />);
+      expect(play).toHaveBeenCalledTimes(2);
+      rerender(<LiarsDeckRenderer view={claimView} disabled={false} onAction={jest.fn()} />);
+      expect(play).toHaveBeenCalledTimes(2);
+    } finally {
+      Object.defineProperty(navigator, 'userAgent', { configurable: true, value: userAgent });
+      Object.defineProperty(window, 'matchMedia', { configurable: true, value: matchMedia });
+    }
   });
 
   it('explains a resignation pause and lets the host continue without revealed cards', () => {

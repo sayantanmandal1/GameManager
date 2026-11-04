@@ -224,7 +224,7 @@ export class LiarsStageEngine {
     if (!actor || actor.seat.you) {
       this.pendingLand.push({ at: now + 0.55, count });
       this.flyFromCamera(count);
-      this.later(80, () => this.options.onSound('card-throw', 0.6));
+      this.later(80, () => this.options.onSound('card-throw-soft', 0.6));
       return;
     }
     this.playOnce(actor, 'throw');

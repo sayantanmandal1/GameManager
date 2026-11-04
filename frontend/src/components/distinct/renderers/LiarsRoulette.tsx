@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { LIARS_DECK_ROULETTE_TIMING, type LiarsDeckPlayerView, type LiarsDeckShot } from '@/shared';
-import { playRevolverClick, playRevolverCock, playRevolverShot, playRevolverSpin } from '@/lib/sounds';
+import { playRevolverClick } from '@/lib/sounds';
+import { playLiarsBarHeartbeat, playLiarsBarSfx, stopLiarsBarHeartbeat } from './liarsBarAssets';
 import { LiarsCharacterAvatar } from './LiarsCharacterAvatar';
 
 export type RouletteStep = 'intro' | 'spin' | 'trigger' | 'result';
@@ -48,15 +49,22 @@ export function useLiarsRoulette(view: LiarsDeckPlayerView): RouletteProgress {
 
   useEffect(() => {
     if (!active || !revealKey) return;
-    if (stepName === 'spin') playRevolverSpin();
-    else if (stepName === 'trigger') playRevolverCock();
+    if (stepName === 'intro') playLiarsBarSfx('roulette-sting', 0.55);
+    else if (stepName === 'trigger') playLiarsBarSfx('revolver-cock', 0.55);
     else if (stepName === 'result') {
-      if (firedAtCurrent) playRevolverShot();
+      if (firedAtCurrent) playLiarsBarSfx('gunshot', 0.72);
       else playRevolverClick();
     }
     const timer = setTimeout(() => setProgress({ key: revealKey, step: step + 1 }), STEP_MS[stepName]);
     return () => clearTimeout(timer);
   }, [active, firedAtCurrent, revealKey, step, stepName]);
+
+  useEffect(() => {
+    if (active && (stepName === 'spin' || stepName === 'trigger')) playLiarsBarHeartbeat();
+    else stopLiarsBarHeartbeat();
+  }, [active, stepName]);
+
+  useEffect(() => () => stopLiarsBarHeartbeat(), []);
 
   let resolvedCount = shots.length;
   if (active) resolvedCount = stepName === 'result' ? shotIndex + 1 : shotIndex;
