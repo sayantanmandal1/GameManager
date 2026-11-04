@@ -49,17 +49,19 @@ export function useLiarsRoulette(view: LiarsDeckPlayerView, { gunAudio = true }:
 
   useEffect(() => {
     if (!active || !revealKey) return;
-    if (stepName === 'intro') playLiarsBarSfx('roulette-sting', 0.55);
-    else if (gunAudio && stepName === 'trigger') playLiarsBarSfx('revolver-cock', 0.55);
+    if (stepName === 'intro') {
+      if (gunAudio) playLiarsBarSfx('roulette-sting', 0.55);
+    } else if (gunAudio && stepName === 'trigger') playLiarsBarSfx('revolver-cock', 0.55);
     else if (gunAudio && stepName === 'result') playLiarsBarSfx(firedAtCurrent ? 'gunshot' : 'dry-fire', firedAtCurrent ? 0.72 : 0.8);
     const timer = setTimeout(() => setProgress({ key: revealKey, step: step + 1 }), STEP_MS[stepName]);
     return () => clearTimeout(timer);
   }, [active, firedAtCurrent, gunAudio, revealKey, step, stepName]);
 
+  // The original game has no roulette heartbeat (its CountDown loop is the turn timer), so the 3D stage skips it.
   useEffect(() => {
-    if (active && (stepName === 'spin' || stepName === 'trigger')) playLiarsBarHeartbeat();
+    if (gunAudio && active && (stepName === 'spin' || stepName === 'trigger')) playLiarsBarHeartbeat();
     else stopLiarsBarHeartbeat();
-  }, [active, stepName]);
+  }, [active, gunAudio, stepName]);
 
   useEffect(() => () => stopLiarsBarHeartbeat(), []);
 

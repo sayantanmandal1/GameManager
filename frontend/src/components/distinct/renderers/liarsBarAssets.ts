@@ -74,7 +74,7 @@ export const LIARS_BAR_VOICE_LINES: Record<LiarsBarCharacterId, Record<LiarsBarL
 export type LiarsBarLineGroup = 'turn' | 'liar' | 'devil' | 'preshot' | 'count' | 'plural' | 'singular' | 'relief' | 'bold';
 export type LiarsBarSfx = 'card-flip' | 'card-pick' | 'card-switch' | 'card-throw' | 'card-throw-soft' | 'dry-fire' | 'fist-table' | 'head-fall'
   | 'gunshot' | 'heartbeat' | 'last-round' | 'liar-strike' | 'new-round' | 'reload' | 'revolver-cock' | 'roulette-sting'
-  | 'ui-click' | 'ui-hover' | 'winner';
+  | 'ui-click' | 'ui-hover' | 'winner' | 'blood-hit' | 'roulette-dead';
 
 const RANK_LINE_INDEX = { K: 1, Q: 2, A: 3 } as const;
 
@@ -216,6 +216,25 @@ export function playLiarsBarMusic() {
   }
 }
 
+let musicPauseTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Mirrors the original LastRevolverSfx cue, which silences the soundtrack while the sting plays. */
+export function pauseLiarsBarMusicFor(ms: number) {
+  const audio = soundtrackAudio;
+  if (!audio || audio.paused) return;
+  audio.pause();
+  if (musicPauseTimer) clearTimeout(musicPauseTimer);
+  musicPauseTimer = setTimeout(() => {
+    musicPauseTimer = null;
+    if (soundtrackAudio !== audio || winnerAudio) return;
+    void audio.play().catch((error: unknown) => {
+      if (error instanceof Error && !IGNORED_PLAY_ERRORS.has(error.name)) {
+        console.error("Unable to resume the Liar's Bar soundtrack.", error);
+      }
+    });
+  }, ms);
+}
+
 export function playLiarsBarHeartbeat() {
   if (!supportsHtmlAudio() || (heartbeatAudio && !heartbeatAudio.paused)) return;
   heartbeatAudio = new Audio('/liars-bar/sfx/heartbeat.mp3');
@@ -235,6 +254,8 @@ export function stopLiarsBarHeartbeat() {
 
 export function stopLiarsBarMusic() {
   soundtrackGeneration += 1;
+  if (musicPauseTimer) clearTimeout(musicPauseTimer);
+  musicPauseTimer = null;
   soundtrackAudio?.pause();
   soundtrackAudio = null;
   ambienceAudio?.pause();

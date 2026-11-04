@@ -9,7 +9,7 @@ import { rouletteHeadline } from './LiarsRoulette';
 import { LiarsDeckRoundIntro } from './LiarsDeckRoundIntro';
 import { LIARS_RANK_LABELS, LiarsDeckCardFace, LiarsDeckSetupPanel, liarsRevealSummary, liarsRevealTitle } from './LiarsDeckPanels';
 import {
-  getLiarsBarCharacter, liarsBarClaimLines, playLiarsBarLines, playLiarsBarMusic, playLiarsBarSfx, preloadLiarsBarSfx, randomLiarsBarLine,
+  getLiarsBarCharacter, liarsBarClaimLines, pauseLiarsBarMusicFor, playLiarsBarLines, playLiarsBarMusic, playLiarsBarSfx, preloadLiarsBarSfx, randomLiarsBarLine,
   stopLiarsBarLines, type LiarsBarSfx,
 } from './liarsBarAssets';
 import { stageSeats, stageSnapshot } from './liarsStageModel';
@@ -18,7 +18,7 @@ import type { LiarsStageEngine, StageTagPosition } from './liarsStageEngine';
 const VIEW_KEY = 'gameverse:liars-deck-view';
 const VIEW_EVENT = 'gameverse:liars-deck-view';
 const DESKTOP_QUERY = '(min-width: 1024px) and (hover: hover) and (pointer: fine)';
-const PRELOAD: LiarsBarSfx[] = ['card-flip', 'card-pick', 'card-switch', 'card-throw', 'card-throw-soft', 'dry-fire', 'fist-table', 'gunshot', 'head-fall', 'heartbeat', 'last-round', 'liar-strike', 'new-round', 'reload', 'revolver-cock', 'roulette-sting', 'ui-click', 'ui-hover'];
+const PRELOAD: LiarsBarSfx[] = ['blood-hit', 'card-flip', 'card-pick', 'card-switch', 'card-throw', 'card-throw-soft', 'dry-fire', 'fist-table', 'gunshot', 'head-fall', 'last-round', 'liar-strike', 'new-round', 'reload', 'revolver-cock', 'roulette-dead', 'ui-click', 'ui-hover'];
 let webglSupport: boolean | null = null;
 
 function hasWebGL() {
@@ -246,16 +246,23 @@ export function LiarsBarStage3D(props: Readonly<LiarsStageProps>) {
   useCue(rouletteKey, () => {
     if (roulette.step === 'intro') return;
     if (!shooter) return;
+    // Original WaitforRevolver: `roulet` (cock on its GunSfx key) + LastRevolverSfx on later pulls,
+    // BeforeFire line at +4 s, Dead/Empty at +7 s, AfterEmpty line ~1.3 s after a survived click.
     if (roulette.step === 'spin') {
       engineRef.current?.aim(shooter.playerId);
-      say(shooter.playerId, [randomLiarsBarLine(characterOf(shooter.playerId), 'preshot')], 300);
+      if (shooter.pull > 1) {
+        playLiarsBarSfx('last-round', 0.63);
+        pauseLiarsBarMusicFor(10_000);
+      }
+    } else if (roulette.step === 'trigger') {
+      say(shooter.playerId, [randomLiarsBarLine(characterOf(shooter.playerId), 'preshot')]);
     } else if (roulette.step === 'result') {
       if (shooter.fired) {
         stopLiarsBarLines();
         engineRef.current?.fire(shooter.playerId);
       } else {
         engineRef.current?.click(shooter.playerId);
-        say(shooter.playerId, [randomLiarsBarLine(characterOf(shooter.playerId), 'relief')], 700);
+        say(shooter.playerId, [randomLiarsBarLine(characterOf(shooter.playerId), 'relief')], 1300);
       }
     }
   });
@@ -267,8 +274,6 @@ export function LiarsBarStage3D(props: Readonly<LiarsStageProps>) {
     if (view.round === 1) {
       later(350, () => playLiarsBarSfx('reload', 0.55));
       engineRef.current?.reload(active.map((player) => player.id), 3.2);
-    } else if (active.length === 2) {
-      later(1100, () => playLiarsBarSfx('last-round', 0.6));
     }
   });
 

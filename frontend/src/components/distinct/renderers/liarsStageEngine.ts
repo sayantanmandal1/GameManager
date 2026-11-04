@@ -10,8 +10,22 @@ const LOOPING = new Set(['idle', 'look', 'nocard', 'lobby', 'win', 'face']);
 const CARD_W = 0.12;
 const CARD_H = 0.165;
 const CARD_ART = '/liars-bar/cards';
-/** Fallback moments (s) inside the original clips: hammer cock in `roulet`, trigger in `dead`/`empty`. */
-const GUN_TIMES = { cock: 3.2, shot: 0.33, click: 0.33 };
+/**
+ * Moments (s) where the original clips switch on the palm GunSfx/FirSFX/EmptySfx, Blood_Hit, headfall and
+ * FistSfx objects (their AudioSources play on awake): cock in `roulet`, shot/blood/head-fall in `dead`,
+ * click/fist in `empty`. `hammer` layers EmptySfx over the shot; null cock/fist means the clip never fires it.
+ */
+interface GunCues { cock: number | null; shot: number; hammer: boolean; blood: number; headFall: number; click: number; fist: number | null }
+const ORIGINAL_GUN: Record<string, GunCues> = {
+  scubby: { cock: 3.2, shot: 0.167, hammer: true, blood: 0.167, headFall: 0.433, click: 0.167, fist: 1.167 },
+  foxy: { cock: 3.2, shot: 0.167, hammer: true, blood: 0.167, headFall: 0.5, click: 0.167, fist: 1.167 },
+  bristle: { cock: null, shot: 0.267, hammer: true, blood: 0.267, headFall: 4, click: 0.167, fist: 1.267 },
+  toar: { cock: 3.2, shot: 0.167, hammer: true, blood: 0.167, headFall: 1.967, click: 0.167, fist: 1.6 },
+  cupcake: { cock: null, shot: 0, hammer: false, blood: 0, headFall: 1.2, click: 0, fist: 1.033 },
+  gerk: { cock: 3.067, shot: 0.067, hammer: false, blood: 0.167, headFall: 2.867, click: 0.167, fist: null },
+};
+/** Hammer cock for rigs whose roulet clip has no GunSfx key: where the hammer starts moving, else this. */
+const FALLBACK_COCK = 3.2;
 const gltfCache = new Map<string, Promise<GLTF>>();
 
 function loadCharacter(id: string, onBytes: (bytes: number) => void): Promise<GLTF> {
@@ -53,7 +67,7 @@ interface Actor {
   cards: THREE.Object3D[];
   head: THREE.Object3D | null;
   muzzle: THREE.Object3D | null;
-  gunTimes: typeof GUN_TIMES;
+  gun: GunCues & { cock: number };
   chair: THREE.Group;
   throwSoundAt: number;
   throwLandAt: number;
@@ -261,26 +275,29 @@ export class LiarsStageEngine {
     }
   }
 
-  /** Raises the revolver to the temple; the hammer cocks where the original clip draws it back. */
+  /** Raises the revolver to the temple (original `roulet` clip); the hammer cocks on the clip's GunSfx key. */
   aim(id: string) {
     const actor = this.actors.get(id);
     const other = actor && !actor.seat.you ? actor : null;
-    this.later((other?.gunTimes.cock ?? GUN_TIMES.cock) * 1000, () => this.options.onSound('revolver-cock', 0.55));
+    this.later((actor?.gun.cock ?? FALLBACK_COCK) * 1000, () => this.options.onSound('revolver-cock', 0.55));
     if (other) this.playOnce(other, 'roulet', { hold: true });
   }
 
+  /** Original `dead` clip: RouletDeadSfx sting, then FirSFX (+ EmptySfx hammer), muzzle Fx, Blood_Hit and headfall. */
   fire(id: string) {
     const actor = this.actors.get(id);
     const other = actor && !actor.seat.you ? actor : null;
+    const gun = actor?.gun ?? { ...ORIGINAL_GUN.scubby, cock: FALLBACK_COCK };
     if (other) {
       other.base = 'dead';
       if (other.currentName !== 'dead') this.startClip(other, 'dead', { fade: 0.06 });
       other.busy = false;
       other.hold = false;
     }
-    const shotMs = other ? other.gunTimes.shot * 1000 : 40;
-    this.later(shotMs, () => {
-      this.options.onSound('gunshot', 0.72);
+    this.options.onSound('roulette-dead', 0.35);
+    this.later(gun.shot * 1000, () => {
+      this.options.onSound('gunshot', 0.8);
+      if (gun.hammer) this.options.onSound('dry-fire', 0.5);
       const at = new THREE.Vector3();
       if (other) (other.muzzle ?? other.head ?? other.holder).getWorldPosition(at);
       else {
@@ -297,13 +314,25 @@ export class LiarsStageEngine {
       });
       this.kick(0.03);
     });
-    if (other) this.later(Math.max(820, shotMs + 480), () => this.options.onSound('head-fall', 0.75));
+    this.later(gun.blood * 1000, () => {
+      this.options.onSound('blood-hit', 0.7);
+      if (other?.head) this.bloodBurst(other.head, other.muzzle);
+    });
+    this.later(gun.headFall * 1000, () => this.options.onSound('head-fall', 0.75));
   }
 
+  /** Original `empty` clip: EmptySfx click, then the relieved fist on the table (FistSfx) where the clip has one. */
   click(id: string) {
     const actor = this.actors.get(id);
     const other = actor && !actor.seat.you ? actor : null;
-    this.later(other ? other.gunTimes.click * 1000 : 40, () => this.options.onSound('dry-fire', 0.8));
+    const gun = actor?.gun ?? { ...ORIGINAL_GUN.scubby, cock: FALLBACK_COCK };
+    this.later(gun.click * 1000, () => this.options.onSound('dry-fire', 0.7));
+    if (gun.fist !== null) {
+      this.later(gun.fist * 1000, () => {
+        this.options.onSound('fist-table', 0.8);
+        this.kick(0.008);
+      });
+    }
     if (!other) return;
     other.hold = false;
     this.playOnce(other, 'empty');
@@ -355,6 +384,50 @@ export class LiarsStageEngine {
 
   private tween(duration: number, update: (t: number) => void, done?: () => void) {
     this.tweens.push({ start: this.clock.getElapsed(), duration, update, done });
+  }
+
+  /** Blood_Hit stand-in: a short spray of droplets leaving the head away from the muzzle, falling under gravity. */
+  private bloodBurst(head: THREE.Object3D, muzzle: THREE.Object3D | null) {
+    const origin = new THREE.Vector3();
+    head.getWorldPosition(origin);
+    const away = new THREE.Vector3(1, 0.2, 0);
+    if (muzzle) {
+      const from = new THREE.Vector3();
+      muzzle.getWorldPosition(from);
+      away.subVectors(origin, from).setY(0);
+      if (away.lengthSq() < 1e-6) away.set(1, 0, 0);
+      away.normalize().setY(0.25);
+    }
+    const count = this.reducedMotion ? 14 : 42;
+    const positions = new Float32Array(count * 3);
+    const velocities: THREE.Vector3[] = [];
+    for (let i = 0; i < count; i++) {
+      positions.set([origin.x, origin.y, origin.z], i * 3);
+      velocities.push(away.clone().multiplyScalar(0.6 + Math.random() * 1.1).add(new THREE.Vector3((Math.random() - 0.5) * 0.7, Math.random() * 0.6, (Math.random() - 0.5) * 0.7)));
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const material = new THREE.PointsMaterial({ color: 0x7a0606, size: 0.035, transparent: true, opacity: 0.95, depthWrite: false });
+    const points = new THREE.Points(geometry, material);
+    this.scene.add(points);
+    const duration = 0.9;
+    let last = 0;
+    this.tween(duration, (t) => {
+      const dt = (t - last) * duration;
+      last = t;
+      const attribute = geometry.getAttribute('position') as THREE.BufferAttribute;
+      for (let i = 0; i < count; i++) {
+        const v = velocities[i];
+        v.y -= 9.8 * dt * 0.5;
+        attribute.setXYZ(i, attribute.getX(i) + v.x * dt, Math.max(0.02, attribute.getY(i) + v.y * dt), attribute.getZ(i) + v.z * dt);
+      }
+      attribute.needsUpdate = true;
+      material.opacity = 0.95 * (1 - t * t);
+    }, () => {
+      this.scene.remove(points);
+      geometry.dispose();
+      material.dispose();
+    });
   }
 
   private kick(amount: number) {
@@ -520,12 +593,9 @@ export class LiarsStageEngine {
       muzzle = gunMuzzle(handGun);
       (handGun as THREE.Object3D).traverse((node) => { if (/^(Hammer|Trigger)/.test(node.name)) gunParts.push(node.name); });
     }
-    const clipOf = (name: string) => actions.get(name)?.getClip();
-    const gunTimes = {
-      cock: Math.min(motionStart(clipOf('roulet'), gunParts, 1.5) ?? GUN_TIMES.cock, 3.9),
-      shot: motionStart(clipOf('dead'), gunParts) ?? GUN_TIMES.shot,
-      click: motionStart(clipOf('empty'), gunParts) ?? GUN_TIMES.click,
-    };
+    const original = ORIGINAL_GUN[seat.character] ?? ORIGINAL_GUN.scubby;
+    const cock = original.cock ?? Math.min(motionStart(actions.get('roulet')?.getClip(), gunParts, 1.5) ?? FALLBACK_COCK, 3.9);
+    const gun = { ...original, cock };
     const cards = cardGroup ? [...(cardGroup as THREE.Object3D).children]
       .filter((child) => /^kart\d/.test(child.name))
       .sort((a, b) => a.name.localeCompare(b.name)) : [];
@@ -540,7 +610,7 @@ export class LiarsStageEngine {
     const timing = throwClip ? propToggleTimes(throwClip, 'kartucan') : null;
     const actor: Actor = {
       seat, holder, model, mixer, actions, current: null, currentName: '', busy: false, hold: false, holdUntil: 0,
-      posture: 'down', base: 'idle', cards, head, muzzle, gunTimes, chair, angle,
+      posture: 'down', base: 'idle', cards, head, muzzle, gun, chair, angle,
       throwSoundAt: timing?.on ?? 0.9, throwLandAt: timing?.off ?? 1.4,
     };
     mixer.addEventListener('finished', (event) => this.handleFinished(actor, event.action as THREE.AnimationAction));
